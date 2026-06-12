@@ -37,6 +37,17 @@
 ## Fixes to upstream code
 - **tsdown Windows build fix** (`packages/{client,api,data-provider,data-schemas}/tsdown.config.mjs`): upstream's `neverBundle` predicate used `!id.startsWith('/')` to detect project sources, which fails on Windows (`G:\…`), silently externalizing every module and emitting near-empty bundles with no `dist/style.css`. Replaced with `!path.isAbsolute(id)` — identical behavior on Linux, correct on Windows. Good candidate for an upstream PR.
 
+## M4 — Billing, gateways, production (LIVE 2026-06-12 at https://analytikul.ai)
+- ✅ **Organization model** (plan/seats/credits/Stripe ids/settings) — entitlements live in our DB, never read from Stripe at runtime
+- ✅ **BYOK vault**: AES-256-GCM encrypted provider keys (Postgres `billing.vault`, master key env-only), decrypt-per-request, masked display; Keys tab in Preview Rail; agent runs automatically prefer the user's vaulted key
+- ✅ **Stripe module** (one isolated file per BILLING.md): subscription + credits Checkout, webhook → normalized internal events → entitlements (dormant until `STRIPE_*` env set)
+- ✅ **Managed Telegram gateway**: `/link <code>` account binding, per-user agent sessions, replies with agent results (dormant until `TELEGRAM_BOT_TOKEN` set)
+- ✅ **Cron scheduler**: APScheduler + Postgres job store, CRUD API, verified firing real agent runs
+- ✅ **Production**: docker-compose.prod.yml (only app exposed, 127.0.0.1:3180), deploy.sh with preflight+health checks, gen-prod-env.sh (fresh secrets), direct-SSH git deploy to linuxg6, Cloudflare tunnel route + www→apex redirect
+
+## M4 verification record (2026-06-12)
+Public E2E on https://analytikul.ai: registration + login + agent run completed `execute_code` (41×73=2993 ✓) with cost metering ($0.000987) through the tunnel. All 5 internal services healthy from inside the prod network. Vault roundtrip + BYOK-through-Express verified; cron fired a real agent run (`last_status: ok`); 402 budget path verified in M3. Deferred: Stripe test checkout (needs user's Stripe test keys), Telegram round-trip (needs bot token), Playwright E2E suite in CI.
+
 ## M3 — Analytics + organizational memory (shipped 2026-06-11)
 - ✅ **analytics-service** (`services/analytics-service/`): Redis Streams consumer (`XREADGROUP` + `XAUTOCLAIM` crash recovery) → Postgres `analytics` schema (raw `cost_events` + `daily_rollup`), transaction-safe idempotent ingestion; REST: `/summary/{daily,models,users,conversations}`, `/events/recent`, `/summary/unpriced`, `/budgets` CRUD, `/budgets/check`
 - ✅ **Budget enforcement**: per-user/org daily/monthly budgets (hard/soft); Express checks before every agent run → **402** with spend/limit detail when a hard budget is exhausted (fail-open if analytics is down)
