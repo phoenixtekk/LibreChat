@@ -33,3 +33,5 @@ export { default as agentTraceSchema } from './agentTrace';
 export type { IAgentTrace, IAgentTraceStep } from './agentTrace';
 export { default as organizationSchema } from './organization';
 export type { IOrganization } from './organization';
+export { default as noteSchema } from './note';
+export type { INote } from './note';

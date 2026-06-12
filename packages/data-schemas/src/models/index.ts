@@ -35,6 +35,7 @@ import { createFileModel } from './file';
 import { createKeyModel } from './key';
 import { createAgentTraceModel } from './agentTrace';
 import { createOrganizationModel } from './organization';
+import { createNoteModel } from './note';
 
 /**
  * Creates all database models for all collections
@@ -77,6 +78,7 @@ export function createModels(mongoose: typeof import('mongoose')): {
   Config: ReturnType<typeof createConfigModel>;
   AgentTrace: ReturnType<typeof createAgentTraceModel>;
   Organization: ReturnType<typeof createOrganizationModel>;
+  Note: ReturnType<typeof createNoteModel>;
 } {
   return {
     User: createUserModel(mongoose),
@@ -116,5 +118,6 @@ export function createModels(mongoose: typeof import('mongoose')): {
     Config: createConfigModel(mongoose),
     AgentTrace: createAgentTraceModel(mongoose),
     Organization: createOrganizationModel(mongoose),
+    Note: createNoteModel(mongoose),
   };
 }

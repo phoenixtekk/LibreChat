@@ -14,6 +14,7 @@ services:
       - REDIS_URI=redis://redis:6379/0
       - AGENT_DEFAULT_API_KEY=${AGENT_DEFAULT_API_KEY:-}
       - MEMORY_SERVICE_URL=http://memory-service:8012
+      - MONGO_URI=mongodb://mongodb:27017/LibreChat
       - AGENT_IDLE_TTL_S=600
       - AGENT_MAX_CONCURRENT=8
       - AGENT_MAX_PER_USER=2

@@ -82,6 +82,52 @@ export async function getAgentTools(): Promise<unknown> {
 }
 
 /**
+ * Start a run and collect it to completion server-side (no client streaming).
+ * Used for single-turn utility calls like Notes AI actions — still metered,
+ * budgeted, and traced like any other run.
+ */
+export async function collectAgentRun(
+  body: AgentRunBody,
+  ctx: AgentRunContext,
+  timeoutMs = 120_000,
+): Promise<string> {
+  const { taskId } = await startAgentRun(body, ctx);
+  const upstream = await fetch(`${ADAPTER_URL()}/stream/${encodeURIComponent(taskId)}`, {
+    headers: { Accept: 'text/event-stream' },
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  if (!upstream.ok || upstream.body == null) {
+    throw new AdapterError(upstream.status, await safeDetail(upstream));
+  }
+  const reader = upstream.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+    buffer += decoder.decode(value, { stream: true });
+    const frames = buffer.split('\n\n');
+    buffer = frames.pop() ?? '';
+    for (const frame of frames) {
+      const dataLine = frame.split('\n').find((line) => line.startsWith('data: '));
+      if (dataLine == null) {
+        continue;
+      }
+      const event = JSON.parse(dataLine.slice(6)) as AgentStreamEvent;
+      if (event.type === 'done') {
+        return event.final_response ?? '';
+      }
+      if (event.type === 'error') {
+        throw new AdapterError(500, event.message ?? 'agent error');
+      }
+    }
+  }
+  throw new AdapterError(500, 'stream ended without result');
+}
+
+/**
  * Pipe the adapter's SSE stream for a task to an Express response, invoking
  * onEvent for each parsed event (used for trace persistence).
  */

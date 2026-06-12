@@ -52,6 +52,12 @@ export default function CommandPalette({
         run: onTogglePreviewRail,
       },
       {
+        id: 'open-notes',
+        label: localize('com_atk_open_notes'),
+        hint: localize('com_atk_navigation'),
+        run: () => navigate('/notes'),
+      },
+      {
         id: 'open-costs',
         label: localize('com_atk_open_costs'),
         hint: localize('com_atk_panels'),

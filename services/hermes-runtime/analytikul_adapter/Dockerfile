@@ -25,7 +25,7 @@ RUN uv pip install --system --no-cache playwright \
     && playwright install --with-deps chromium
 
 # Provider extras (lazy deps in the runtime; required at run time)
-RUN uv pip install --system --no-cache "anthropic>=0.39.0"
+RUN uv pip install --system --no-cache "anthropic>=0.39.0" "pymongo>=4.10"
 
 RUN useradd -m -u 10001 agent \
     && mkdir -p /data/hermes/sandboxes \

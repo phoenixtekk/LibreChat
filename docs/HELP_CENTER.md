@@ -58,6 +58,19 @@ feature. (Sections are added as features ship; see FEATURES.md for status.)
   team memories are quietly provided to the agent before it answers.
 - Delete outdated entries with the ✕ on each card.
 
+## Notes
+- Open Notes from the command palette (<kbd>Ctrl</kbd>+<kbd>K</kbd> → "Open Notes") or go to `/notes`.
+- **Write in markdown** with the toolbar (bold, headings, lists, ☑ task lists, code) — your work
+  autosaves as you type, and Preview shows the rendered note.
+- **AI assist**: select text (or nothing for the whole note) and click **AI: Enhance** to fix and
+  tighten it in place, **AI: Summarize** for bullet points, or **AI: Continue** to keep writing in
+  your style. These use your API key and show up in your Costs dashboard like any other AI call.
+- **Pin** important notes to the top, **search** from the box above the list, **Export .md** to
+  download, and **Share with org** to let teammates (and their agents) read a note.
+- **Your agent can use your notes**: ask it things like *"search my notes for the deployment
+  checklist"* or *"write a note summarizing this conversation"* — it has `search_notes`,
+  `view_note`, and `write_note` tools scoped safely to your own notes.
+
 ## Coming soon (placeholders, filled in as each milestone ships)
 - **Agent tasks & the Preview Rail** (M2): watch your agent browse, run code, and produce files
   live in a side panel; inspect every step and its cost in the Trace view.

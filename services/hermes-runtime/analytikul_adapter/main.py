@@ -42,6 +42,12 @@ def _register_tools() -> None:
         register_memory_tool()
     except Exception:
         logger.exception("save_to_org_memory registration failed (runs continue without it)")
+    try:
+        from analytikul_adapter.notes_tools import register_notes_tools
+
+        register_notes_tools()
+    except Exception:
+        logger.exception("notes tools registration failed (runs continue without them)")
 
 
 class RunRequest(BaseModel):

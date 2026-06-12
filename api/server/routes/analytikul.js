@@ -3,6 +3,7 @@ const express = require('express');
 const { logger } = require('@librechat/data-schemas');
 const {
   startAgentRun,
+  collectAgentRun,
   cancelAgentRun,
   getAgentTools,
   pipeAgentStream,
@@ -15,7 +16,7 @@ const {
   AdapterError,
 } = require('@librechat/api');
 const requireJwtAuth = require('~/server/middleware/requireJwtAuth');
-const { AgentTrace } = require('~/db/models');
+const { AgentTrace, Note } = require('~/db/models');
 
 const router = express.Router();
 const taskMeta = new Map();
@@ -187,6 +188,137 @@ router.delete('/keys/:provider', async (req, res) => {
     req.user.tenantId ?? 'default',
   );
   res.status(deleted ? 200 : 404).json({ deleted });
+});
+
+/* ---------------- Notes (Open WebUI-parity notes workspace) ---------------- */
+
+const noteScope = (req) => ({
+  $or: [{ user: req.user.id }, { tenantId: req.user.tenantId ?? 'default', sharedWithOrg: true }],
+});
+
+router.get('/notes', async (req, res) => {
+  try {
+    const q = (req.query.q ?? '').toString().trim();
+    const filter = q
+      ? { $and: [noteScope(req), { $or: [{ title: { $regex: q, $options: 'i' } }, { content: { $regex: q, $options: 'i' } }] }] }
+      : noteScope(req);
+    const notes = await Note.find(filter)
+      .select('title user sharedWithOrg pinnedBy updatedAt createdAt')
+      .sort({ updatedAt: -1 })
+      .limit(200)
+      .lean();
+    res.status(200).json({ notes });
+  } catch (error) {
+    logger.error('[analytikul] notes list failed', error);
+    res.status(500).json({ message: 'failed to list notes' });
+  }
+});
+
+router.post('/notes', async (req, res) => {
+  try {
+    const note = await Note.create({
+      user: req.user.id,
+      tenantId: req.user.tenantId ?? 'default',
+      title: req.body?.title ?? 'Untitled',
+      content: req.body?.content ?? '',
+    });
+    res.status(201).json({ note });
+  } catch (error) {
+    logger.error('[analytikul] note create failed', error);
+    res.status(500).json({ message: 'failed to create note' });
+  }
+});
+
+router.get('/notes/:id', async (req, res) => {
+  const note = await Note.findOne({ _id: req.params.id, ...noteScope(req) }).lean();
+  if (note == null) {
+    return res.status(404).json({ message: 'note not found' });
+  }
+  res.status(200).json({ note });
+});
+
+router.put('/notes/:id', async (req, res) => {
+  const update = {};
+  for (const field of ['title', 'content', 'sharedWithOrg']) {
+    if (req.body?.[field] !== undefined) {
+      update[field] = req.body[field];
+    }
+  }
+  const note = await Note.findOneAndUpdate(
+    { _id: req.params.id, user: req.user.id },
+    { $set: update },
+    { new: true },
+  ).lean();
+  if (note == null) {
+    return res.status(404).json({ message: 'note not found or not yours' });
+  }
+  res.status(200).json({ note });
+});
+
+router.delete('/notes/:id', async (req, res) => {
+  const result = await Note.deleteOne({ _id: req.params.id, user: req.user.id });
+  res.status(result.deletedCount > 0 ? 200 : 404).json({ deleted: result.deletedCount > 0 });
+});
+
+router.post('/notes/:id/pin', async (req, res) => {
+  const note = await Note.findOne({ _id: req.params.id, ...noteScope(req) });
+  if (note == null) {
+    return res.status(404).json({ message: 'note not found' });
+  }
+  const pinned = note.pinnedBy.includes(req.user.id);
+  await Note.updateOne(
+    { _id: note._id },
+    pinned ? { $pull: { pinnedBy: req.user.id } } : { $addToSet: { pinnedBy: req.user.id } },
+    { timestamps: false },
+  );
+  res.status(200).json({ pinned: !pinned });
+});
+
+const NOTE_AI_PROMPTS = {
+  enhance:
+    'Improve the following text: fix grammar and spelling, tighten wording, keep the original meaning, tone, language, and markdown formatting. Reply with ONLY the improved text, no preamble.',
+  summarize:
+    'Summarize the following text as concise markdown bullet points. Reply with ONLY the summary, no preamble.',
+  continue:
+    'Continue writing the following text in the same style, tone, and language. Reply with ONLY the continuation (do not repeat the original), no preamble.',
+};
+
+router.post('/notes/ai', async (req, res) => {
+  try {
+    const { action, text, noteId } = req.body ?? {};
+    const prompt = NOTE_AI_PROMPTS[action];
+    if (!prompt || typeof text !== 'string' || text.trim() === '') {
+      return res.status(400).json({ message: 'action (enhance|summarize|continue) and text required' });
+    }
+    const budget = await checkBudget(req.user.id, req.user.tenantId ?? 'default');
+    if (!budget.allowed) {
+      return res.status(402).json({ message: 'Budget exceeded', budget });
+    }
+    const effectiveProvider = process.env.AGENT_DEFAULT_PROVIDER ?? 'anthropic';
+    const vaultedKey = await getVaultedKey(req.user.id, effectiveProvider, req.user.tenantId ?? 'default');
+    const result = await collectAgentRun(
+      {
+        message: `${prompt}\n\n<text>\n${text.slice(0, 24000)}\n</text>`,
+        conversationId: `note-${noteId ?? 'scratch'}`,
+        model: process.env.AGENT_DEFAULT_MODEL,
+        provider: effectiveProvider,
+        baseUrl: process.env.AGENT_DEFAULT_BASE_URL,
+        // Smallest real toolset: an empty list is falsy in the runtime and would
+        // enable everything. 'todo' gives one harmless tool the model won't use.
+        enabledToolsets: ['todo'],
+      },
+      {
+        userId: req.user.id,
+        tenantId: req.user.tenantId,
+        apiKey: vaultedKey ?? process.env.AGENT_DEFAULT_API_KEY,
+      },
+    );
+    res.status(200).json({ result });
+  } catch (error) {
+    logger.error('[analytikul] note ai failed', error);
+    const status = error instanceof AdapterError ? error.status : 500;
+    res.status(status).json({ message: error.message ?? 'note ai failed' });
+  }
 });
 
 const GATEWAY_URL = process.env.GATEWAY_SERVICE_URL ?? 'http://localhost:8014';

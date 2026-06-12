@@ -37,6 +37,14 @@
 ## Fixes to upstream code
 - **tsdown Windows build fix** (`packages/{client,api,data-provider,data-schemas}/tsdown.config.mjs`): upstream's `neverBundle` predicate used `!id.startsWith('/')` to detect project sources, which fails on Windows (`G:\…`), silently externalizing every module and emitting near-empty bundles with no `dist/style.css`. Replaced with `!path.isAbsolute(id)` — identical behavior on Linux, correct on Windows. Good candidate for an upstream PR.
 
+## Notes workspace (Open WebUI parity — shipped 2026-06-12)
+- ✅ `/notes` route: searchable note list (per-user pins first), markdown editor with formatting toolbar (bold/italic/heading/lists/tasks/code), live preview (react-markdown+GFM), word count, debounced autosave, export `.md`, delete, org-share toggle
+- ✅ **AI actions** (Enhance / Summarize / Continue — selection-aware, replace-in-place): run as toolless metered agent calls through the adapter → BYOK keys, budgets (402), and cost dashboard all apply automatically
+- ✅ **Agent tools**: `search_notes`, `view_note`, `write_note` registered in the Hermes registry, scoped to the acting user's own + org-shared notes (`analytikul_adapter/notes_tools.py`)
+- ✅ Backend: `Note` Mongo model (`packages/data-schemas`), CRUD/search/pin/AI routes in `/api/analytikul/notes*`
+- 📋 Deferred (phase 2): audio recording + transcription, real-time collaborative editing (Y.js), share links/grants beyond org-share, folders/tags
+- Verification: created/typed/autosaved in browser; AI Enhance corrected a typo-filled note in place; agent created "Deployment Checklist" via `write_note` and it appeared in the list; search matched.
+
 ## M4 — Billing, gateways, production (LIVE 2026-06-12 at https://analytikul.ai)
 - ✅ **Organization model** (plan/seats/credits/Stripe ids/settings) — entitlements live in our DB, never read from Stripe at runtime
 - ✅ **BYOK vault**: AES-256-GCM encrypted provider keys (Postgres `billing.vault`, master key env-only), decrypt-per-request, masked display; Keys tab in Preview Rail; agent runs automatically prefer the user's vaulted key
