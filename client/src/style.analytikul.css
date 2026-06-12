@@ -1,0 +1,283 @@
+/* ============================================================================
+   Analytikul theme system — loaded AFTER LibreChat's style.css.
+   8 paired skins (4 families × light/dark) + 6 accent palettes.
+
+   How it works: LibreChat derives every surface/border/text color from the
+   --gray-* ramp in style.css. Each skin re-tints that ramp once on
+   html[data-skin='…']; the existing light/dark toggle (.dark class) then
+   produces the paired variant automatically. Accents override the submit/brand
+   variables on html[data-accent='…'].
+
+   This file is the ONLY place hex literals are allowed on the client
+   (enforced by the analytikul/no-hardcoded-color ESLint rule).
+   ========================================================================== */
+
+/* ----- Skin: aurora — deep navy-black, cool blue-tinted ramp (default) ---- */
+html[data-skin='aurora'] {
+  --gray-20: #e8ecf4;
+  --gray-50: #f4f6fb;
+  --gray-100: #e9edf5;
+  --gray-200: #dde2ee;
+  --gray-300: #c3cadd;
+  --gray-400: #8e96b0;
+  --gray-500: #555e7b;
+  --gray-600: #3c445f;
+  --gray-700: #2a3148;
+  --gray-800: #1d2235;
+  --gray-850: #151929;
+  --gray-900: #0c0f1d;
+}
+
+/* ----- Skin: ember — warm charcoal / cream, amber-leaning ramp ------------ */
+html[data-skin='ember'] {
+  --gray-20: #f2ede6;
+  --gray-50: #faf6f0;
+  --gray-100: #f1ebe2;
+  --gray-200: #e7dfd3;
+  --gray-300: #d2c7b6;
+  --gray-400: #a39684;
+  --gray-500: #6b6155;
+  --gray-600: #4d453c;
+  --gray-700: #38322b;
+  --gray-800: #272320;
+  --gray-850: #1c1917;
+  --gray-900: #121110;
+}
+
+/* ----- Skin: verdant — slate-green tint --------------------------------- */
+html[data-skin='verdant'] {
+  --gray-20: #e8f0ec;
+  --gray-50: #f3f8f5;
+  --gray-100: #e8f0eb;
+  --gray-200: #dbe7e0;
+  --gray-300: #c0d2c8;
+  --gray-400: #8da89a;
+  --gray-500: #57705f;
+  --gray-600: #3f5347;
+  --gray-700: #2d3c33;
+  --gray-800: #202b25;
+  --gray-850: #171f1a;
+  --gray-900: #0e1411;
+}
+
+/* ----- Skin: slate — LibreChat's stock neutral ramp, stated explicitly ---- */
+html[data-skin='slate'] {
+  --gray-20: #ececf1;
+  --gray-50: #f7f7f8;
+  --gray-100: #ececec;
+  --gray-200: #e3e3e3;
+  --gray-300: #cdcdcd;
+  --gray-400: #999696;
+  --gray-500: #595959;
+  --gray-600: #424242;
+  --gray-700: #2f2f2f;
+  --gray-800: #212121;
+  --gray-850: #171717;
+  --gray-900: #0d0d0d;
+}
+
+/* ----- Accents: drive submit buttons, brand highlights, focus rings ------- */
+html[data-accent='indigo'] {
+  --accent-400: #818cf8;
+  --accent-500: #6366f1;
+  --accent-600: #4f46e5;
+  --accent-700: #4338ca;
+}
+html[data-accent='amber'] {
+  --accent-400: #fbbf24;
+  --accent-500: #f59e0b;
+  --accent-600: #d97706;
+  --accent-700: #b45309;
+}
+html[data-accent='emerald'] {
+  --accent-400: #34d399;
+  --accent-500: #10b981;
+  --accent-600: #059669;
+  --accent-700: #047857;
+}
+html[data-accent='rose'] {
+  --accent-400: #fb7185;
+  --accent-500: #f43f5e;
+  --accent-600: #e11d48;
+  --accent-700: #be123c;
+}
+html[data-accent='cyan'] {
+  --accent-400: #22d3ee;
+  --accent-500: #06b6d4;
+  --accent-600: #0891b2;
+  --accent-700: #0e7490;
+}
+html[data-accent='violet'] {
+  --accent-400: #a78bfa;
+  --accent-500: #8b5cf6;
+  --accent-600: #7c3aed;
+  --accent-700: #6d28d9;
+}
+
+/* Map accent onto LibreChat semantic variables (light + dark) */
+html[data-accent] {
+  --brand-purple: var(--accent-500);
+  --surface-submit: var(--accent-600);
+  --surface-submit-hover: var(--accent-700);
+  --ring-primary: var(--accent-500);
+}
+html[data-accent].dark {
+  --surface-submit: var(--accent-600);
+  --surface-submit-hover: var(--accent-500);
+}
+
+/* ============================================================================
+   Analytikul component styles (CSS variables only below this line)
+   ========================================================================== */
+
+.atk-command-palette-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgb(0 0 0 / 0.45);
+  backdrop-filter: blur(2px);
+}
+
+.atk-command-palette {
+  position: fixed;
+  left: 50%;
+  top: 18%;
+  z-index: 1001;
+  width: min(640px, calc(100vw - 2rem));
+  transform: translateX(-50%);
+  border: 1px solid var(--border-medium);
+  border-radius: 0.75rem;
+  background: var(--surface-dialog);
+  color: var(--text-primary);
+  box-shadow: 0 24px 64px rgb(0 0 0 / 0.35);
+  overflow: hidden;
+}
+
+.atk-command-palette input {
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid var(--border-light);
+  background: transparent;
+  color: var(--text-primary);
+  padding: 0.875rem 1rem;
+  font-size: var(--font-size-base);
+  outline: none;
+}
+
+.atk-command-palette-list {
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 0.375rem;
+}
+
+.atk-command-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  border-radius: 0.5rem;
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  text-align: left;
+  cursor: pointer;
+}
+.atk-command-item[data-active='true'] {
+  background: var(--surface-active);
+}
+.atk-command-item .atk-command-hint {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+}
+
+.atk-preview-rail {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 900;
+  height: 100dvh;
+  width: min(440px, 92vw);
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--border-medium);
+  background: var(--surface-primary-alt);
+  color: var(--text-primary);
+  box-shadow: -16px 0 48px rgb(0 0 0 / 0.25);
+  transform: translateX(100%);
+  transition: transform 240ms cubic-bezier(0.2, 0, 0, 1);
+}
+.atk-preview-rail[data-open='true'] {
+  transform: translateX(0);
+}
+
+/* Mobile: bottom sheet instead of side rail */
+@media (max-width: 768px) {
+  .atk-preview-rail {
+    top: auto;
+    bottom: 0;
+    height: 60dvh;
+    width: 100vw;
+    border-left: 0;
+    border-top: 1px solid var(--border-medium);
+    transform: translateY(100%);
+  }
+  .atk-preview-rail[data-open='true'] {
+    transform: translateY(0);
+  }
+}
+
+.atk-preview-rail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.625rem 0.875rem;
+  border-bottom: 1px solid var(--border-light);
+  background: var(--surface-secondary);
+}
+
+.atk-preview-rail-tabs {
+  display: flex;
+  gap: 0.25rem;
+}
+.atk-preview-rail-tab {
+  padding: 0.3rem 0.7rem;
+  border-radius: 0.45rem;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.atk-preview-rail-tab[data-active='true'] {
+  background: var(--surface-active);
+  color: var(--text-primary);
+}
+
+.atk-preview-rail-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.875rem;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.atk-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 0.5rem;
+  text-align: center;
+  color: var(--text-tertiary);
+}
+
+kbd.atk-kbd {
+  border: 1px solid var(--border-medium);
+  border-bottom-width: 2px;
+  border-radius: 0.3rem;
+  background: var(--surface-tertiary);
+  color: var(--text-secondary);
+  padding: 0.05rem 0.35rem;
+  font-size: var(--font-size-xs);
+  font-family: inherit;
+}

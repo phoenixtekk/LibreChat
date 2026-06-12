@@ -1,0 +1,16 @@
+{
+  "name": "@analytikul/memory-service",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Organizational memory: pgvector store with RLS, lineage, local-embedding retrieval",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "node src/index.js",
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "@xenova/transformers": "^2.17.2",
+    "pg": "^8.13.1"
+  }
+}

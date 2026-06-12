@@ -1,12 +1,15 @@
 {
-  "name": "LibreChat",
+  "name": "analytikul",
   "version": "v0.8.6",
-  "description": "",
+  "description": "Analytikul — analytics-native AI workspace (LibreChat fork + Hermes Agent engine)",
   "packageManager": "npm@11.13.0",
   "workspaces": [
     "api",
     "client",
-    "packages/*"
+    "packages/*",
+    "services/analytics-service",
+    "services/memory-service",
+    "services/billing-service"
   ],
   "scripts": {
     "update": "node config/update.js",

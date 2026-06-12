@@ -1,3 +1,9 @@
 # Force LF line endings for shell scripts and git hooks (required for cross-platform compatibility)
 .husky/* text eol=lf
 *.sh text eol=lf
+
+# Analytikul: cross-platform parity (Windows dev / Linux prod)
+services/**/*.py text eol=lf
+services/**/*.yml text eol=lf
+services/**/*.yaml text eol=lf
+services/** text eol=lf

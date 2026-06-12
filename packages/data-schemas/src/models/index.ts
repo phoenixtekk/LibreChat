@@ -33,6 +33,7 @@ import { createUserModel } from './user';
 import { createRoleModel } from './role';
 import { createFileModel } from './file';
 import { createKeyModel } from './key';
+import { createAgentTraceModel } from './agentTrace';
 
 /**
  * Creates all database models for all collections
@@ -73,6 +74,7 @@ export function createModels(mongoose: typeof import('mongoose')): {
   SystemGrant: ReturnType<typeof createSystemGrantModel>;
   Group: ReturnType<typeof createGroupModel>;
   Config: ReturnType<typeof createConfigModel>;
+  AgentTrace: ReturnType<typeof createAgentTraceModel>;
 } {
   return {
     User: createUserModel(mongoose),
@@ -110,5 +112,6 @@ export function createModels(mongoose: typeof import('mongoose')): {
     SystemGrant: createSystemGrantModel(mongoose),
     Group: createGroupModel(mongoose),
     Config: createConfigModel(mongoose),
+    AgentTrace: createAgentTraceModel(mongoose),
   };
 }

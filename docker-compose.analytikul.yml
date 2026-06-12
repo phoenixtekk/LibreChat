@@ -1,0 +1,109 @@
+# Analytikul services layered on top of the upstream LibreChat compose stack.
+# Upstream docker-compose.yml is never edited (upstream-drift rule).
+# Included via COMPOSE_FILE=docker-compose.yml:docker-compose.analytikul.yml in .env
+# (upstream gitignores docker-compose.override.yml, so that name can't be tracked).
+
+services:
+  hermes-adapter:
+    container_name: analytikul-hermes-adapter
+    build:
+      context: ./services/hermes-runtime
+      dockerfile: analytikul_adapter/Dockerfile
+    restart: always
+    environment:
+      - REDIS_URI=redis://redis:6379/0
+      - AGENT_DEFAULT_API_KEY=${AGENT_DEFAULT_API_KEY:-}
+      - MEMORY_SERVICE_URL=http://memory-service:8012
+      - AGENT_IDLE_TTL_S=600
+      - AGENT_MAX_CONCURRENT=8
+      - AGENT_MAX_PER_USER=2
+    volumes:
+      - hermes-home:/data/hermes
+    ports:
+      - "8001:8001"
+    depends_on:
+      - redis
+
+  redis:
+    container_name: analytikul-redis
+    image: redis:7-alpine
+    restart: always
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+
+  # Dev-only: expose Mongo/Meili to the host so the backend can run natively
+  # (npm run backend) against the compose services. Localhost-bound only.
+  mongodb:
+    ports:
+      - "127.0.0.1:27017:27017"
+
+  meilisearch:
+    ports:
+      - "127.0.0.1:7700:7700"
+
+  analytics-service:
+    container_name: analytikul-analytics
+    image: node:24-alpine
+    restart: always
+    working_dir: /app
+    command: sh -c "npm install --omit=dev --no-audit --no-fund && node src/index.js"
+    environment:
+      - ANALYTICS_PORT=8011
+      - REDIS_URI=redis://redis:6379/0
+      - ANALYTICS_PG_URI=postgresql://myuser:mypassword@vectordb:5432/mydatabase
+    volumes:
+      - ./services/analytics-service:/app
+    ports:
+      - "8011:8011"
+    depends_on:
+      - redis
+      - vectordb
+
+  memory-service:
+    container_name: analytikul-memory
+    # bookworm (glibc), not alpine: onnxruntime-node (transformers.js) has no musl build
+    image: node:24-bookworm-slim
+    restart: always
+    working_dir: /app
+    command: sh -c "npm install --omit=dev --no-audit --no-fund && node src/index.js"
+    environment:
+      - MEMORY_PORT=8012
+      - MEMORY_PG_URI=postgresql://myuser:mypassword@vectordb:5432/mydatabase
+      - MODEL_CACHE_DIR=/models
+    volumes:
+      - ./services/memory-service:/app
+      - embedder-models:/models
+    ports:
+      - "8012:8012"
+    depends_on:
+      - vectordb
+
+  billing-service:
+    container_name: analytikul-billing
+    image: node:24-alpine
+    restart: always
+    working_dir: /app
+    command: node src/index.js
+    environment:
+      - BILLING_PORT=8013
+    volumes:
+      - ./services/billing-service:/app
+    ports:
+      - "8013:8013"
+
+  gateway-service:
+    container_name: analytikul-gateway
+    image: python:3.11-slim
+    restart: always
+    working_dir: /app
+    command: sh -c "pip install --no-cache-dir -q fastapi 'uvicorn[standard]' && uvicorn main:app --host 0.0.0.0 --port 8014"
+    volumes:
+      - ./services/gateway-service:/app
+    ports:
+      - "8014:8014"
+
+volumes:
+  embedder-models:
+  hermes-home:
+  redis-data:
