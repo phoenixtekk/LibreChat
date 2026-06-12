@@ -189,6 +189,23 @@ router.delete('/keys/:provider', async (req, res) => {
   res.status(deleted ? 200 : 404).json({ deleted });
 });
 
+const GATEWAY_URL = process.env.GATEWAY_SERVICE_URL ?? 'http://localhost:8014';
+
+router.post('/telegram/link-code', async (req, res) => {
+  try {
+    const upstream = await fetch(`${GATEWAY_URL}/telegram/link-code`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ org_id: req.user.tenantId ?? 'default', user_id: req.user.id }),
+      signal: AbortSignal.timeout(5000),
+    });
+    res.status(upstream.status).json(await upstream.json());
+  } catch (error) {
+    logger.error('[analytikul] telegram link-code failed', error);
+    res.status(502).json({ message: 'gateway unavailable' });
+  }
+});
+
 const MEMORY_URL = process.env.MEMORY_SERVICE_URL ?? 'http://localhost:8012';
 
 router.get('/memory', async (req, res) => {

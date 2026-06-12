@@ -171,6 +171,34 @@ const startServer = async () => {
     return res.status(200).send('OK');
   });
 
+  /* Stripe webhook needs the raw body for signature verification — mounted
+   * before the JSON parser. Forwards verbatim to the internal billing-service;
+   * Stripe authenticates via its signature header, not JWT. */
+  app.post(
+    '/api/analytikul/webhooks/stripe',
+    express.raw({ type: 'application/json', limit: '1mb' }),
+    async (req, res) => {
+      try {
+        const upstream = await fetch(
+          `${process.env.BILLING_SERVICE_URL ?? 'http://localhost:8013'}/webhooks/stripe`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'stripe-signature': req.headers['stripe-signature'] ?? '',
+            },
+            body: req.body,
+            signal: AbortSignal.timeout(10000),
+          },
+        );
+        res.status(upstream.status).json(await upstream.json());
+      } catch (error) {
+        logger.error('[analytikul] stripe webhook forward failed', error);
+        res.status(502).json({ error: 'billing unavailable' });
+      }
+    },
+  );
+
   /* Middleware */
   app.use(metricsMiddleware);
   app.use(noIndex);
