@@ -10,6 +10,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      # host network at BUILD time only: linuxg6's default bridge has no working
+      # DNS (host resolv.conf is the systemd-resolved stub); runtime networking
+      # uses the compose network's embedded DNS and is unaffected.
+      network: host
     restart: always
     ports:
       - "127.0.0.1:3180:3080"
@@ -89,6 +93,7 @@ services:
     build:
       context: ./services/hermes-runtime
       dockerfile: analytikul_adapter/Dockerfile
+      network: host
     restart: always
     environment:
       - REDIS_URI=redis://redis:6379/0
