@@ -39,7 +39,9 @@ services:
 
   mongodb:
     container_name: analytikul-mongodb
-    image: mongo:7
+    # mongo:4.4 — last release without the AVX CPU requirement (linuxg6 has no AVX;
+    # exit 132/SIGILL on mongo>=5). Matches the proven setup already on this host.
+    image: mongo:4.4
     restart: always
     command: mongod --noauth
     volumes:
