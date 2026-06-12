@@ -25,6 +25,9 @@ const compat = new FlatCompat({
 
 export default [
   {
+    ignores: ['services/hermes-runtime/**'],
+  },
+  {
     files: ['client/src/components/analytikul/**/*.{ts,tsx,js,jsx}'],
     plugins: { analytikul },
     rules: {
