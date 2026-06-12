@@ -180,3 +180,79 @@ export class AdapterError extends Error {
     this.status = status;
   }
 }
+
+const BILLING_URL = () => process.env.BILLING_SERVICE_URL ?? 'http://localhost:8013';
+
+export interface VaultKeyInfo {
+  provider: string;
+  key_hint: string;
+  created_at: string;
+}
+
+/** Resolve the user's vaulted key for a provider; null if none stored. */
+export async function getVaultedKey(
+  userId: string,
+  provider: string,
+  orgId = 'default',
+): Promise<string | null> {
+  try {
+    const res = await fetch(`${BILLING_URL()}/vault/key`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orgId, userId, provider }),
+      signal: AbortSignal.timeout(4000),
+    });
+    if (!res.ok) {
+      return null;
+    }
+    const body = (await res.json()) as { apiKey?: string };
+    return body.apiKey ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function listVaultKeys(userId: string, orgId = 'default'): Promise<VaultKeyInfo[]> {
+  const res = await fetch(
+    `${BILLING_URL()}/vault/keys?userId=${encodeURIComponent(userId)}&orgId=${encodeURIComponent(orgId)}`,
+    { signal: AbortSignal.timeout(4000) },
+  );
+  if (!res.ok) {
+    throw new AdapterError(res.status, 'vault unavailable');
+  }
+  const body = (await res.json()) as { keys: VaultKeyInfo[] };
+  return body.keys;
+}
+
+export async function putVaultKey(
+  userId: string,
+  provider: string,
+  apiKey: string,
+  orgId = 'default',
+): Promise<{ provider: string; hint: string }> {
+  const res = await fetch(`${BILLING_URL()}/vault/keys`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ orgId, userId, provider, apiKey }),
+    signal: AbortSignal.timeout(6000),
+  });
+  if (!res.ok) {
+    throw new AdapterError(res.status, 'vault rejected key');
+  }
+  const body = (await res.json()) as { key: { provider: string; hint: string } };
+  return body.key;
+}
+
+export async function deleteVaultKey(
+  userId: string,
+  provider: string,
+  orgId = 'default',
+): Promise<boolean> {
+  const res = await fetch(`${BILLING_URL()}/vault/keys`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ orgId, userId, provider }),
+    signal: AbortSignal.timeout(4000),
+  });
+  return res.ok;
+}

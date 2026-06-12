@@ -1843,5 +1843,14 @@
   "com_atk_memory_placeholder": "Save a fact for the whole team…",
   "com_atk_memory_save": "Save",
   "com_atk_memory_delete": "Delete memory",
-  "com_atk_memory_unavailable": "Memory service unavailable"
+  "com_atk_memory_unavailable": "Memory service unavailable",
+  "com_atk_keys": "Keys",
+  "com_atk_keys_title": "Your API keys",
+  "com_atk_keys_blurb": "Bring your own provider keys. Keys are encrypted at rest (AES-256-GCM) and never shown again after saving — agent runs automatically use your key.",
+  "com_atk_keys_placeholder": "Paste API key…",
+  "com_atk_keys_provider": "Provider",
+  "com_atk_keys_save": "Save key",
+  "com_atk_keys_empty": "No keys saved. Runs currently use the server default key.",
+  "com_atk_keys_delete": "Delete key",
+  "com_atk_keys_unavailable": "Key vault unavailable"
 }

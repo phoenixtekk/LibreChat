@@ -31,3 +31,5 @@ export { default as systemGrantSchema } from './systemGrant';
 export { default as configSchema } from './config';
 export { default as agentTraceSchema } from './agentTrace';
 export type { IAgentTrace, IAgentTraceStep } from './agentTrace';
+export { default as organizationSchema } from './organization';
+export type { IOrganization } from './organization';

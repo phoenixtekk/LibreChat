@@ -3,10 +3,11 @@ import { useLocalize } from '~/hooks';
 import AgentPanel from './AgentPanel';
 import AnalyticsDashboard from './AnalyticsDashboard';
 import OrgMemoryPanel from './OrgMemoryPanel';
+import KeysPanel from './KeysPanel';
 import { OutputRenderer, latestRenderableOutput } from './renderers';
 import type { AgentStreamApi } from './useAgentStream';
 
-export type RailTab = 'agent' | 'preview' | 'costs' | 'memory' | 'files';
+export type RailTab = 'agent' | 'preview' | 'costs' | 'memory' | 'keys' | 'files';
 
 /**
  * Preview Rail — Hermes Desktop's side-by-side output panel. Agent tab launches
@@ -41,6 +42,7 @@ export default function PreviewRail({
     { id: 'preview', label: localize('com_atk_preview') },
     { id: 'costs', label: localize('com_atk_costs') },
     { id: 'memory', label: localize('com_atk_memory') },
+    { id: 'keys', label: localize('com_atk_keys') },
     { id: 'files', label: localize('com_atk_files') },
   ];
 
@@ -82,6 +84,7 @@ export default function PreviewRail({
         {tab === 'agent' && <AgentPanel stream={stream} />}
         {tab === 'costs' && <AnalyticsDashboard />}
         {tab === 'memory' && <OrgMemoryPanel />}
+        {tab === 'keys' && <KeysPanel />}
         {tab === 'preview' &&
           (latestOutput != null ? (
             <OutputRenderer output={latestOutput} />

@@ -84,24 +84,45 @@ services:
     image: node:24-alpine
     restart: always
     working_dir: /app
-    command: node src/index.js
+    command: sh -c "npm install --omit=dev --no-audit --no-fund && node src/index.js"
     environment:
       - BILLING_PORT=8013
+      - BILLING_PG_URI=postgresql://myuser:mypassword@vectordb:5432/mydatabase
+      - MONGO_URI=mongodb://mongodb:27017/LibreChat
+      - ANALYTIKUL_VAULT_KEY=${ANALYTIKUL_VAULT_KEY:-}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}
+      - STRIPE_PRICE_PRO=${STRIPE_PRICE_PRO:-}
+      - STRIPE_PRICE_TEAM=${STRIPE_PRICE_TEAM:-}
     volumes:
       - ./services/billing-service:/app
     ports:
       - "8013:8013"
+    depends_on:
+      - vectordb
+      - mongodb
 
   gateway-service:
     container_name: analytikul-gateway
     image: python:3.11-slim
     restart: always
     working_dir: /app
-    command: sh -c "pip install --no-cache-dir -q fastapi 'uvicorn[standard]' && uvicorn main:app --host 0.0.0.0 --port 8014"
+    command: sh -c "pip install --no-cache-dir -q fastapi 'uvicorn[standard]' apscheduler requests psycopg2-binary && uvicorn main:app --host 0.0.0.0 --port 8014"
+    environment:
+      - GATEWAY_PG_URI=postgresql://myuser:mypassword@vectordb:5432/mydatabase
+      - HERMES_ADAPTER_URL=http://hermes-adapter:8001
+      - AGENT_DEFAULT_PROVIDER=${AGENT_DEFAULT_PROVIDER:-anthropic}
+      - AGENT_DEFAULT_MODEL=${AGENT_DEFAULT_MODEL:-}
+      - AGENT_DEFAULT_BASE_URL=${AGENT_DEFAULT_BASE_URL:-https://api.anthropic.com}
+      - AGENT_DEFAULT_API_KEY=${AGENT_DEFAULT_API_KEY:-}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
     volumes:
       - ./services/gateway-service:/app
     ports:
       - "8014:8014"
+    depends_on:
+      - vectordb
+      - hermes-adapter
 
 volumes:
   embedder-models:

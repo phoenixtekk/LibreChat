@@ -8,6 +8,10 @@ const {
   pipeAgentStream,
   createTraceRecorder,
   checkBudget,
+  getVaultedKey,
+  listVaultKeys,
+  putVaultKey,
+  deleteVaultKey,
   AdapterError,
 } = require('@librechat/api');
 const requireJwtAuth = require('~/server/middleware/requireJwtAuth');
@@ -32,10 +36,16 @@ router.post('/agent/run', async (req, res) => {
         budget,
       });
     }
+    const effectiveProvider = provider ?? process.env.AGENT_DEFAULT_PROVIDER ?? 'anthropic';
+    const vaultedKey = await getVaultedKey(
+      req.user.id,
+      effectiveProvider,
+      req.user.tenantId ?? 'default',
+    );
     const ctx = {
       userId: req.user.id,
       tenantId: req.user.tenantId,
-      apiKey: process.env.AGENT_DEFAULT_API_KEY,
+      apiKey: vaultedKey ?? process.env.AGENT_DEFAULT_API_KEY,
     };
     const { taskId } = await startAgentRun(
       {
@@ -145,6 +155,38 @@ router.get('/analytics/:view', async (req, res) => {
     logger.error('[analytikul] analytics proxy failed', error);
     res.status(502).json({ message: 'analytics service unavailable' });
   }
+});
+
+router.get('/keys', async (req, res) => {
+  try {
+    res.status(200).json({ keys: await listVaultKeys(req.user.id, req.user.tenantId ?? 'default') });
+  } catch (error) {
+    logger.error('[analytikul] vault list failed', error);
+    res.status(502).json({ message: 'vault unavailable' });
+  }
+});
+
+router.put('/keys', async (req, res) => {
+  try {
+    const { provider, apiKey } = req.body ?? {};
+    if (!provider || !apiKey) {
+      return res.status(400).json({ message: 'provider and apiKey required' });
+    }
+    const key = await putVaultKey(req.user.id, provider, apiKey, req.user.tenantId ?? 'default');
+    res.status(200).json({ key });
+  } catch (error) {
+    logger.error('[analytikul] vault put failed', error);
+    res.status(502).json({ message: 'vault unavailable' });
+  }
+});
+
+router.delete('/keys/:provider', async (req, res) => {
+  const deleted = await deleteVaultKey(
+    req.user.id,
+    req.params.provider,
+    req.user.tenantId ?? 'default',
+  );
+  res.status(deleted ? 200 : 404).json({ deleted });
 });
 
 const MEMORY_URL = process.env.MEMORY_SERVICE_URL ?? 'http://localhost:8012';

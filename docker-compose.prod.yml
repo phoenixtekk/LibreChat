@@ -1,0 +1,184 @@
+# Analytikul production stack (linuxg6).
+# Usage: docker compose -f docker-compose.prod.yml --env-file .env up -d --build
+# Only the app is exposed (127.0.0.1:3180) — the Cloudflare tunnel ingress maps
+# analytikul.ai -> http://127.0.0.1:3180. Every other service stays on the
+# private docker network. No public ports, ever.
+
+services:
+  app:
+    container_name: analytikul-app
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - "127.0.0.1:3180:3080"
+    env_file: .env
+    environment:
+      - HOST=0.0.0.0
+      - MONGO_URI=mongodb://mongodb:27017/LibreChat
+      - MEILI_HOST=http://meilisearch:7700
+      - RAG_API_URL=http://rag_api:8000
+      - HERMES_ADAPTER_URL=http://hermes-adapter:8001
+      - ANALYTICS_SERVICE_URL=http://analytics-service:8011
+      - MEMORY_SERVICE_URL=http://memory-service:8012
+      - BILLING_SERVICE_URL=http://billing-service:8013
+      - GATEWAY_SERVICE_URL=http://gateway-service:8014
+    depends_on:
+      - mongodb
+      - meilisearch
+      - vectordb
+      - hermes-adapter
+      - analytics-service
+      - memory-service
+      - billing-service
+
+  mongodb:
+    container_name: analytikul-mongodb
+    image: mongo:7
+    restart: always
+    command: mongod --noauth
+    volumes:
+      - mongo-data:/data/db
+
+  meilisearch:
+    container_name: analytikul-meilisearch
+    image: getmeili/meilisearch:v1.12.3
+    restart: always
+    environment:
+      - MEILI_HOST=http://meilisearch:7700
+      - MEILI_NO_ANALYTICS=true
+      - MEILI_MASTER_KEY=${MEILI_MASTER_KEY}
+    volumes:
+      - meili-data:/meili_data
+
+  vectordb:
+    container_name: analytikul-vectordb
+    image: pgvector/pgvector:0.8.0-pg15-trixie
+    restart: always
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-mydatabase}
+      - POSTGRES_USER=${POSTGRES_USER:-myuser}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+
+  rag_api:
+    container_name: analytikul-rag
+    image: registry.librechat.ai/danny-avila/librechat-rag-api-dev-lite:latest
+    restart: always
+    environment:
+      - DB_HOST=vectordb
+      - POSTGRES_DB=${POSTGRES_DB:-mydatabase}
+      - POSTGRES_USER=${POSTGRES_USER:-myuser}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - RAG_PORT=8000
+    depends_on:
+      - vectordb
+
+  redis:
+    container_name: analytikul-redis
+    image: redis:7-alpine
+    restart: always
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+
+  hermes-adapter:
+    container_name: analytikul-hermes-adapter
+    build:
+      context: ./services/hermes-runtime
+      dockerfile: analytikul_adapter/Dockerfile
+    restart: always
+    environment:
+      - REDIS_URI=redis://redis:6379/0
+      - AGENT_DEFAULT_API_KEY=${AGENT_DEFAULT_API_KEY:-}
+      - MEMORY_SERVICE_URL=http://memory-service:8012
+      - AGENT_IDLE_TTL_S=600
+      - AGENT_MAX_CONCURRENT=16
+      - AGENT_MAX_PER_USER=2
+    volumes:
+      - hermes-home:/data/hermes
+    depends_on:
+      - redis
+
+  analytics-service:
+    container_name: analytikul-analytics
+    image: node:24-alpine
+    restart: always
+    working_dir: /app
+    command: sh -c "npm install --omit=dev --no-audit --no-fund && node src/index.js"
+    environment:
+      - ANALYTICS_PORT=8011
+      - REDIS_URI=redis://redis:6379/0
+      - ANALYTICS_PG_URI=postgresql://${POSTGRES_USER:-myuser}:${POSTGRES_PASSWORD}@vectordb:5432/${POSTGRES_DB:-mydatabase}
+    volumes:
+      - ./services/analytics-service:/app
+    depends_on:
+      - redis
+      - vectordb
+
+  memory-service:
+    container_name: analytikul-memory
+    image: node:24-bookworm-slim
+    restart: always
+    working_dir: /app
+    command: sh -c "npm install --omit=dev --no-audit --no-fund && node src/index.js"
+    environment:
+      - MEMORY_PORT=8012
+      - MEMORY_PG_URI=postgresql://${POSTGRES_USER:-myuser}:${POSTGRES_PASSWORD}@vectordb:5432/${POSTGRES_DB:-mydatabase}
+      - MODEL_CACHE_DIR=/models
+    volumes:
+      - ./services/memory-service:/app
+      - embedder-models:/models
+    depends_on:
+      - vectordb
+
+  billing-service:
+    container_name: analytikul-billing
+    image: node:24-alpine
+    restart: always
+    working_dir: /app
+    command: sh -c "npm install --omit=dev --no-audit --no-fund && node src/index.js"
+    environment:
+      - BILLING_PORT=8013
+      - BILLING_PG_URI=postgresql://${POSTGRES_USER:-myuser}:${POSTGRES_PASSWORD}@vectordb:5432/${POSTGRES_DB:-mydatabase}
+      - MONGO_URI=mongodb://mongodb:27017/LibreChat
+      - ANALYTIKUL_VAULT_KEY=${ANALYTIKUL_VAULT_KEY}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}
+      - STRIPE_PRICE_PRO=${STRIPE_PRICE_PRO:-}
+      - STRIPE_PRICE_TEAM=${STRIPE_PRICE_TEAM:-}
+    volumes:
+      - ./services/billing-service:/app
+    depends_on:
+      - vectordb
+      - mongodb
+
+  gateway-service:
+    container_name: analytikul-gateway
+    image: python:3.11-slim
+    restart: always
+    working_dir: /app
+    command: sh -c "pip install --no-cache-dir -q fastapi 'uvicorn[standard]' apscheduler requests psycopg2-binary && uvicorn main:app --host 0.0.0.0 --port 8014"
+    environment:
+      - GATEWAY_PG_URI=postgresql://${POSTGRES_USER:-myuser}:${POSTGRES_PASSWORD}@vectordb:5432/${POSTGRES_DB:-mydatabase}
+      - HERMES_ADAPTER_URL=http://hermes-adapter:8001
+      - AGENT_DEFAULT_PROVIDER=${AGENT_DEFAULT_PROVIDER:-anthropic}
+      - AGENT_DEFAULT_MODEL=${AGENT_DEFAULT_MODEL:-}
+      - AGENT_DEFAULT_BASE_URL=${AGENT_DEFAULT_BASE_URL:-https://api.anthropic.com}
+      - AGENT_DEFAULT_API_KEY=${AGENT_DEFAULT_API_KEY:-}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+    volumes:
+      - ./services/gateway-service:/app
+    depends_on:
+      - vectordb
+      - hermes-adapter
+
+volumes:
+  mongo-data:
+  meili-data:
+  pg-data:
+  redis-data:
+  hermes-home:
+  embedder-models:
