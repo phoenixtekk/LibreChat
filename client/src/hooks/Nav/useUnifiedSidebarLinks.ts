@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useRecoilValue } from 'recoil';
-import { MessagesSquare } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { MessagesSquare, NotebookPen } from 'lucide-react';
 import { useUserKeyQuery } from 'librechat-data-provider/react-query';
 import { getConfigDefaults, getEndpointField } from 'librechat-data-provider';
 import type { TEndpointsConfig } from 'librechat-data-provider';
@@ -13,6 +14,7 @@ import store from '~/store';
 const defaultInterface = getConfigDefaults().interface;
 
 export default function useUnifiedSidebarLinks() {
+  const navigate = useNavigate();
   const conversation = useRecoilValue(store.conversationByIndex(0));
   const endpoint = conversation?.endpoint;
   const { data: startupConfig } = useGetStartupConfig();
@@ -58,8 +60,16 @@ export default function useUnifiedSidebarLinks() {
       Component: ConversationsSection,
     };
 
-    return [conversationLink, ...sideNavLinks];
-  }, [sideNavLinks]);
+    const notesLink: NavLink = {
+      title: 'com_atk_notes',
+      label: '',
+      icon: NotebookPen,
+      id: 'analytikul-notes',
+      onClick: () => navigate('/notes'),
+    };
+
+    return [conversationLink, notesLink, ...sideNavLinks];
+  }, [sideNavLinks, navigate]);
 
   return links;
 }
