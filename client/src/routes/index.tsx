@@ -20,7 +20,8 @@ import dashboardRoutes from './Dashboard';
 import ShareRoute from './ShareRoute';
 import ChatRoute from './ChatRoute';
 import Search from './Search';
-import NotesPage from '~/components/analytikul/notes/NotesPage';
+import NotesList from '~/components/analytikul/notes/NotesList';
+import NoteEditor from '~/components/analytikul/notes/NoteEditor';
 import Root from './Root';
 
 const AuthLayout = () => (
@@ -137,7 +138,11 @@ export const router = createBrowserRouter(
             },
             {
               path: 'notes',
-              element: <NotesPage />,
+              element: <NotesList />,
+            },
+            {
+              path: 'notes/:noteId',
+              element: <NoteEditor />,
             },
             {
               path: 'prompts',
