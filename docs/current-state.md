@@ -1,4 +1,4 @@
-# Analytikul — Current State (as of 2026-06-12)
+# Analytikul — Current State (as of 2026-06-13)
 
 ## Milestones: M0–M4 COMPLETE and live in production
 | Milestone | Status | Verified |
@@ -12,10 +12,22 @@
 Production verified 2026-06-12: registered + logged in + ran agent (41×73=2993) through
 https://analytikul.ai with cost metering. All 5 internal services healthy.
 
-## IN PROGRESS — Open WebUI UI redesign (the active task)
-User wants Notes + sidebar to look/work **exactly** like Open WebUI (screenshots provided).
-Decision: faithful React rebuild (NOT switching to Open WebUI's Svelte frontend — that would
-lose all Analytikul differentiators). Reference spec mined from open-webui repo.
+## DONE & DEPLOYED — Open WebUI UI redesign (2026-06-13)
+Notes + sidebar rebuilt to match Open WebUI (faithful React rebuild, NOT Svelte — ADR-009).
+**Committed `8fb5d3456`, deployed to prod (image `9a62c2c4ead7`), analytikul.ai 200.**
+Reference spec mined from the actual open-webui source (Notes.svelte / NoteEditor.svelte):
+- List: search restyle + controls row with viewOption (All / Created by you / Shared with you),
+  conditional permission (Write / Read Only), and display (List / Grid) dropdowns — OWUI classes,
+  Analytikul theme tokens. Pin = inline icon, no separate Pinned section (OWUI parity). Titles
+  keep `capitalize` (OWUI parity).
+- Editor: removed back-chevron, trimmed meta to `<date> · N words M characters` (no save text),
+  "Title" placeholder, `px-3.5`. Kept AI Enhance/Summarize/Continue + Share-with-org (differentiators).
+- Verified end-to-end in browser (create/editor/autosave/persist/search/grid/pin/dropdowns).
+- Dead `UnifiedSidebar` subtree removed (kept shared `ConversationsSection`).
+- **Remaining: user's visual pixel sign-off** vs `chat.analytikul.ai` (preview screenshot tool
+  times out on this SPA; user compares directly).
+
+### Earlier (pre-2026-06-13) — this section was the in-progress redesign, now superseded
 
 **Built this session (committed? NO — uncommitted on dev machine):**
 - `client/src/components/analytikul/notes/NotesList.tsx` — Open WebUI list: "Notes <count>",
@@ -42,9 +54,22 @@ lose all Analytikul differentiators). Reference spec mined from open-webui repo.
   supersedes the old `UnifiedSidebar` but the old files remain in the tree (unused now).
 
 ## Production vs dev divergence (IMPORTANT)
-The last SUCCESSFUL production deploy = commit `ade692f2a` (Notes button in old sidebar). The
-container swap for that build completed (`container swapped, app: HTTP 200`). The Open WebUI
-redesign is **dev-only, uncommitted**. Next deploy will ship it.
+In sync: prod runs commit `8fb5d3456` (image `9a62c2c4ead7`), the Open WebUI redesign. Local HEAD
+== prod HEAD. The deploy was painful: linuxg6 was resource-overcommitted at the time (2 Minecraft
+servers cobblemon/cobbleverse + Elasticsearch/temporal + shopware + 2 LibreChat stacks + the
+build), so buildkit's image export hung on I/O contention twice. Shedding load (decommissioning
+the services below) dropped I/O enough for the export + container swap to complete. NOT a hardware
+fault (dmesg clean, no OOM/disk errors; the one reboot 18:16 was a clean shutdown).
+
+## Decommissioned on linuxg6 this session (per owner) — frees host resources
+Removed (containers + volumes + dirs): **postiz/temporal stack** (temporal, temporal-elasticsearch,
+temporal-postgresql, postiz, postiz-postgres, postiz-redis) and **shopware_market**
+(`market.phoenixtekk.com`, incl. 836M MariaDB data); **mission-control.service**
+(mission.analytikul.ai) and **review-dashboard/review-watcher** (review.analytikul.ai) — units +
+app dirs. **Left alone (owner): `memory.analytikul.ai`** (memory-dashboard stopped+disabled, data
+dir `/home/lacy/.openclaw/workspace/memory` preserved) and **`globalsettings.analytikul.ai`**
+(:9092, untouched). Tunnel ingress entries for the removed hosts remain in `/etc/cloudflared/
+config.yml` — owner removes via Cloudflare console.
 
 ## Environment notes
 - Dev: Windows, Docker Desktop (has restarted/crashed several times this session — when it dies,

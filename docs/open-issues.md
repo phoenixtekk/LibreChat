@@ -1,9 +1,21 @@
 # Analytikul — Open Issues & Technical Debt
 
 ## Active blockers / in-flight
-- **Open WebUI redesign uncommitted & unverified end-to-end** — new Notes UI + sidebar render
-  but data-flow + visual parity not confirmed; not committed, not deployed. Production still
-  shows the OLD Notes UI (root cause of "I don't see Notes looking right").
+- **(RESOLVED 2026-06-13)** Open WebUI redesign — committed `8fb5d3456`, deployed (image
+  `9a62c2c4ead7`), verified end-to-end in browser. Only the user's visual pixel sign-off vs
+  `chat.analytikul.ai` remains (preview screenshot tool times out on this SPA).
+
+## linuxg6 host capacity (ops)
+- **Resource overcommit caused buildkit export hangs.** During the redesign deploy the host ran
+  2 Minecraft servers (`/home/lacy/cobblemon`, `/home/lacy/cobbleverse`, up to ~14G heap combined)
+  + Elasticsearch/temporal + shopware + 2 LibreChat stacks + analytikul + the image build. I/O
+  contention (~13% PSI) hung `docker compose build`'s image-export step twice; killing the wedged
+  build + shedding load let it complete. NOT hardware: dmesg clean (no OOM/disk errors); the lone
+  reboot (18:16) was a clean shutdown; D-state `systemd-udevd`/`usb_hub` threads = benign virtual
+  -ATAPI (IPMI) probe, just inflate load average. **Lesson: deploy when the host is quiet, or shed
+  load first.** Decommissioning postiz/temporal/shopware/mission/review (see current-state.md)
+  freed significant headroom.
+- **Cobblemon/Cobbleverse Minecraft servers** remain (owner's) — largest steady consumers now.
 
 ## Environment fragility (dev machine)
 - **Docker Desktop instability on Windows dev box** — crashed/stopped 3+ times this session.

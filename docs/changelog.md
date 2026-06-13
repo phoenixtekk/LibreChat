@@ -3,13 +3,14 @@
 Commits are on `main`, based on LibreChat upstream. Newest first.
 Deploy target: `git push linuxg6 main` → `scripts/deploy.sh` on linuxg6.
 
-## Uncommitted (dev, in progress) — 2026-06-12
-- Open WebUI UI redesign: `notes/NotesList.tsx`, `notes/NoteEditor.tsx` (TipTap v3),
-  `notes/time.ts`, `sidebar/AnalytikulSidebar.tsx`; `Root.tsx` sidebar swap; routes split;
-  old `notes/NotesPage.tsx` removed. NOT committed/deployed yet.
-
 ## Committed
-- `ade692f2a` feat: Notes button in sidebar nav (discoverability) — **last deployed to prod**
+- `8fb5d3456` feat: Open WebUI parity for Notes + sidebar (faithful React rebuild) —
+  **DEPLOYED to prod 2026-06-13** (image `9a62c2c4ead7`). OWUI-source-faithful list controls
+  (viewOption/permission/display dropdowns), search restyle, editor trims (no back-chevron,
+  no save text, `px-3.5`); kept AI actions + Share-with-org. Removed dead `UnifiedSidebar`
+  subtree (`UnifiedSidebar.tsx`/`Sidebar.tsx`/`ExpandedPanel.tsx` + test) and
+  `useUnifiedSidebarLinks.ts`; kept shared `ConversationsSection`.
+- `ade692f2a` feat: Notes button in sidebar nav (discoverability) — prior prod deploy
 - `880cf482c` feat: Notes workspace (Open WebUI parity) — editor, AI actions, agent tools
 - `f98eef6dc` feat: public Stripe webhook forwarder (raw body) + Telegram link-code route
 - `9d12b1d7d` docs: M4 verification record + production runbook (analytikul.ai live)

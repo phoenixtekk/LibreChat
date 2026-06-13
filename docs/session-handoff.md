@@ -1,4 +1,21 @@
-# Analytikul — Session Handoff (2026-06-12/13)
+# Analytikul — Session Handoff (2026-06-13)
+
+## Latest session (2026-06-13) — redesign shipped + host decommission
+- **Open WebUI redesign DONE & DEPLOYED.** Reworked `NotesList.tsx`/`NoteEditor.tsx` to match
+  open-webui source (controls-row dropdowns, search restyle, editor trims; kept AI + Share).
+  Removed dead `UnifiedSidebar` subtree. Committed `8fb5d3456`, deployed to prod (image
+  `9a62c2c4ead7`), analytikul.ai 200, verified end-to-end in browser. **Pending: user's visual
+  pixel sign-off** vs `chat.analytikul.ai`.
+- **Dev gotcha found:** local Docker `LibreChat` container and native `npm run backend` both bound
+  :3080 → API calls split nondeterministically (404 vs 401). Fix: `docker stop LibreChat` so the
+  native fork owns :3080.
+- **linuxg6 decommission (owner-directed):** removed postiz/temporal + shopware
+  (market.phoenixtekk.com) + mission/review services & dirs to free I/O (deploy's buildkit export
+  was hanging on host overcommit). Left `memory.analytikul.ai` data + `globalsettings` alone.
+  See current-state.md / open-issues.md.
+
+---
+## Prior session (2026-06-12)
 
 ## Executive Summary
 Analytikul is **live in production at https://analytikul.ai** (host: linuxg6, Cloudflare tunnel).
