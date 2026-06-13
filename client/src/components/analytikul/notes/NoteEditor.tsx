@@ -6,9 +6,8 @@ import StarterKit from '@tiptap/starter-kit';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
 import Placeholder from '@tiptap/extension-placeholder';
-import Link from '@tiptap/extension-link';
-import { Markdown } from 'tiptap-markdown';
 import { useLocalize, useAuthContext } from '~/hooks';
+import { htmlToMarkdown, markdownToHtml } from './markdown';
 import { dayjs } from './time';
 
 interface Note {
@@ -50,12 +49,10 @@ export default function NoteEditor() {
 
   const editor = useEditor({
     extensions: [
-      StarterKit,
+      StarterKit.configure({ link: { openOnClick: false } }),
       TaskList,
       TaskItem.configure({ nested: true }),
-      Link.configure({ openOnClick: false }),
       Placeholder.configure({ placeholder: localize('com_atk_notes_placeholder') }),
-      Markdown.configure({ html: false, linkify: true, transformPastedText: true }),
     ],
     editorProps: {
       attributes: {
@@ -71,9 +68,7 @@ export default function NoteEditor() {
     if (current == null || editor == null) {
       return;
     }
-    const markdown = (
-      editor.storage as { markdown: { getMarkdown: () => string } }
-    ).markdown.getMarkdown();
+    const markdown = htmlToMarkdown(editor.getHTML());
     await fetch(`/api/analytikul/notes/${current._id}`, {
       method: 'PUT',
       headers,
@@ -104,13 +99,13 @@ export default function NoteEditor() {
       }
       const { note: loaded } = (await res.json()) as { note: Note };
       setNote(loaded);
-      editor.commands.setContent(loaded.content, { emitUpdate: false });
+      editor.commands.setContent(markdownToHtml(loaded.content), { emitUpdate: false });
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [noteId, editor == null]);
 
   const stats = useMemo(() => {
-    const text = editor?.getText() ?? '';
+    const text = editor?.state.doc.textContent ?? '';
     const words = text.trim() ? text.trim().split(/\s+/).length : 0;
     return { words, chars: text.length };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -122,9 +117,7 @@ export default function NoteEditor() {
         return;
       }
       const { from, to, empty } = editor.state.selection;
-      const markdown = (
-        editor.storage as { markdown: { getMarkdown: () => string } }
-      ).markdown.getMarkdown();
+      const markdown = htmlToMarkdown(editor.getHTML());
       const selectionText = empty ? '' : editor.state.doc.textBetween(from, to, '\n');
       const inputText = !empty && action !== 'continue' ? selectionText : markdown;
       if (inputText.trim() === '') {
@@ -145,14 +138,21 @@ export default function NoteEditor() {
         const { result } = (await res.json()) as { result: string };
         if (action === 'continue') {
           editor.commands.focus('end');
-          editor.commands.insertContent(`\n\n${result}`);
+          editor.commands.insertContent(markdownToHtml(result));
         } else if (!empty) {
-          editor.chain().focus().deleteRange({ from, to }).insertContent(result).run();
+          editor
+            .chain()
+            .focus()
+            .deleteRange({ from, to })
+            .insertContent(markdownToHtml(result))
+            .run();
         } else if (action === 'summarize') {
           editor.commands.focus('end');
-          editor.commands.insertContent(`\n\n## ${localize('com_atk_notes_summary')}\n\n${result}`);
+          editor.commands.insertContent(
+            markdownToHtml(`## ${localize('com_atk_notes_summary')}\n\n${result}`),
+          );
         } else {
-          editor.commands.setContent(result, true);
+          editor.commands.setContent(markdownToHtml(result));
         }
         scheduleSave();
       } catch (err) {
@@ -232,6 +232,36 @@ export default function NoteEditor() {
           <BubbleMenu editor={editor}>
             <div className="flex items-center gap-0.5 rounded-xl border border-border-light bg-surface-dialog p-0.5 shadow-lg">
               <BubbleButton
+                active={editor.isActive('heading', { level: 1 })}
+                label="H1"
+                onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
+              />
+              <BubbleButton
+                active={editor.isActive('heading', { level: 2 })}
+                label="H2"
+                onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+              />
+              <BubbleButton
+                active={editor.isActive('heading', { level: 3 })}
+                label="H3"
+                onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+              />
+              <BubbleButton
+                active={editor.isActive('bulletList')}
+                label="•"
+                onClick={() => editor.chain().focus().toggleBulletList().run()}
+              />
+              <BubbleButton
+                active={editor.isActive('orderedList')}
+                label="1."
+                onClick={() => editor.chain().focus().toggleOrderedList().run()}
+              />
+              <BubbleButton
+                active={editor.isActive('taskList')}
+                label="☑"
+                onClick={() => editor.chain().focus().toggleTaskList().run()}
+              />
+              <BubbleButton
                 active={editor.isActive('bold')}
                 label="B"
                 bold
@@ -244,6 +274,12 @@ export default function NoteEditor() {
                 onClick={() => editor.chain().focus().toggleItalic().run()}
               />
               <BubbleButton
+                active={editor.isActive('underline')}
+                label="U"
+                underline
+                onClick={() => editor.chain().focus().toggleUnderline().run()}
+              />
+              <BubbleButton
                 active={editor.isActive('strike')}
                 label="S"
                 strike
@@ -253,21 +289,6 @@ export default function NoteEditor() {
                 active={editor.isActive('code')}
                 label="<>"
                 onClick={() => editor.chain().focus().toggleCode().run()}
-              />
-              <BubbleButton
-                active={editor.isActive('heading', { level: 2 })}
-                label="H2"
-                onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-              />
-              <BubbleButton
-                active={editor.isActive('bulletList')}
-                label="•"
-                onClick={() => editor.chain().focus().toggleBulletList().run()}
-              />
-              <BubbleButton
-                active={editor.isActive('taskList')}
-                label="☑"
-                onClick={() => editor.chain().focus().toggleTaskList().run()}
               />
             </div>
           </BubbleMenu>
@@ -317,6 +338,7 @@ function BubbleButton({
   bold = false,
   italic = false,
   strike = false,
+  underline = false,
   onClick,
 }: {
   label: string;
@@ -324,6 +346,7 @@ function BubbleButton({
   bold?: boolean;
   italic?: boolean;
   strike?: boolean;
+  underline?: boolean;
   onClick: () => void;
 }) {
   return (
@@ -331,7 +354,9 @@ function BubbleButton({
       type="button"
       className={`min-w-7 rounded-lg px-1.5 py-1 text-xs hover:bg-surface-hover ${
         active ? 'bg-surface-active text-text-primary' : 'text-text-secondary'
-      } ${bold ? 'font-bold' : ''} ${italic ? 'italic' : ''} ${strike ? 'line-through' : ''}`}
+      } ${bold ? 'font-bold' : ''} ${italic ? 'italic' : ''} ${strike ? 'line-through' : ''} ${
+        underline ? 'underline' : ''
+      }`}
       aria-pressed={active}
       onClick={onClick}
     >

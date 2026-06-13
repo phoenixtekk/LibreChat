@@ -51,7 +51,7 @@ function AnalytikulSidebar() {
   const { newConversation } = useNewConvo();
   const [expanded, setExpanded] = useRecoilState(store.sidebarExpanded);
   const isSmallScreen = useMediaQuery('(max-width: 768px)');
-  const [workspaceOpen, setWorkspaceOpen] = useState(false);
+  const [workspaceOpen, setWorkspaceOpen] = useState(true);
 
   const closeOnMobile = useCallback(() => {
     if (isSmallScreen) {
