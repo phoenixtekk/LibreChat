@@ -8,14 +8,24 @@ Hybrid BYOK SaaS (decided at planning, 2026-06-11):
   drawn down per metered LLM call (the M3 analytics pipeline is the meter).
 
 ## Processor
-**Stripe**, direct (not a Merchant of Record). Rationale per the standing payment rules:
-B2B SaaS subscriptions + prepaid credits are low-risk (low chargeback exposure, no regulated
-category), so a direct processor is appropriate. Revisit toward an MoR (Paddle/Polar) only if
-chargeback rate or category risk changes.
+**Polar** (Merchant of Record), active as of 2026-06-14 (`BILLING_PROVIDER=polar`). Polar is the
+legal seller of record and absorbs chargeback, fraud, and sales-tax/VAT liability (~4%+40¢ vs
+Stripe's ~2.9% — accepted as de-risking for a new AI SaaS). The Stripe module is retained behind
+the same interface as a fallback/redundancy (`BILLING_PROVIDER=stripe`).
+
+**Polar org**: Analytikul (`f87f8df7-edaf-4823-b279-152333560fdf`). **Products** (env on g3):
+Pro Monthly `8c07831f…` / Annual `bc07a009…`, Team Monthly `62e2c177…` / Annual `7f49e04f…`.
+**Webhook**: `https://analytikul.ai/api/analytikul/webhooks/polar` (endpoint `d5c73e23…`, secret in
+`POLAR_WEBHOOK_SECRET`). Checkout path verified live 2026-06-14 (returns a real polar.sh checkout
+URL). **Pending**: Lacy's KYC in Polar (identity, payout account, submit for review) before real
+payouts; pricing-page checkout-button wiring + a 100%-discount-code end-to-end purchase test.
 
 ## Lock-in containment
-- **All Stripe calls live in ONE module**: `services/billing-service/src/stripe.js`.
-  Nothing else imports the Stripe SDK or touches Stripe payload shapes.
+- **Each processor lives in ONE module**: `services/billing-service/src/polar.js` (active) and
+  `stripe.js` (fallback). Nothing else imports a processor SDK or touches its payload shapes.
+  `BILLING_PROVIDER` selects which one handles checkout + webhooks.
+- Entitlements use **processor-agnostic** fields (`billingCustomerId`, `billingSubscriptionId`);
+  both modules emit the same internal events, so swapping processors touches one module only.
 - Webhooks are normalized into internal events (`checkout_completed`, `subscription_updated`,
   `payment_failed`) before any app logic sees them — `services/billing-service/src/events.js`.
 - Entitlements (plan, seats, credits) are stored on our own `Organization` Mongo collection,
