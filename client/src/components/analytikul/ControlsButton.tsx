@@ -1,30 +1,19 @@
 import { memo, useState, useCallback } from 'react';
 import { SlidersHorizontal } from 'lucide-react';
-import Parameters from '~/components/SidePanel/Parameters/Panel';
-import { useChatContext } from '~/Providers';
+import ControlsPanel from './ControlsPanel';
 import { useLocalize } from '~/hooks';
 import { cn } from '~/utils';
 
 /**
  * Open WebUI-style "Controls" entry point: a sliders button in the chat header
- * that slides out a right-side drawer exposing the per-conversation System
- * Prompt and the full model-parameter panel (temperature, top_p, max tokens,
- * stop sequences, …) plus Save-as-Preset. Mounted inside ChatView's
- * ChatContext, so it edits the active conversation directly.
+ * that slides out a right-side drawer with the full Controls panel (Valves,
+ * System Prompt, and the complete Advanced Params list + Add Custom Parameter).
  */
 function ControlsButton() {
   const localize = useLocalize();
-  const { conversation, setConversation } = useChatContext();
   const [open, setOpen] = useState(false);
 
   const close = useCallback(() => setOpen(false), []);
-
-  const onPromptChange = useCallback(
-    (value: string) => {
-      setConversation((prev) => (prev ? { ...prev, promptPrefix: value } : prev));
-    },
-    [setConversation],
-  );
 
   return (
     <>
@@ -77,22 +66,7 @@ function ControlsButton() {
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="px-3 pt-3">
-            <label
-              htmlFor="atk-system-prompt"
-              className="mb-1.5 block text-xs font-medium text-text-secondary"
-            >
-              {localize('com_atk_system_prompt')}
-            </label>
-            <textarea
-              id="atk-system-prompt"
-              className="min-h-[88px] w-full resize-y rounded-lg border border-border-light bg-surface-secondary px-3 py-2 text-sm text-text-primary placeholder-text-secondary focus:border-border-heavy focus:outline-none"
-              placeholder={localize('com_atk_system_prompt_ph')}
-              value={conversation?.promptPrefix ?? ''}
-              onChange={(e) => onPromptChange(e.target.value)}
-            />
-          </div>
-          <Parameters />
+          <ControlsPanel />
         </div>
       </aside>
     </>
