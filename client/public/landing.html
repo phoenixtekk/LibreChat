@@ -50,15 +50,16 @@
   .brand .word { font-size: 19px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; }
   .brand .word b { color: var(--blue-bright); font-weight: 600; }
   .navlinks { display: flex; align-items: center; gap: 28px; }
-  .navlinks a { color: var(--muted); text-decoration: none; font-size: 14px; transition: color .2s; }
-  .navlinks a:hover { color: var(--ink); }
+  .navlinks a:not(.btn) { color: var(--muted); text-decoration: none; font-size: 14px; transition: color .2s; }
+  .navlinks a:not(.btn):hover { color: var(--ink); }
   .btn { font-family: 'Space Grotesk', sans-serif; font-size: 14px; font-weight: 500; letter-spacing: .03em;
     text-decoration: none; cursor: pointer; padding: 10px 20px; border-radius: 999px; transition: all .22s ease;
     display: inline-flex; align-items: center; gap: 8px; }
   .btn-ghost { color: var(--ink); border: 1px solid var(--line); background: transparent; }
   .btn-ghost:hover { border-color: var(--blue); color: var(--blue-bright); }
   .btn-blue { color: #021019; background: linear-gradient(180deg, var(--blue-bright), var(--blue));
-    border: 1px solid rgba(56,210,239,.5); font-weight: 600; }
+    border: 1px solid rgba(56,210,239,.5); font-weight: 700; }
+  .navlinks a.btn-blue { color: #021019; }
   .btn-blue:hover { box-shadow: 0 8px 34px rgba(24,168,218,.32); transform: translateY(-1px); }
 
   header.hero {
@@ -85,13 +86,13 @@
     text-transform: uppercase; animation: float 2.6s ease-in-out infinite; }
   @keyframes float { 0%,100% { transform: translateY(0); opacity:.55 } 50% { transform: translateY(7px); opacity:1 } }
 
-  .agartha-wrap { position: relative; height: 78vh; margin-top: -22vh; display: flex; align-items: flex-end; justify-content: center; pointer-events: none; z-index: 1; }
-  .agartha { position: relative; width: min(1000px, 96vw); opacity: calc(0.12 + 0.88 * var(--shine, 0)); transition: opacity .12s linear; }
-  .agartha .halo { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%);
-    width: 120%; height: 150%;
-    background: radial-gradient(ellipse at 50% 100%, rgba(56,210,239, calc(0.10 + 0.5*var(--shine,0))) 0%, rgba(106,50,192, calc(0.06 + 0.28*var(--shine,0))) 34%, transparent 66%);
-    filter: blur(calc(14px - 8px*var(--shine,0))); }
-  .agartha svg { position: relative; display: block; width: 100%; color: var(--blue-bright); }
+  .agartha-wrap { position: relative; margin-top: -32vh; display: flex; justify-content: center; pointer-events: none; z-index: 1; padding: 0 clamp(16px, 4vw, 48px) 7vh; }
+  .agartha { position: relative; width: min(1180px, 100%); }
+  .agartha img { width: 100%; display: block; border-radius: 16px;
+    opacity: calc(0.5 + 0.3 * var(--shine, 0));
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 20%, #000 88%, transparent 100%);
+    mask-image: linear-gradient(to bottom, transparent 0%, #000 20%, #000 88%, transparent 100%);
+    transition: opacity .14s linear; }
 
   section.diff { position: relative; z-index: 3; padding: 2vh clamp(20px, 6vw, 64px) 12vh; max-width: 1200px; margin: 0 auto; }
   .diff-head { text-align: center; margin-bottom: 18px; }
@@ -145,7 +146,7 @@
   <header class="hero">
     <img class="hero-logo" src="/assets/Alogo2.png" alt="" aria-hidden="true" />
     <span class="eyebrow"><span class="dot"></span> Analytics-native AI workspace</span>
-    <h1>Surface what's <span class="glow">hidden</span>.</h1>
+    <h1>Surface What's <span class="glow">Hidden</span>.</h1>
     <p class="sub">Every AI team runs on a hidden layer — what it costs, what it remembers, what its agents actually do. Analytikul brings that layer into the light, in one workspace built around the data the chat box never shows you.</p>
     <div class="cta-row">
       <a href="/chat" class="btn btn-blue">Enter Analytikul →</a>
@@ -156,27 +157,7 @@
 
   <div class="agartha-wrap">
     <div class="agartha" id="agartha">
-      <div class="halo"></div>
-      <svg viewBox="0 0 1000 320" fill="none" aria-hidden="true">
-        <g stroke="currentColor" stroke-width="1" opacity="0.45">
-          <path d="M120 320 C 260 150, 740 150, 880 320" />
-          <path d="M70 320 C 250 90, 750 90, 930 320" opacity="0.5"/>
-        </g>
-        <g stroke="currentColor" fill="none" stroke-width="1.4" stroke-linejoin="round">
-          <path d="M500 96 L516 132 L484 132 Z"/>
-          <path d="M500 132 V300 M470 300 V178 H530 V300 M470 200 H530 M470 226 H530 M470 252 H530"/>
-          <path d="M430 300 V214 L412 196 L394 214 V300 M403 234 H421 M403 258 H421"/>
-          <path d="M570 300 V214 L588 196 L606 214 V300 M579 234 H597 M579 258 H597"/>
-          <path d="M372 300 V250 L356 234 L340 250 V300"/>
-          <path d="M628 300 V250 L644 234 L660 250 V300"/>
-          <path d="M318 300 V268 L306 256 L294 268 V300"/>
-          <path d="M682 300 V268 L694 256 L706 268 V300"/>
-          <path d="M250 300 H750"/>
-        </g>
-        <g stroke="currentColor" stroke-width="1" opacity="0.4" stroke-linecap="round">
-          <path d="M500 96 V20 M500 96 L452 30 M500 96 L548 30 M500 96 L420 56 M500 96 L580 56"/>
-        </g>
-      </svg>
+      <img src="/assets/Agartha.png" alt="" aria-hidden="true" />
     </div>
   </div>
 
