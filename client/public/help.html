@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Analytikul — Help Center</title>
+<meta name="description" content="Learn how to use Analytikul: chat, the Controls panel, building models, running agents with tool sets, notes, search, org memory and API keys." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500&display=swap" rel="stylesheet" />
+<style>
+  :root{--bg:#04060c;--ink:#eaf1f8;--muted:#93a0b8;--faint:#525d75;--blue:#18a8da;--blue-bright:#38d2ef;--violet:#6a32c0;--line:rgba(56,178,224,0.16);--card:rgba(255,255,255,0.022);}
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{background:var(--bg);color:var(--ink);font-family:'Inter',system-ui,sans-serif;font-weight:300;line-height:1.7;overflow-x:hidden;-webkit-font-smoothing:antialiased;}
+  .matter{position:fixed;inset:0;z-index:0;pointer-events:none;background:radial-gradient(40vw 40vw at 18% 14%,rgba(24,108,170,.10),transparent 70%),radial-gradient(46vw 46vw at 82% 26%,rgba(106,50,192,.10),transparent 70%),radial-gradient(50vw 40vw at 50% 92%,rgba(24,168,218,.06),transparent 72%);}
+  main{position:relative;z-index:2;}
+  nav{display:flex;align-items:center;justify-content:space-between;padding:20px clamp(20px,6vw,64px);position:sticky;top:0;z-index:20;backdrop-filter:blur(9px);background:linear-gradient(to bottom,rgba(4,6,12,.72),rgba(4,6,12,0));}
+  .brand{display:flex;align-items:center;gap:12px;font-family:'Space Grotesk',sans-serif;text-decoration:none;color:var(--ink);}
+  .brand img{width:34px;height:34px;display:block;filter:drop-shadow(0 0 14px rgba(24,168,218,.45));}
+  .brand .word{font-size:19px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;}
+  .brand .word b{color:var(--blue-bright);font-weight:600;}
+  .navlinks{display:flex;align-items:center;gap:28px;}
+  .navlinks a:not(.btn){color:var(--muted);text-decoration:none;font-size:14px;transition:color .2s;}
+  .navlinks a:not(.btn):hover{color:var(--ink);}
+  .navlinks a.active{color:var(--blue-bright);}
+  .btn{font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:500;letter-spacing:.03em;text-decoration:none;cursor:pointer;padding:10px 20px;border-radius:999px;transition:all .22s ease;display:inline-flex;align-items:center;gap:8px;}
+  .btn-ghost{color:var(--ink);border:1px solid var(--line);background:transparent;}
+  .btn-ghost:hover{border-color:var(--blue);color:var(--blue-bright);}
+  .btn-blue{color:#021019;background:linear-gradient(180deg,var(--blue-bright),var(--blue));font-weight:700;}
+  @media (max-width:720px){.navlinks .hide-sm{display:none;}}
+  .wrap{max-width:880px;margin:0 auto;padding:0 clamp(20px,5vw,48px);}
+  .hero{text-align:center;padding:8vh 0 2vh;}
+  .eyebrow{display:inline-block;font-family:'Space Grotesk',sans-serif;font-size:12px;letter-spacing:.26em;text-transform:uppercase;color:var(--blue-bright);border:1px solid var(--line);border-radius:999px;padding:7px 16px;margin-bottom:22px;background:rgba(24,168,218,.05);}
+  h1{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:clamp(34px,5vw,56px);line-height:1.05;letter-spacing:-.02em;}
+  h1 .glow{color:var(--blue-bright);text-shadow:0 0 38px rgba(56,210,239,.45);}
+  .sub{margin:18px auto 0;max-width:54ch;color:var(--muted);font-size:clamp(15px,2vw,17px);}
+  .toc{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin:28px 0 2vh;}
+  .toc a{font-size:13px;color:var(--muted);text-decoration:none;border:1px solid var(--line);border-radius:999px;padding:6px 14px;transition:all .2s;}
+  .toc a:hover{color:var(--blue-bright);border-color:var(--blue);}
+  .cat{margin:5vh 0 0;}
+  .cat h2{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:22px;margin-bottom:4px;padding-bottom:10px;border-bottom:1px solid var(--line);}
+  details{border:1px solid var(--line);background:var(--card);border-radius:14px;padding:2px 18px;margin-top:12px;}
+  summary{cursor:pointer;padding:15px 0;font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:500;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:12px;}
+  summary::-webkit-details-marker{display:none;}
+  summary::after{content:"+";color:var(--blue-bright);font-size:18px;}
+  details[open] summary::after{content:"–";}
+  details .body{color:var(--muted);font-size:14.5px;padding:0 0 18px;}
+  details .body ol,details .body ul{margin:8px 0 0;padding-left:20px;}
+  details .body li{margin:5px 0;}
+  details .body strong{color:var(--ink);font-weight:500;}
+  .tip{margin-top:10px;border-left:2px solid var(--blue);padding:6px 0 6px 12px;color:var(--faint);font-size:13.5px;}
+  footer{border-top:1px solid var(--line);padding:40px clamp(20px,6vw,64px);color:var(--faint);font-size:13px;position:relative;z-index:2;margin-top:8vh;}
+  .fbar{display:flex;flex-wrap:wrap;gap:18px;justify-content:space-between;align-items:center;max-width:880px;margin:0 auto;}
+  .fbrand{display:flex;align-items:center;gap:10px;font-family:'Space Grotesk',sans-serif;color:var(--muted);}
+  .fbrand img{width:22px;height:22px;}
+  .flinks{display:flex;gap:20px;flex-wrap:wrap;}
+  .flinks a{color:var(--muted);text-decoration:none;}
+  .flinks a:hover{color:var(--ink);}
+</style>
+</head>
+<body>
+<div class="matter"></div>
+<main>
+  <nav>
+    <a class="brand" href="/"><img src="/assets/Alogo2.png" alt="Analytikul" /><span class="word">Analy<b>tikul</b></span></a>
+    <div class="navlinks">
+      <a href="/features" class="hide-sm">Features</a>
+      <a href="/pricing" class="hide-sm">Pricing</a>
+      <a href="/help" class="hide-sm active">Docs</a>
+      <a href="/chat" class="btn btn-ghost">Sign in</a>
+      <a href="/chat" class="btn btn-blue">Launch app →</a>
+    </div>
+  </nav>
+
+  <div class="wrap">
+    <section class="hero">
+      <span class="eyebrow">● Help Center</span>
+      <h1>How to use <span class="glow">Analytikul</span></h1>
+      <p class="sub">Short, practical guides for every part of the workspace. New features are documented here as they ship.</p>
+      <div class="toc">
+        <a href="#start">Getting started</a>
+        <a href="#chat">Chat &amp; Controls</a>
+        <a href="#models">Models</a>
+        <a href="#agents">Agents &amp; tools</a>
+        <a href="#notes">Notes</a>
+        <a href="#search">Search</a>
+        <a href="#memory">Memory &amp; Keys</a>
+        <a href="#billing">Billing</a>
+      </div>
+    </section>
+
+    <section class="cat" id="start">
+      <h2>Getting started</h2>
+      <details><summary>Signing in and the workspace layout</summary><div class="body"><p>Open the app from <strong>Launch app</strong> or visit <strong>/chat</strong>. The left sidebar is your home base:</p><ul><li><strong>New chat</strong> — start a conversation</li><li><strong>Search</strong> — find any past message</li><li><strong>Notes</strong> — your notes workspace</li><li><strong>Workspace</strong> — Models, Agents, Prompts, Skills, Org Memory, API Keys</li></ul><p class="tip">Your account menu (bottom-left) holds settings and sign-out.</p></div></details>
+      <details><summary>Starting your first conversation</summary><div class="body"><ol><li>Click <strong>New chat</strong>.</li><li>Pick a model from the selector at the top.</li><li>Type your message and press Enter.</li></ol></div></details>
+    </section>
+
+    <section class="cat" id="chat">
+      <h2>Chat &amp; the Controls panel</h2>
+      <details><summary>Switching models</summary><div class="body"><p>Use the model selector in the chat header to change models per conversation. You can keep different conversations on different models.</p></div></details>
+      <details><summary>Using the Controls panel</summary><div class="body"><p>Click the <strong>sliders icon</strong> in the chat header to open Controls — a right-side drawer with three sections:</p><ul><li><strong>System Prompt</strong> — set instructions for this conversation.</li><li><strong>Advanced Params</strong> — every model parameter (temperature, top-p, max tokens, stop sequences, penalties, mirostat, and Ollama-specific tuning). Each shows <em>Default</em> until you override it.</li><li><strong>Add Custom Parameter</strong> — pass any extra key/value the model supports.</li></ul><p class="tip">A parameter only changes output if the active model's backend reads it — the Ollama-prefixed rows apply to Ollama-served models.</p></div></details>
+      <details><summary>Saving a preset</summary><div class="body"><p>Use the presets menu in the chat header to save the current model + parameters as a reusable preset, then apply it to future chats.</p></div></details>
+    </section>
+
+    <section class="cat" id="models">
+      <h2>Building models</h2>
+      <details><summary>What is a "model" in Analytikul?</summary><div class="body"><p>A model is a saved configuration on top of a base model — a system prompt, parameters, tools and capabilities bound together so you can reuse a specialist anywhere. Find them under <strong>Workspace → Models</strong>.</p></div></details>
+      <details><summary>Creating a model</summary><div class="body"><ol><li>Go to <strong>Workspace → Models</strong> and click <strong>New Model</strong>.</li><li>Give it a name, description and instructions (system prompt).</li><li>Pick a provider and base model.</li><li>Enable capabilities — Code Interpreter, Web Search, File Search, File Context, Artifacts — and configure each as needed.</li><li>Click <strong>Save</strong>. It appears as a card you can Edit, Duplicate or Delete.</li></ol><p class="tip">Some capability uploads (knowledge files, code-environment files) become available after the model is saved the first time.</p></div></details>
+    </section>
+
+    <section class="cat" id="agents">
+      <h2>Agents &amp; tool sets</h2>
+      <details><summary>Running an autonomous agent</summary><div class="body"><ol><li>Open the <strong>Agent</strong> tab in the right-side panel.</li><li>Expand <strong>Tools &amp; model</strong> to choose which tool sets the agent may use, and optionally a provider/model.</li><li>Describe the task and click <strong>Run agent</strong>.</li><li>Watch the live trace, token use and cost as it works. Use <strong>Cancel</strong> any time.</li></ol></div></details>
+      <details><summary>Choosing tool sets</summary><div class="body"><p>The agent can use 26 tool sets — web, search, vision, image/video generation, terminal, browser, files, memory, delegation, skills and more. Tick the ones you want; sensitive tools (messaging, computer use, home automation) are off by default.</p><p class="tip">Tool and model choices apply to a <strong>new</strong> agent conversation. Start a fresh run to change them.</p></div></details>
+      <details><summary>Picking a provider &amp; model for the agent</summary><div class="body"><p>In <strong>Tools &amp; model</strong>, choose a provider to load its models, or leave it on <em>Default</em> to use the workspace's configured agent model. For OpenRouter/Groq/Mistral, type the provider's model id directly.</p></div></details>
+    </section>
+
+    <section class="cat" id="notes">
+      <h2>Notes</h2>
+      <details><summary>Creating and formatting notes</summary><div class="body"><p>Open <strong>Notes</strong> in the sidebar to create a note. The editor supports rich formatting, lists, headings and code, plus AI actions to summarize or rewrite. You can share a note with your organization.</p></div></details>
+    </section>
+
+    <section class="cat" id="search">
+      <h2>Search</h2>
+      <details><summary>Finding past messages</summary><div class="body"><p>Click <strong>Search</strong> in the sidebar, then type in the search box on the page. Results update as you type and cover every message across your conversations.</p></div></details>
+    </section>
+
+    <section class="cat" id="memory">
+      <h2>Org memory &amp; API keys</h2>
+      <details><summary>Org memory</summary><div class="body"><p>Open <strong>Workspace → Org Memory</strong>. Agents can save facts here to a shared memory, and you can view, add or remove them so your whole team benefits.</p></div></details>
+      <details><summary>Bringing your own API keys</summary><div class="body"><p>Open <strong>Workspace → API Keys</strong> to store provider keys (Anthropic, OpenAI, OpenRouter, Google, Groq, Mistral) in an encrypted vault. Agent and chat usage then runs on your own provider accounts.</p></div></details>
+    </section>
+
+    <section class="cat" id="billing">
+      <h2>Billing</h2>
+      <details><summary>How billing works</summary><div class="body"><p>See <a href="/pricing" style="color:var(--blue-bright);">Pricing</a> for plans. Paid billing connects to Stripe soon; early accounts keep founding pricing. With your own API keys, model usage is billed by your provider at cost.</p></div></details>
+      <details><summary>Cost tracking &amp; budgets</summary><div class="body"><p>The <strong>Costs</strong> tab in the right panel shows token and dollar usage. Admins can set budget caps that pause agent runs before they exceed a limit.</p></div></details>
+    </section>
+  </div>
+
+  <footer>
+    <div class="fbar">
+      <div class="fbrand"><img src="/assets/Alogo2.png" alt="" /> Analytikul</div>
+      <div class="flinks">
+        <a href="/features">Features</a>
+        <a href="/pricing">Pricing</a>
+        <a href="/help">Help Center</a>
+        <a href="/chat">App</a>
+      </div>
+    </div>
+  </footer>
+</main>
+</body>
+</html>

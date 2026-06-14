@@ -1,10 +1,18 @@
 import { useState, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { ChevronDown } from 'lucide-react';
+import { useGetModelsQuery } from 'librechat-data-provider/react-query';
 import { useLocalize } from '~/hooks';
 import { cn } from '~/utils';
 import TraceViewer from './TraceViewer';
 import type { AgentStreamApi } from './useAgentStream';
+
+/** Maps a Hermes provider name to the LibreChat models-map key, where one exists. */
+const PROVIDER_MODEL_KEY: Record<string, string> = {
+  openai: 'openAI',
+  anthropic: 'anthropic',
+  google: 'google',
+};
 
 /** User-facing Hermes toolsets (the internal hermes-* platform bundles are hidden). */
 const TOOLSETS = [
@@ -52,6 +60,14 @@ export default function AgentPanel({ stream }: { stream: AgentStreamApi }) {
   );
   const [provider, setProvider] = useState('');
   const [model, setModel] = useState('');
+
+  const { data: modelsMap = {} } = useGetModelsQuery();
+  const providerModels = useMemo(() => {
+    if (!provider) {
+      return [];
+    }
+    return modelsMap[PROVIDER_MODEL_KEY[provider] ?? provider] ?? [];
+  }, [modelsMap, provider]);
 
   const busy = stream.state === 'starting' || stream.state === 'running';
 
@@ -117,12 +133,15 @@ export default function AgentPanel({ stream }: { stream: AgentStreamApi }) {
         </button>
         {showOptions && (
           <div className="border-t border-border-light px-2.5 py-2">
-            <div className="mb-2 flex items-center gap-2">
+            <div className="mb-1 flex items-center gap-2">
               <select
                 aria-label={localize('com_atk_agent_provider')}
                 className="min-w-0 flex-1 rounded-md border border-border-light bg-surface-secondary px-2 py-1 text-xs text-text-primary focus:outline-none"
                 value={provider}
-                onChange={(e) => setProvider(e.target.value)}
+                onChange={(e) => {
+                  setProvider(e.target.value);
+                  setModel('');
+                }}
               >
                 {PROVIDERS.map((p) => (
                   <option key={p} value={p}>
@@ -130,14 +149,33 @@ export default function AgentPanel({ stream }: { stream: AgentStreamApi }) {
                   </option>
                 ))}
               </select>
-              <input
-                aria-label={localize('com_atk_agent_model')}
-                placeholder={localize('com_atk_agent_model_ph')}
-                className="min-w-0 flex-1 rounded-md border border-border-light bg-surface-secondary px-2 py-1 text-xs text-text-primary placeholder-text-secondary focus:outline-none"
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-              />
+              {providerModels.length > 0 ? (
+                <select
+                  aria-label={localize('com_atk_agent_model')}
+                  className="min-w-0 flex-1 rounded-md border border-border-light bg-surface-secondary px-2 py-1 text-xs text-text-primary focus:outline-none"
+                  value={model}
+                  onChange={(e) => setModel(e.target.value)}
+                >
+                  <option value="">{localize('com_atk_agent_model_default')}</option>
+                  {providerModels.map((m) => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  aria-label={localize('com_atk_agent_model')}
+                  placeholder={localize('com_atk_agent_model_ph')}
+                  className="min-w-0 flex-1 rounded-md border border-border-light bg-surface-secondary px-2 py-1 text-xs text-text-primary placeholder-text-secondary focus:outline-none"
+                  value={model}
+                  onChange={(e) => setModel(e.target.value)}
+                />
+              )}
             </div>
+            <p className="mb-2 text-[11px] leading-snug text-text-tertiary">
+              {localize('com_atk_agent_model_hint')}
+            </p>
 
             <div className="mb-1.5 flex items-center justify-between">
               <span className="text-xs font-medium text-text-secondary">

@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Analytikul — Features</title>
+<meta name="description" content="Everything in Analytikul: analytics-native AI chat, autonomous agents, a notes workspace, custom models, per-chat controls, shared org memory, BYOK keys, and cost governance." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg:#04060c; --ink:#eaf1f8; --muted:#93a0b8; --faint:#525d75;
+    --blue:#18a8da; --blue-bright:#38d2ef; --violet:#6a32c0;
+    --line:rgba(56,178,224,0.16); --card:rgba(255,255,255,0.022);
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{background:var(--bg);color:var(--ink);font-family:'Inter',system-ui,sans-serif;font-weight:300;line-height:1.7;overflow-x:hidden;-webkit-font-smoothing:antialiased;}
+  .matter{position:fixed;inset:0;z-index:0;pointer-events:none;background:radial-gradient(40vw 40vw at 18% 14%,rgba(24,108,170,.10),transparent 70%),radial-gradient(46vw 46vw at 82% 26%,rgba(106,50,192,.10),transparent 70%),radial-gradient(50vw 40vw at 50% 92%,rgba(24,168,218,.06),transparent 72%);}
+  main{position:relative;z-index:2;}
+  nav{display:flex;align-items:center;justify-content:space-between;padding:20px clamp(20px,6vw,64px);position:sticky;top:0;z-index:20;backdrop-filter:blur(9px);background:linear-gradient(to bottom,rgba(4,6,12,.72),rgba(4,6,12,0));}
+  .brand{display:flex;align-items:center;gap:12px;font-family:'Space Grotesk',sans-serif;text-decoration:none;color:var(--ink);}
+  .brand img{width:34px;height:34px;display:block;filter:drop-shadow(0 0 14px rgba(24,168,218,.45));}
+  .brand .word{font-size:19px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;}
+  .brand .word b{color:var(--blue-bright);font-weight:600;}
+  .navlinks{display:flex;align-items:center;gap:28px;}
+  .navlinks a:not(.btn){color:var(--muted);text-decoration:none;font-size:14px;transition:color .2s;}
+  .navlinks a:not(.btn):hover{color:var(--ink);}
+  .navlinks a.active{color:var(--blue-bright);}
+  .btn{font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:500;letter-spacing:.03em;text-decoration:none;cursor:pointer;padding:10px 20px;border-radius:999px;transition:all .22s ease;display:inline-flex;align-items:center;gap:8px;}
+  .btn-ghost{color:var(--ink);border:1px solid var(--line);background:transparent;}
+  .btn-ghost:hover{border-color:var(--blue);color:var(--blue-bright);}
+  .btn-blue{color:#021019;background:linear-gradient(180deg,var(--blue-bright),var(--blue));font-weight:700;}
+  .btn-blue:hover{box-shadow:0 8px 34px rgba(24,168,218,.32);transform:translateY(-1px);}
+  @media (max-width:720px){.navlinks .hide-sm{display:none;}}
+  .wrap{max-width:1100px;margin:0 auto;padding:0 clamp(20px,5vw,48px);}
+  .hero{text-align:center;padding:9vh 0 5vh;}
+  .eyebrow{display:inline-block;font-family:'Space Grotesk',sans-serif;font-size:12px;letter-spacing:.26em;text-transform:uppercase;color:var(--blue-bright);border:1px solid var(--line);border-radius:999px;padding:7px 16px;margin-bottom:24px;background:rgba(24,168,218,.05);}
+  h1{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:clamp(38px,6vw,68px);line-height:1.04;letter-spacing:-.02em;}
+  h1 .glow{color:var(--blue-bright);text-shadow:0 0 38px rgba(56,210,239,.45);}
+  .sub{margin:22px auto 0;max-width:60ch;color:var(--muted);font-size:clamp(15px,2vw,18px);}
+  h2{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:clamp(24px,3vw,32px);letter-spacing:-.01em;margin:0 0 6px;}
+  .section{padding:5vh 0;}
+  .section .lead{color:var(--muted);max-width:62ch;margin-bottom:30px;}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px;}
+  .card{border:1px solid var(--line);background:var(--card);border-radius:18px;padding:24px;transition:border-color .2s,transform .2s;}
+  .card:hover{border-color:var(--blue);transform:translateY(-2px);}
+  .card .ic{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;background:rgba(24,168,218,.10);color:var(--blue-bright);margin-bottom:14px;}
+  .card h3{font-family:'Space Grotesk',sans-serif;font-size:17px;font-weight:600;margin-bottom:8px;}
+  .card p{color:var(--muted);font-size:14.5px;}
+  .card ul{margin:10px 0 0;padding-left:18px;color:var(--muted);font-size:14px;}
+  .card ul li{margin:3px 0;}
+  .cta{text-align:center;border:1px solid var(--line);background:var(--card);border-radius:24px;padding:48px 24px;margin:6vh 0;}
+  .cta h2{margin-bottom:10px;}
+  .cta p{color:var(--muted);margin-bottom:24px;}
+  footer{border-top:1px solid var(--line);padding:40px clamp(20px,6vw,64px);color:var(--faint);font-size:13px;position:relative;z-index:2;}
+  .fbar{display:flex;flex-wrap:wrap;gap:18px;justify-content:space-between;align-items:center;max-width:1100px;margin:0 auto;}
+  .fbrand{display:flex;align-items:center;gap:10px;font-family:'Space Grotesk',sans-serif;color:var(--muted);}
+  .fbrand img{width:22px;height:22px;}
+  .flinks{display:flex;gap:20px;flex-wrap:wrap;}
+  .flinks a{color:var(--muted);text-decoration:none;}
+  .flinks a:hover{color:var(--ink);}
+</style>
+</head>
+<body>
+<div class="matter"></div>
+<main>
+  <nav>
+    <a class="brand" href="/"><img src="/assets/Alogo2.png" alt="Analytikul" /><span class="word">Analy<b>tikul</b></span></a>
+    <div class="navlinks">
+      <a href="/features" class="hide-sm active">Features</a>
+      <a href="/pricing" class="hide-sm">Pricing</a>
+      <a href="/help" class="hide-sm">Docs</a>
+      <a href="/chat" class="btn btn-ghost">Sign in</a>
+      <a href="/chat" class="btn btn-blue">Launch app →</a>
+    </div>
+  </nav>
+
+  <div class="wrap">
+    <section class="hero">
+      <span class="eyebrow">● Analytics-native AI workspace</span>
+      <h1>Every capability,<br /><span class="glow">in the light.</span></h1>
+      <p class="sub">Analytikul is a complete AI workspace — chat, autonomous agents, notes, custom models, and the cost &amp; memory layer most tools hide. Here's everything inside.</p>
+    </section>
+
+    <section class="section">
+      <h2>Talk to any model</h2>
+      <p class="lead">A fast, multi-model chat workspace with the controls power users expect — not a locked black box.</p>
+      <div class="grid">
+        <div class="card"><div class="ic">◆</div><h3>Multi-provider chat</h3><p>Anthropic, OpenAI, Google and local models side by side. Switch models per conversation, compare answers, keep one home for everything.</p></div>
+        <div class="card"><div class="ic">⚙</div><h3>Per-chat Controls</h3><p>A full controls panel: system prompt plus every advanced parameter — temperature, top-p, max tokens, stop sequences, penalties, mirostat, and Ollama tuning — with custom parameters.</p></div>
+        <div class="card"><div class="ic">★</div><h3>Presets &amp; prompts</h3><p>Save model + parameter presets, build a reusable prompt library, and launch from conversation starters.</p></div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Build your own models &amp; agents</h2>
+      <p class="lead">Turn a base model into a specialist. Bind a system prompt, parameters, tools, knowledge and capabilities — then reuse it everywhere.</p>
+      <div class="grid">
+        <div class="card"><div class="ic">▣</div><h3>Model builder</h3><p>A Workspace → Models studio. Create configuration presets on top of any base model with a system prompt, advanced params, and capability toggles.</p><ul><li>Code interpreter, web search</li><li>File search &amp; knowledge</li><li>Artifacts &amp; file context</li></ul></div>
+        <div class="card"><div class="ic">⬡</div><h3>Autonomous agents</h3><p>The Hermes agent runtime runs real multi-step tasks with a live trace — web research, code execution, file work, browsing and more.</p></div>
+        <div class="card"><div class="ic">⛓</div><h3>26 tool sets</h3><p>Pick exactly which tools an agent can use per run — search, vision, image/video gen, terminal, browser, memory, delegation, skills and beyond.</p></div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>A workspace that remembers</h2>
+      <p class="lead">Notes, shared memory and search make Analytikul a place your team's knowledge accumulates — not a stream you lose.</p>
+      <div class="grid">
+        <div class="card"><div class="ic">✎</div><h3>Notes workspace</h3><p>A rich editor with AI actions and share-with-org. Capture, refine and reuse what your agents and chats produce.</p></div>
+        <div class="card"><div class="ic">◉</div><h3>Org memory</h3><p>Facts your agents save to a shared organizational memory, so the whole team benefits from what each member learns.</p></div>
+        <div class="card"><div class="ic">🔍</div><h3>Full-text search</h3><p>Search across every message in every conversation instantly, powered by a dedicated search engine.</p></div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Control the cost &amp; the keys</h2>
+      <p class="lead">The hidden layer, surfaced: what every run costs and which keys it uses — under your governance.</p>
+      <div class="grid">
+        <div class="card"><div class="ic">$</div><h3>FinOps &amp; cost caps</h3><p>Live token and dollar cost on every agent run, with budget limits that pause spend before it runs away.</p></div>
+        <div class="card"><div class="ic">🔑</div><h3>Bring your own keys</h3><p>Store provider API keys in an encrypted vault and use your own accounts — Anthropic, OpenAI, OpenRouter, Google, Groq, Mistral.</p></div>
+        <div class="card"><div class="ic">⬢</div><h3>Org &amp; roles</h3><p>Multi-tenant organizations with shared resources, so teams collaborate without leaking data across boundaries.</p></div>
+      </div>
+    </section>
+
+    <section class="cta">
+      <h2>See it for yourself</h2>
+      <p>Launch the workspace and surface what's hidden.</p>
+      <a href="/chat" class="btn btn-blue">Launch the app →</a>
+    </section>
+  </div>
+
+  <footer>
+    <div class="fbar">
+      <div class="fbrand"><img src="/assets/Alogo2.png" alt="" /> Analytikul</div>
+      <div class="flinks">
+        <a href="/features">Features</a>
+        <a href="/pricing">Pricing</a>
+        <a href="/help">Help Center</a>
+        <a href="/chat">App</a>
+      </div>
+    </div>
+  </footer>
+</main>
+</body>
+</html>

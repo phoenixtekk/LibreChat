@@ -134,8 +134,17 @@ const startServer = async () => {
 
   // Analytikul: marketing landing page served at the apex `/`. The SPA lives at
   // `/chat` (and `/c/:id`, `/login`, etc.); see client/src/routes/index.tsx.
-  const landingPath = path.join(appConfig.paths.dist, 'landing.html');
-  const landingHTML = fs.existsSync(landingPath) ? fs.readFileSync(landingPath, 'utf8') : null;
+  const readDistHtml = (file) => {
+    const p = path.join(appConfig.paths.dist, file);
+    return fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : null;
+  };
+  const landingHTML = readDistHtml('landing.html');
+  // Analytikul marketing pages served as static HTML (route -> cached html).
+  const marketingPages = {
+    '/features': readDistHtml('features.html'),
+    '/pricing': readDistHtml('pricing.html'),
+    '/help': readDistHtml('help.html'),
+  };
 
   // In order to provide support to serving the application in a sub-directory
   // We need to update the base href if the DOMAIN_CLIENT is specified and not the root path
@@ -242,6 +251,16 @@ const startServer = async () => {
     res.type('html');
     res.send(landingHTML);
   });
+  for (const [route, html] of Object.entries(marketingPages)) {
+    app.get(route, (req, res) => {
+      if (html == null) {
+        return sendIndexHtml(req, res);
+      }
+      res.set({ 'Cache-Control': 'public, max-age=300' });
+      res.type('html');
+      res.send(html);
+    });
+  }
   app.get('/index.html', sendIndexHtml);
   app.use(staticCache(appConfig.paths.dist));
   app.use(staticCache(appConfig.paths.fonts));
