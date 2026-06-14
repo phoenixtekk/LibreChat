@@ -1,54 +1,52 @@
-import { memo, useState, useEffect, useMemo, useCallback } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { isAssistantsEndpoint, EModelEndpoint, QueryKeys } from 'librechat-data-provider';
-import { useGetModelsQuery } from 'librechat-data-provider/react-query';
-import type { AgentModelParameters, AgentCreateParams } from 'librechat-data-provider';
-import {
-  useGetEndpointsQuery,
-  useGetAgentByIdQuery,
-  useCreateAgentMutation,
-  useUpdateAgentMutation,
-  useGetAgentCategoriesQuery,
-} from '~/data-provider';
+import React, { memo, useEffect, Component } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ChatContext } from '~/Providers/ChatContext';
+import { AgentPanelProvider, useAgentPanelContext } from '~/Providers/AgentPanelContext';
+import VersionPanel from '~/components/SidePanel/Agents/Version/VersionPanel';
+import ActionsPanel from '~/components/SidePanel/Agents/ActionsPanel';
+import AgentPanel from '~/components/SidePanel/Agents/AgentPanel';
+import { Panel } from '~/common';
 import { useLocalize } from '~/hooks';
 import { cn } from '~/utils';
 
-const PROVIDER_LABELS: Record<string, string> = {
-  openAI: 'OpenAI',
-  azureOpenAI: 'Azure OpenAI',
-  anthropic: 'Anthropic',
-  google: 'Google',
-  bedrock: 'AWS Bedrock',
-};
+/**
+ * The Agent Builder's dynamic parameter components call useChatContext(), which
+ * throws outside the chat view. They only read `.preset`, so a minimal stub
+ * satisfies them and lets the full builder run standalone here.
+ */
+const CHAT_STUB = { preset: null } as unknown as React.ContextType<typeof ChatContext>;
 
-const CAPABILITIES: { key: 'execute_code' | 'web_search' | 'file_search'; labelKey: string }[] = [
-  { key: 'execute_code', labelKey: 'com_atk_cap_code' },
-  { key: 'web_search', labelKey: 'com_atk_cap_web' },
-  { key: 'file_search', labelKey: 'com_atk_cap_file_search' },
-];
+/** Drives the shared Agent Builder to create (id undefined) or edit a model. */
+function BuilderInner({ agentId }: { agentId?: string }) {
+  const { activePanel, setCurrentAgentId, setActivePanel } = useAgentPanelContext();
 
-type Caps = { execute_code: boolean; web_search: boolean; file_search: boolean; artifacts: boolean };
-const EMPTY_CAPS: Caps = {
-  execute_code: false,
-  web_search: false,
-  file_search: false,
-  artifacts: false,
-};
+  useEffect(() => {
+    setCurrentAgentId(agentId);
+    setActivePanel(Panel.builder);
+  }, [agentId, setCurrentAgentId, setActivePanel]);
 
-function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
-  return (
-    <div className="mb-4">
-      <label className="mb-1.5 block text-xs font-medium text-text-secondary">
-        {label}
-        {required && <span className="text-red-500"> *</span>}
-      </label>
-      {children}
-    </div>
-  );
+  if (activePanel === Panel.actions) {
+    return <ActionsPanel />;
+  }
+  if (activePanel === Panel.version) {
+    return <VersionPanel />;
+  }
+  return <AgentPanel />;
 }
 
-const inputCls =
-  'w-full rounded-lg border border-border-light bg-surface-secondary px-3 py-2 text-sm text-text-primary placeholder-text-secondary focus:border-border-heavy focus:outline-none';
+/** Isolates any builder render failure so the Models grid stays usable. */
+class BuilderBoundary extends Component<
+  { fallback: React.ReactNode; children: React.ReactNode },
+  { failed: boolean }
+> {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  render() {
+    return this.state.failed ? this.props.fallback : this.props.children;
+  }
+}
 
 function ModelBuilderDrawer({
   open,
@@ -62,136 +60,7 @@ function ModelBuilderDrawer({
   onClose: () => void;
 }) {
   const localize = useLocalize();
-  const queryClient = useQueryClient();
-
-  const { data: endpointsConfig = {} } = useGetEndpointsQuery();
-  const { data: modelsMap = {} } = useGetModelsQuery({ refetchOnMount: 'always' });
-  const { data: categories = [] } = useGetAgentCategoriesQuery();
-  const { data: existing } = useGetAgentByIdQuery(agentId ?? '', {
-    enabled: open && !isNew && !!agentId,
-  });
-
-  const providers = useMemo(
-    () =>
-      Object.keys(endpointsConfig).filter(
-        (key) => !isAssistantsEndpoint(key) && key !== EModelEndpoint.agents,
-      ),
-    [endpointsConfig],
-  );
-
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [instructions, setInstructions] = useState('');
-  const [category, setCategory] = useState('general');
-  const [provider, setProvider] = useState('');
-  const [model, setModel] = useState('');
-  const [caps, setCaps] = useState<Caps>(EMPTY_CAPS);
-  const [error, setError] = useState('');
-
-  const reset = useCallback(() => {
-    setName('');
-    setDescription('');
-    setInstructions('');
-    setCategory('general');
-    setProvider('');
-    setModel('');
-    setCaps(EMPTY_CAPS);
-    setError('');
-  }, []);
-
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-    if (isNew) {
-      reset();
-      return;
-    }
-    if (existing) {
-      setName(existing.name ?? '');
-      setDescription(existing.description ?? '');
-      setInstructions(existing.instructions ?? '');
-      setCategory(existing.category ?? 'general');
-      setProvider((existing.provider as string) ?? '');
-      setModel(existing.model ?? '');
-      const tools = existing.tools ?? [];
-      setCaps({
-        execute_code: tools.includes('execute_code'),
-        web_search: tools.includes('web_search'),
-        file_search: tools.includes('file_search'),
-        artifacts: !!existing.artifacts,
-      });
-    }
-  }, [open, isNew, existing, reset]);
-
-  const models = useMemo(() => (provider ? (modelsMap[provider] ?? []) : []), [modelsMap, provider]);
-
-  const createAgent = useCreateAgentMutation();
-  const updateAgent = useUpdateAgentMutation();
-  const saving = createAgent.isLoading || updateAgent.isLoading;
-
-  const onSave = useCallback(() => {
-    setError('');
-    if (!model || !provider) {
-      setError(localize('com_atk_model_need_model'));
-      return;
-    }
-    const tools: string[] = [];
-    if (caps.execute_code) {
-      tools.push('execute_code');
-    }
-    if (caps.web_search) {
-      tools.push('web_search');
-    }
-    if (caps.file_search) {
-      tools.push('file_search');
-    }
-    const base = {
-      name: name || null,
-      description: description || null,
-      instructions: instructions || null,
-      category,
-      tools,
-      artifacts: caps.artifacts ? 'default' : undefined,
-    };
-
-    const done = () => {
-      queryClient.invalidateQueries([QueryKeys.agents]);
-      onClose();
-    };
-
-    if (isNew) {
-      createAgent.mutate(
-        {
-          ...base,
-          provider,
-          model,
-          model_parameters: {} as AgentModelParameters,
-        } as AgentCreateParams,
-        { onSuccess: done, onError: () => setError(localize('com_atk_model_save_failed')) },
-      );
-    } else if (agentId) {
-      updateAgent.mutate(
-        { agent_id: agentId, data: { ...base, provider, model } },
-        { onSuccess: done, onError: () => setError(localize('com_atk_model_save_failed')) },
-      );
-    }
-  }, [
-    model,
-    provider,
-    caps,
-    name,
-    description,
-    instructions,
-    category,
-    isNew,
-    agentId,
-    createAgent,
-    updateAgent,
-    onClose,
-    queryClient,
-    localize,
-  ]);
+  const navigate = useNavigate();
 
   return (
     <>
@@ -222,123 +91,31 @@ function ModelBuilderDrawer({
             </svg>
           </button>
         </div>
-
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
-          <Field label={localize('com_atk_model_name')}>
-            <input
-              className={inputCls}
-              placeholder={localize('com_atk_model_name_ph')}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-          </Field>
-
-          <Field label={localize('com_ui_description')}>
-            <input
-              className={inputCls}
-              placeholder={localize('com_atk_model_desc_ph')}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-            />
-          </Field>
-
-          <Field label={localize('com_atk_model_category')} required>
-            <select className={inputCls} value={category} onChange={(e) => setCategory(e.target.value)}>
-              {(categories.length ? categories : [{ value: 'general', label: 'General' }]).map((c) => (
-                <option key={c.value} value={c.value}>
-                  {c.label?.startsWith('com_') ? localize(c.label) : c.label}
-                </option>
-              ))}
-            </select>
-          </Field>
-
-          <Field label={localize('com_atk_system_prompt')}>
-            <textarea
-              className={cn(inputCls, 'min-h-[96px] resize-y')}
-              placeholder={localize('com_atk_model_instructions_ph')}
-              value={instructions}
-              onChange={(e) => setInstructions(e.target.value)}
-            />
-          </Field>
-
-          <Field label={localize('com_atk_model_provider')} required>
-            <select
-              className={inputCls}
-              value={provider}
-              onChange={(e) => {
-                setProvider(e.target.value);
-                setModel('');
-              }}
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          {open && (
+            <BuilderBoundary
+              fallback={
+                <div className="flex flex-col items-center gap-3 p-6 text-center">
+                  <p className="text-sm text-text-secondary">
+                    {localize('com_atk_model_builder_fallback')}
+                  </p>
+                  <button
+                    type="button"
+                    className="rounded-lg bg-surface-tertiary px-3 py-1.5 text-sm text-text-primary transition hover:bg-surface-hover"
+                    onClick={() => navigate('/agents')}
+                  >
+                    {localize('com_atk_model_open_agents')}
+                  </button>
+                </div>
+              }
             >
-              <option value="">{localize('com_atk_model_select_provider')}</option>
-              {providers.map((p) => (
-                <option key={p} value={p}>
-                  {PROVIDER_LABELS[p] ?? p}
-                </option>
-              ))}
-            </select>
-          </Field>
-
-          <Field label={localize('com_atk_model_model')} required>
-            <select
-              className={inputCls}
-              value={model}
-              disabled={!provider}
-              onChange={(e) => setModel(e.target.value)}
-            >
-              <option value="">{localize('com_atk_model_select_model')}</option>
-              {models.map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </select>
-          </Field>
-
-          <div className="mb-4">
-            <span className="mb-2 block text-xs font-medium text-text-secondary">
-              {localize('com_atk_capabilities')}
-            </span>
-            <div className="flex flex-col gap-2">
-              {CAPABILITIES.map(({ key, labelKey }) => (
-                <label key={key} className="flex items-center gap-2 text-sm text-text-primary">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 rounded border-border-medium"
-                    checked={caps[key]}
-                    onChange={(e) => setCaps((prev) => ({ ...prev, [key]: e.target.checked }))}
-                  />
-                  {localize(labelKey)}
-                </label>
-              ))}
-              <label className="flex items-center gap-2 text-sm text-text-primary">
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 rounded border-border-medium"
-                  checked={caps.artifacts}
-                  onChange={(e) => setCaps((prev) => ({ ...prev, artifacts: e.target.checked }))}
-                />
-                {localize('com_atk_cap_artifacts')}
-              </label>
-            </div>
-          </div>
-
-          {error && <p className="mb-3 text-sm text-red-500">{error}</p>}
-        </div>
-
-        <div className="border-t border-border-light p-3">
-          <button
-            type="button"
-            className="flex w-full items-center justify-center rounded-xl bg-blue-500 py-2.5 text-sm font-medium text-white transition hover:bg-blue-600 disabled:opacity-60"
-            disabled={saving}
-            onClick={onSave}
-          >
-            {saving
-              ? localize('com_ui_saving')
-              : isNew
-                ? localize('com_atk_model_save_create')
-                : localize('com_ui_save')}
-          </button>
+              <ChatContext.Provider value={CHAT_STUB}>
+                <AgentPanelProvider>
+                  <BuilderInner agentId={isNew ? undefined : agentId} />
+                </AgentPanelProvider>
+              </ChatContext.Provider>
+            </BuilderBoundary>
+          )}
         </div>
       </aside>
     </>
