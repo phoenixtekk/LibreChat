@@ -11,6 +11,15 @@ Deploy target: `git push linuxg6 main` → `scripts/deploy.sh` on linuxg6.
   (commits `ffadb6b9f`, `100374393`) — baked into g3's image at build.
 
 ## Committed
+- `cc3113fe9` feat(ui): OWUI-style Workspace Models page (`/workspace/models`) — grid of
+  user agents as model cards (Edit/Duplicate/Delete), New Model, reuses Agent Builder via
+  ModelBuilderDrawer (error-boundary fallback to /agents)
+- `a54818b28` feat(ui): full OWUI-fidelity Controls panel (Valves/System Prompt/Advanced
+  Params with complete param list + Add Custom Parameter)
+- `e04f3973c` feat(ui): per-chat Controls drawer + Org Memory/Keys sidebar entries
+- `586a8ed7c` fix(ui): dark-mode contrast (placeholder/cardStyle tokens) + Search spinner guard
+- `7a43cb6de` / `59a1ba6f5` / `43ab7b325` style(landing): Agartha + hero-logo sizing/position passes
+
 - `100374393` fix(notes): tight list spacing (OWUI parity) — scoped .atk-note-prose CSS
 - `ffadb6b9f` fix(notes): paste markdown as rich text (handlePaste via marked)
 - `c1b8e69ce` fix(notes): match Open WebUI text formatting (marked + no-escape Turndown) + toolbar
