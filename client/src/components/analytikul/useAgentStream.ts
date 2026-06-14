@@ -36,6 +36,13 @@ export interface AgentEvent {
 
 export type AgentRunState = 'idle' | 'starting' | 'running' | 'done' | 'error' | 'cancelled';
 
+export interface AgentRunOptions {
+  enabledToolsets?: string[];
+  disabledToolsets?: string[];
+  model?: string;
+  provider?: string;
+}
+
 export interface AgentStreamApi {
   state: AgentRunState;
   events: AgentEvent[];
@@ -45,7 +52,7 @@ export interface AgentStreamApi {
   totalCostUsd: number;
   totalTokens: number;
   taskId: string | null;
-  run: (message: string, conversationId: string) => Promise<void>;
+  run: (message: string, conversationId: string, options?: AgentRunOptions) => Promise<void>;
   cancel: () => Promise<void>;
   reset: () => void;
 }
@@ -106,14 +113,14 @@ export default function useAgentStream(): AgentStreamApi {
   }, []);
 
   const run = useCallback(
-    async (message: string, conversationId: string) => {
+    async (message: string, conversationId: string, options?: AgentRunOptions) => {
       reset();
       setState('starting');
       try {
         const res = await fetch('/api/analytikul/agent/run', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ message, conversationId }),
+          body: JSON.stringify({ message, conversationId, ...options }),
         });
         if (!res.ok) {
           const body = (await res.json().catch(() => null)) as { message?: string } | null;

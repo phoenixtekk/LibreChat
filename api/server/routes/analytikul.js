@@ -26,7 +26,8 @@ router.use(requireJwtAuth);
 
 router.post('/agent/run', async (req, res) => {
   try {
-    const { message, conversationId, model, provider, baseUrl } = req.body ?? {};
+    const { message, conversationId, model, provider, baseUrl, enabledToolsets, disabledToolsets } =
+      req.body ?? {};
     if (!message || !conversationId) {
       return res.status(400).json({ message: 'message and conversationId are required' });
     }
@@ -55,6 +56,8 @@ router.post('/agent/run', async (req, res) => {
         model: model ?? process.env.AGENT_DEFAULT_MODEL,
         provider: provider ?? process.env.AGENT_DEFAULT_PROVIDER,
         baseUrl: baseUrl ?? process.env.AGENT_DEFAULT_BASE_URL,
+        enabledToolsets: Array.isArray(enabledToolsets) ? enabledToolsets : undefined,
+        disabledToolsets: Array.isArray(disabledToolsets) ? disabledToolsets : undefined,
       },
       ctx,
     );
