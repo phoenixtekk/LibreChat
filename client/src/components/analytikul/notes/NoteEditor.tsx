@@ -59,7 +59,7 @@ export default function NoteEditor() {
     editorProps: {
       attributes: {
         class:
-          'prose dark:prose-invert prose-sm sm:prose-base max-w-none focus:outline-none min-h-[60vh] px-1',
+          'atk-note-prose prose dark:prose-invert prose-sm sm:prose-base max-w-none focus:outline-none min-h-[60vh] px-1',
       },
       // Paste markdown as rich text (Open WebUI parity). Real HTML pastes (from
       // rendered sources) fall through to ProseMirror's default handling.

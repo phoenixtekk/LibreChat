@@ -281,3 +281,31 @@ kbd.atk-kbd {
   font-size: var(--font-size-xs);
   font-family: inherit;
 }
+
+/* ============================================================================
+   Notes editor — tight lists (Open WebUI parity).
+   TipTap wraps each list item's content in a <p>, which otherwise inherits the
+   full prose paragraph margin (~20px), stacking on the <li> margin and leaving
+   big gaps between bullets. Zero the inner <p> margins and tighten <li> spacing.
+   Scoped to .atk-note-prose so no other editor is affected.
+   ========================================================================== */
+.atk-note-prose li > p {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+.atk-note-prose li {
+  margin-top: 0.15em;
+  margin-bottom: 0.15em;
+}
+.atk-note-prose ul,
+.atk-note-prose ol {
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+}
+.atk-note-prose ul ul,
+.atk-note-prose ul ol,
+.atk-note-prose ol ul,
+.atk-note-prose ol ol {
+  margin-top: 0.15em;
+  margin-bottom: 0.15em;
+}
