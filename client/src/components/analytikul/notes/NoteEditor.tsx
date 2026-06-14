@@ -6,6 +6,7 @@ import StarterKit from '@tiptap/starter-kit';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
 import Placeholder from '@tiptap/extension-placeholder';
+import type { Editor } from '@tiptap/core';
 import { useLocalize, useAuthContext } from '~/hooks';
 import { htmlToMarkdown, markdownToHtml } from './markdown';
 import { dayjs } from './time';
@@ -41,6 +42,7 @@ export default function NoteEditor() {
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const noteRef = useRef<Note | null>(null);
   noteRef.current = note;
+  const editorRef = useRef<Editor | null>(null);
 
   const headers = useMemo(
     () => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }),
@@ -59,9 +61,26 @@ export default function NoteEditor() {
         class:
           'prose dark:prose-invert prose-sm sm:prose-base max-w-none focus:outline-none min-h-[60vh] px-1',
       },
+      // Paste markdown as rich text (Open WebUI parity). Real HTML pastes (from
+      // rendered sources) fall through to ProseMirror's default handling.
+      handlePaste: (_view, event) => {
+        const html = event.clipboardData?.getData('text/html') ?? '';
+        if (html.trim() !== '') {
+          return false;
+        }
+        const text = event.clipboardData?.getData('text/plain') ?? '';
+        const active = editorRef.current;
+        if (text.trim() === '' || active == null) {
+          return false;
+        }
+        active.chain().focus().insertContent(markdownToHtml(text)).run();
+        return true;
+      },
     },
     onUpdate: () => scheduleSave(),
   });
+
+  editorRef.current = editor;
 
   const persist = useCallback(async () => {
     const current = noteRef.current;
