@@ -1,7 +1,7 @@
 import { memo, useCallback, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useForm } from 'react-hook-form';
-import { useRecoilState } from 'recoil';
+import { useRecoilState, useSetRecoilState } from 'recoil';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { QueryKeys } from 'librechat-data-provider';
@@ -14,7 +14,10 @@ import {
   ScrollText,
   MessageSquareText,
   ChevronDown,
+  Brain,
+  KeyRound,
 } from 'lucide-react';
+import type { PreviewRailTab } from '~/store/misc';
 import type { ChatFormValues } from '~/common';
 import ConversationsSection from '~/components/UnifiedSidebar/ConversationsSection';
 import { ChatContext, ChatFormProvider, ActivePanelProvider } from '~/Providers';
@@ -50,6 +53,7 @@ function AnalytikulSidebar() {
   const queryClient = useQueryClient();
   const { newConversation } = useNewConvo();
   const [expanded, setExpanded] = useRecoilState(store.sidebarExpanded);
+  const setPreviewRail = useSetRecoilState(store.previewRail);
   const isSmallScreen = useMediaQuery('(max-width: 768px)');
   const [workspaceOpen, setWorkspaceOpen] = useState(true);
 
@@ -71,6 +75,14 @@ function AnalytikulSidebar() {
       closeOnMobile();
     },
     [navigate, closeOnMobile],
+  );
+
+  const openRail = useCallback(
+    (tab: PreviewRailTab) => {
+      setPreviewRail({ open: true, tab });
+      closeOnMobile();
+    },
+    [setPreviewRail, closeOnMobile],
   );
 
   const items = [
@@ -97,15 +109,42 @@ function AnalytikulSidebar() {
     },
   ];
 
-  const workspaceItems = [
-    { id: 'agents', label: localize('com_atk_sb_agents'), icon: LayoutGrid, path: '/agents' },
+  const workspaceItems: {
+    id: string;
+    label: string;
+    icon: typeof LayoutGrid;
+    onClick: () => void;
+  }[] = [
+    {
+      id: 'agents',
+      label: localize('com_atk_sb_agents'),
+      icon: LayoutGrid,
+      onClick: () => go('/agents'),
+    },
     {
       id: 'prompts',
       label: localize('com_atk_sb_prompts'),
       icon: MessageSquareText,
-      path: '/prompts/new',
+      onClick: () => go('/prompts/new'),
     },
-    { id: 'skills', label: localize('com_atk_sb_skills'), icon: ScrollText, path: '/skills' },
+    {
+      id: 'skills',
+      label: localize('com_atk_sb_skills'),
+      icon: ScrollText,
+      onClick: () => go('/skills'),
+    },
+    {
+      id: 'memory',
+      label: localize('com_atk_sb_memory'),
+      icon: Brain,
+      onClick: () => openRail('memory'),
+    },
+    {
+      id: 'keys',
+      label: localize('com_atk_sb_keys'),
+      icon: KeyRound,
+      onClick: () => openRail('keys'),
+    },
   ];
 
   const body = (
@@ -177,7 +216,7 @@ function AnalytikulSidebar() {
                 key={item.id}
                 type="button"
                 className="flex w-full items-center space-x-3 rounded-2xl px-2.5 py-1.5 text-sm text-text-secondary transition hover:bg-surface-hover"
-                onClick={() => go(item.path)}
+                onClick={item.onClick}
               >
                 <item.icon size={14} strokeWidth={2} aria-hidden="true" />
                 <span>{item.label}</span>
