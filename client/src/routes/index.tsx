@@ -129,6 +129,10 @@ export const router = createBrowserRouter(
               element: <Navigate to="/c/new" replace={true} />,
             },
             {
+              path: 'chat',
+              element: <Navigate to="/c/new" replace={true} />,
+            },
+            {
               path: 'c/:conversationId?',
               element: <ChatRoute />,
             },

@@ -132,6 +132,11 @@ const startServer = async () => {
   const indexPath = path.join(appConfig.paths.dist, 'index.html');
   let indexHTML = fs.readFileSync(indexPath, 'utf8');
 
+  // Analytikul: marketing landing page served at the apex `/`. The SPA lives at
+  // `/chat` (and `/c/:id`, `/login`, etc.); see client/src/routes/index.tsx.
+  const landingPath = path.join(appConfig.paths.dist, 'landing.html');
+  const landingHTML = fs.existsSync(landingPath) ? fs.readFileSync(landingPath, 'utf8') : null;
+
   // In order to provide support to serving the application in a sub-directory
   // We need to update the base href if the DOMAIN_CLIENT is specified and not the root path
   if (process.env.DOMAIN_CLIENT) {
@@ -229,6 +234,14 @@ const startServer = async () => {
     console.warn('Response compression has been disabled via DISABLE_COMPRESSION.');
   }
 
+  app.get('/', (req, res) => {
+    if (landingHTML == null) {
+      return sendIndexHtml(req, res);
+    }
+    res.set({ 'Cache-Control': 'public, max-age=300' });
+    res.type('html');
+    res.send(landingHTML);
+  });
   app.get('/index.html', sendIndexHtml);
   app.use(staticCache(appConfig.paths.dist));
   app.use(staticCache(appConfig.paths.fonts));

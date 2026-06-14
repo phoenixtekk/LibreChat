@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Analytikul — Surface what's hidden</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #05060a;
+    --bg-2: #080a12;
+    --ink: #eef0f6;
+    --muted: #9aa1b4;
+    --faint: #5a6076;
+    --gold: #e8c984;
+    --gold-deep: #c9a96a;
+    --line: rgba(232, 201, 132, 0.14);
+    --card: rgba(255, 255, 255, 0.025);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Inter', system-ui, sans-serif;
+    font-weight: 300;
+    line-height: 1.7;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+  /* cosmic layers */
+  #stars { position: fixed; inset: 0; z-index: 0; }
+  .core {
+    position: fixed; left: 50%; bottom: -42vh; transform: translateX(-50%);
+    width: 120vw; height: 90vh; z-index: 0; pointer-events: none;
+    background: radial-gradient(ellipse at center,
+      rgba(232,201,132,0.20) 0%, rgba(201,169,106,0.10) 26%,
+      rgba(120,90,160,0.06) 48%, rgba(5,6,10,0) 70%);
+    filter: blur(8px);
+    animation: breathe 9s ease-in-out infinite;
+  }
+  @keyframes breathe { 0%,100% { opacity: .75; } 50% { opacity: 1; } }
+  .vignette {
+    position: fixed; inset: 0; z-index: 1; pointer-events: none;
+    background: radial-gradient(ellipse at 50% 30%, rgba(5,6,10,0) 40%, rgba(5,6,10,0.7) 100%);
+  }
+  /* winged-disk watermark (Anunnaki) */
+  .sigil {
+    position: fixed; left: 50%; top: 21%; transform: translate(-50%,-50%);
+    width: min(1100px, 130vw); z-index: 0; opacity: .10; pointer-events: none;
+    color: var(--gold);
+  }
+  main { position: relative; z-index: 2; }
+
+  /* nav */
+  nav {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 22px clamp(20px, 6vw, 64px);
+    position: sticky; top: 0; z-index: 10;
+    backdrop-filter: blur(8px);
+    background: linear-gradient(to bottom, rgba(5,6,10,0.7), rgba(5,6,10,0));
+  }
+  .brand { display: flex; align-items: center; gap: 11px; font-family: 'Space Grotesk', sans-serif; }
+  .brand .mark { width: 26px; height: 26px; color: var(--gold); }
+  .brand .word { font-size: 19px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; }
+  .brand .word b { color: var(--gold); font-weight: 600; }
+  .navlinks { display: flex; align-items: center; gap: 30px; }
+  .navlinks a { color: var(--muted); text-decoration: none; font-size: 14px; letter-spacing: .02em; transition: color .2s; }
+  .navlinks a:hover { color: var(--ink); }
+  .btn {
+    font-family: 'Space Grotesk', sans-serif; font-size: 14px; font-weight: 500;
+    letter-spacing: .03em; text-decoration: none; cursor: pointer;
+    padding: 10px 20px; border-radius: 999px; transition: all .22s ease;
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .btn-ghost { color: var(--ink); border: 1px solid var(--line); background: transparent; }
+  .btn-ghost:hover { border-color: var(--gold-deep); color: var(--gold); }
+  .btn-gold {
+    color: #1a1408; background: linear-gradient(180deg, #f0d79a, var(--gold-deep));
+    border: 1px solid rgba(232,201,132,.6); font-weight: 600;
+    box-shadow: 0 0 0 rgba(232,201,132,0);
+  }
+  .btn-gold:hover { box-shadow: 0 8px 34px rgba(232,201,132,.22); transform: translateY(-1px); }
+
+  /* hero */
+  header.hero {
+    min-height: 88vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; padding: 6vh clamp(20px, 6vw, 64px) 8vh;
+  }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 9px; margin-bottom: 30px;
+    font-family: 'Space Grotesk', sans-serif; font-size: 12px; letter-spacing: .28em; text-transform: uppercase;
+    color: var(--gold); padding: 7px 16px; border: 1px solid var(--line); border-radius: 999px;
+    background: rgba(232,201,132,0.04);
+  }
+  .eyebrow .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 10px var(--gold); }
+  h1 {
+    font-family: 'Space Grotesk', sans-serif; font-weight: 600;
+    font-size: clamp(44px, 8vw, 92px); line-height: 1.02; letter-spacing: -.02em;
+    max-width: 16ch;
+  }
+  h1 .glow { color: var(--gold); }
+  .sub {
+    margin: 30px auto 0; max-width: 60ch; font-size: clamp(16px, 2vw, 19px);
+    color: var(--muted); font-weight: 300;
+  }
+  .cta-row { margin-top: 42px; display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
+  .scrollcue { margin-top: 64px; color: var(--faint); font-size: 12px; letter-spacing: .25em; text-transform: uppercase; animation: float 2.6s ease-in-out infinite; }
+  @keyframes float { 0%,100% { transform: translateY(0); opacity:.6 } 50% { transform: translateY(7px); opacity:1 } }
+
+  /* differentiators */
+  section.diff { padding: 4vh clamp(20px, 6vw, 64px) 12vh; max-width: 1180px; margin: 0 auto; }
+  .diff-head { text-align: center; margin-bottom: 56px; }
+  .diff-head .kicker { font-family:'Space Grotesk',sans-serif; font-size: 12px; letter-spacing:.28em; text-transform: uppercase; color: var(--gold-deep); }
+  .diff-head h2 { font-family:'Space Grotesk',sans-serif; font-weight: 500; font-size: clamp(26px, 4vw, 38px); margin-top: 14px; letter-spacing: -.01em; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; }
+  .card {
+    position: relative; padding: 30px 26px 28px; border-radius: 18px;
+    background: var(--card); border: 1px solid rgba(255,255,255,0.06);
+    transition: border-color .25s, transform .25s, background .25s; overflow: hidden;
+  }
+  .card::before { content:''; position:absolute; inset:0; border-radius:18px; padding:1px;
+    background: linear-gradient(160deg, rgba(232,201,132,.0), rgba(232,201,132,.0)); }
+  .card:hover { transform: translateY(-4px); border-color: var(--line); background: rgba(232,201,132,0.035); }
+  .card .ico { width: 38px; height: 38px; color: var(--gold); margin-bottom: 20px; }
+  .card h3 { font-family:'Space Grotesk',sans-serif; font-weight: 500; font-size: 18px; letter-spacing:.01em; }
+  .card p { margin-top: 10px; font-size: 14.5px; color: var(--muted); font-weight: 300; }
+  .card .num { position:absolute; top: 20px; right: 24px; font-family:'Space Grotesk',sans-serif; font-size: 13px; color: var(--faint); letter-spacing:.1em; }
+
+  /* closing */
+  section.close { text-align:center; padding: 2vh clamp(20px,6vw,64px) 14vh; }
+  section.close h2 { font-family:'Space Grotesk',sans-serif; font-weight:600; font-size: clamp(30px,5vw,52px); letter-spacing:-.02em; max-width: 18ch; margin: 0 auto; }
+  section.close p { color: var(--muted); margin: 22px auto 0; max-width: 52ch; }
+
+  footer {
+    border-top: 1px solid rgba(255,255,255,0.05); padding: 38px clamp(20px,6vw,64px);
+    display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap;
+    color: var(--faint); font-size: 13px;
+  }
+  footer .fbrand { display:flex; align-items:center; gap:10px; color: var(--muted); font-family:'Space Grotesk',sans-serif; letter-spacing:.12em; text-transform: uppercase; font-size: 13px; }
+  footer .fbrand .mark { width: 18px; height:18px; color: var(--gold); }
+  footer a { color: var(--faint); text-decoration: none; margin-left: 22px; transition: color .2s; }
+  footer a:hover { color: var(--ink); }
+  @media (max-width: 720px) { .navlinks .hide-sm { display:none; } }
+</style>
+</head>
+<body>
+
+<canvas id="stars"></canvas>
+<div class="core"></div>
+<svg class="sigil" viewBox="0 0 600 200" fill="none" aria-hidden="true">
+  <circle cx="300" cy="92" r="34" stroke="currentColor" stroke-width="1.4"/>
+  <circle cx="300" cy="92" r="15" stroke="currentColor" stroke-width="1"/>
+  <path d="M300 58 V126 M266 92 H334" stroke="currentColor" stroke-width="0.8"/>
+  <path d="M300 110 C 300 150, 290 170, 280 192 M300 110 C 300 150, 310 170, 320 192" stroke="currentColor" stroke-width="1"/>
+  <g stroke="currentColor" stroke-width="1.2" fill="none">
+    <path d="M268 92 C 210 70, 150 74, 96 96 C 150 86, 210 96, 268 100 Z"/>
+    <path d="M252 92 C 200 80, 156 84, 116 100"/>
+    <path d="M244 96 C 198 90, 162 94, 130 106"/>
+    <path d="M332 92 C 390 70, 450 74, 504 96 C 450 86, 390 96, 332 100 Z"/>
+    <path d="M348 92 C 400 80, 444 84, 484 100"/>
+    <path d="M356 96 C 402 90, 438 94, 470 106"/>
+  </g>
+</svg>
+<div class="vignette"></div>
+
+<main>
+  <nav>
+    <div class="brand">
+      <svg class="mark" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9.2" stroke="currentColor" stroke-width="1.4"/><circle cx="12" cy="12" r="3.4" fill="currentColor"/><path d="M12 2.8V6 M12 18V21.2 M2.8 12H6 M18 12H21.2" stroke="currentColor" stroke-width="1.2"/></svg>
+      <span class="word">Analy<b>tikul</b></span>
+    </div>
+    <div class="navlinks">
+      <a href="#product" class="hide-sm">Product</a>
+      <a href="#product" class="hide-sm">Pricing</a>
+      <a href="#product" class="hide-sm">Docs</a>
+      <a href="/chat" class="btn btn-ghost">Sign in</a>
+      <a href="/chat" class="btn btn-gold">Launch app →</a>
+    </div>
+  </nav>
+
+  <header class="hero">
+    <span class="eyebrow"><span class="dot"></span> Analytics-native AI workspace</span>
+    <h1>Surface what's <span class="glow">hidden</span>.</h1>
+    <p class="sub">Every AI team runs on a hidden layer — cost, memory, and agent behavior buried beneath the chat. Analytikul brings it to the surface: cross-provider cost intelligence, organizational memory, and full agent observability, in one place.</p>
+    <div class="cta-row">
+      <a href="/chat" class="btn btn-gold">Enter Analytikul →</a>
+      <a href="#product" class="btn btn-ghost">See how it works</a>
+    </div>
+    <div class="scrollcue">scroll to descend</div>
+  </header>
+
+  <section class="diff" id="product">
+    <div class="diff-head">
+      <div class="kicker">The hidden engine</div>
+      <h2>Four things no chat app shows you</h2>
+    </div>
+    <div class="grid">
+      <div class="card">
+        <span class="num">01</span>
+        <svg class="ico" viewBox="0 0 24 24" fill="none"><path d="M3 3v18h18" stroke="currentColor" stroke-width="1.5"/><path d="M7 14l3-4 3 2 4-6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <h3>Cost intelligence</h3>
+        <p>Every model call metered by cost, tokens, user, and conversation — with hard budgets that stop overruns before they happen.</p>
+      </div>
+      <div class="card">
+        <span class="num">02</span>
+        <svg class="ico" viewBox="0 0 24 24" fill="none"><path d="M12 3a4 4 0 0 0-4 4v1a4 4 0 0 0 0 8v1a4 4 0 0 0 8 0v-1a4 4 0 0 0 0-8V7a4 4 0 0 0-4-4Z" stroke="currentColor" stroke-width="1.4"/><path d="M12 8v8" stroke="currentColor" stroke-width="1.2"/></svg>
+        <h3>Organizational memory</h3>
+        <p>A shared, private memory across your team — facts learned once are recalled by every agent, with full lineage on each one.</p>
+      </div>
+      <div class="card">
+        <span class="num">03</span>
+        <svg class="ico" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="2.4" fill="currentColor"/><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3" stroke="currentColor" stroke-width="1.2"/></svg>
+        <h3>Agent observability</h3>
+        <p>Watch every step an agent takes — each tool call, each token, each cost — in a live trace, persisted per conversation.</p>
+      </div>
+      <div class="card">
+        <span class="num">04</span>
+        <svg class="ico" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="16" rx="3" stroke="currentColor" stroke-width="1.4"/><path d="M3 9h18M8 14h5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+        <h3>Managed gateways</h3>
+        <p>Reach your agents from anywhere — messaging gateways and scheduled runs, no servers to stand up, no plumbing to maintain.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="close">
+    <h2>The city beneath your stack.</h2>
+    <p>Bring your own keys, choose any provider, and run agents on an engine built to be seen. Analytikul is where your AI operations come into the light.</p>
+    <div class="cta-row" style="justify-content:center; margin-top: 34px;">
+      <a href="/chat" class="btn btn-gold">Launch the app →</a>
+    </div>
+  </section>
+
+  <footer>
+    <div class="fbrand">
+      <svg class="mark" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9.2" stroke="currentColor" stroke-width="1.4"/><circle cx="12" cy="12" r="3.4" fill="currentColor"/></svg>
+      Analytikul
+    </div>
+    <div>
+      <span>© 2026 Analytikul</span>
+      <a href="/chat">App</a>
+      <a href="#product">Pricing</a>
+      <a href="#product">Privacy</a>
+    </div>
+  </footer>
+</main>
+
+<script>
+  const c = document.getElementById('stars'), x = c.getContext('2d');
+  let w, h, stars;
+  function init() {
+    w = c.width = innerWidth; h = c.height = innerHeight;
+    const n = Math.min(220, Math.floor(w * h / 9000));
+    stars = Array.from({length: n}, () => ({
+      x: Math.random() * w, y: Math.random() * h,
+      r: Math.random() * 1.3 + 0.2,
+      a: Math.random() * 0.6 + 0.1,
+      t: Math.random() * Math.PI * 2,
+      s: Math.random() * 0.015 + 0.004,
+      drift: Math.random() * 0.04 + 0.01
+    }));
+  }
+  function draw() {
+    x.clearRect(0, 0, w, h);
+    for (const st of stars) {
+      st.t += st.s; st.y -= st.drift;
+      if (st.y < -2) { st.y = h + 2; st.x = Math.random() * w; }
+      const tw = st.a * (0.55 + 0.45 * Math.sin(st.t));
+      const gold = st.r > 1.05;
+      x.beginPath(); x.arc(st.x, st.y, st.r, 0, Math.PI * 2);
+      x.fillStyle = gold ? 'rgba(232,201,132,' + tw + ')' : 'rgba(220,226,245,' + tw + ')';
+      x.fill();
+    }
+    requestAnimationFrame(draw);
+  }
+  init(); draw(); addEventListener('resize', init);
+</script>
+</body>
+</html>
