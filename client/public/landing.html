@@ -68,7 +68,7 @@
     padding: 5vh clamp(20px, 6vw, 64px) 0;
   }
   .hero-logo {
-    position: absolute; top: 47%; left: 50%; transform: translate(-50%, -50%);
+    position: absolute; top: calc(47% - 100px); left: 50%; transform: translate(-50%, -50%);
     width: min(392px, 59vw); z-index: -1; opacity: .12; pointer-events: none;
     filter: drop-shadow(0 0 60px rgba(24,168,218,0.3)); animation: hover 11s ease-in-out infinite;
   }
@@ -86,7 +86,7 @@
     text-transform: uppercase; animation: float 2.6s ease-in-out infinite; }
   @keyframes float { 0%,100% { transform: translateY(0); opacity:.55 } 50% { transform: translateY(7px); opacity:1 } }
 
-  .agartha-wrap { position: relative; margin-top: -10vh; display: flex; justify-content: center; pointer-events: none; z-index: 1; padding: 200px clamp(16px, 4vw, 48px) 7vh; }
+  .agartha-wrap { position: relative; margin-top: -10vh; display: flex; justify-content: center; pointer-events: none; z-index: 1; padding: 100px clamp(16px, 4vw, 48px) 7vh; }
   .agartha { position: relative; width: min(826px, 70%); }
   .agartha img { width: 100%; display: block; border-radius: 16px;
     opacity: calc(0.3 + 0.45 * var(--shine, 0));
