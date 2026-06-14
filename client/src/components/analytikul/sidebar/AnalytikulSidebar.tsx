@@ -16,6 +16,7 @@ import {
   ChevronDown,
   Brain,
   KeyRound,
+  Boxes,
 } from 'lucide-react';
 import type { PreviewRailTab } from '~/store/misc';
 import type { ChatFormValues } from '~/common';
@@ -115,6 +116,12 @@ function AnalytikulSidebar() {
     icon: typeof LayoutGrid;
     onClick: () => void;
   }[] = [
+    {
+      id: 'models',
+      label: localize('com_atk_tab_models'),
+      icon: Boxes,
+      onClick: () => go('/workspace/models'),
+    },
     {
       id: 'agents',
       label: localize('com_atk_sb_agents'),
