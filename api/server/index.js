@@ -213,6 +213,36 @@ const startServer = async () => {
     },
   );
 
+  /* Polar (Merchant of Record) webhook — raw body for standard-webhooks
+   * signature verification, mounted before the JSON parser. Polar authenticates
+   * via its webhook-signature headers, not JWT. */
+  app.post(
+    '/api/analytikul/webhooks/polar',
+    express.raw({ type: '*/*', limit: '1mb' }),
+    async (req, res) => {
+      try {
+        const upstream = await fetch(
+          `${process.env.BILLING_SERVICE_URL ?? 'http://localhost:8013'}/webhooks/polar`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'webhook-id': req.headers['webhook-id'] ?? '',
+              'webhook-timestamp': req.headers['webhook-timestamp'] ?? '',
+              'webhook-signature': req.headers['webhook-signature'] ?? '',
+            },
+            body: req.body,
+            signal: AbortSignal.timeout(10000),
+          },
+        );
+        res.status(upstream.status).json(await upstream.json());
+      } catch (error) {
+        logger.error('[analytikul] polar webhook forward failed', error);
+        res.status(502).json({ error: 'billing unavailable' });
+      }
+    },
+  );
+
   /* Middleware */
   app.use(metricsMiddleware);
   app.use(noIndex);

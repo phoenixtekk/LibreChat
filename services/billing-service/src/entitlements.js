@@ -30,8 +30,8 @@ export async function applyEvent(event, log) {
         {
           $set: {
             plan: event.plan,
-            stripeCustomerId: event.stripeCustomerId,
-            stripeSubscriptionId: event.stripeSubscriptionId,
+            billingCustomerId: event.customerId,
+            billingSubscriptionId: event.subscriptionId,
           },
           $setOnInsert: { name: event.orgId, seats: 1, creditsUsd: 0 },
         },
@@ -41,13 +41,13 @@ export async function applyEvent(event, log) {
       break;
     case 'subscription_ended':
       await col.updateOne(
-        { stripeSubscriptionId: event.stripeSubscriptionId },
-        { $set: { plan: 'free' }, $unset: { stripeSubscriptionId: '' } },
+        { billingSubscriptionId: event.subscriptionId },
+        { $set: { plan: 'free' }, $unset: { billingSubscriptionId: '' } },
       );
-      log(`subscription ${event.stripeSubscriptionId} ended -> free`);
+      log(`subscription ${event.subscriptionId} ended -> free`);
       break;
     case 'payment_failed':
-      log(`payment failed for customer ${event.stripeCustomerId} (alerting lands with admin panel)`);
+      log(`payment failed for customer ${event.customerId} (alerting lands with admin panel)`);
       break;
     default:
       break;

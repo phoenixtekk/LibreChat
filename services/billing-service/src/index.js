@@ -9,13 +9,24 @@ import {
   createSubscriptionCheckout,
   createCreditsCheckout,
 } from './stripe.js';
+import {
+  polarReady,
+  normalizeWebhook as polarNormalizeWebhook,
+  createSubscriptionCheckout as polarCreateSubscriptionCheckout,
+  createCreditsCheckout as polarCreateCreditsCheckout,
+} from './polar.js';
 import { applyEvent, getOrg } from './entitlements.js';
 
 const PORT = process.env.BILLING_PORT || 8013;
+const PROVIDER = process.env.BILLING_PROVIDER ?? 'polar';
 const log = (msg) => console.log(`[billing] ${msg}`);
 
+const subscriptionCheckout =
+  PROVIDER === 'polar' ? polarCreateSubscriptionCheckout : createSubscriptionCheckout;
+const creditsCheckout = PROVIDER === 'polar' ? polarCreateCreditsCheckout : createCreditsCheckout;
+
 await migrateVault();
-log(`vault schema ready; stripe configured: ${stripeReady()}`);
+log(`vault schema ready; provider: ${PROVIDER}; stripe: ${stripeReady()}; polar: ${polarReady()}`);
 
 async function readBody(req, raw = false) {
   const chunks = [];
@@ -73,17 +84,26 @@ http
 
       if (url.pathname === '/checkout/subscription' && req.method === 'POST') {
         const body = await readBody(req);
-        return send(200, await createSubscriptionCheckout(body));
+        return send(200, await subscriptionCheckout(body));
       }
 
       if (url.pathname === '/checkout/credits' && req.method === 'POST') {
         const body = await readBody(req);
-        return send(200, await createCreditsCheckout(body));
+        return send(200, await creditsCheckout(body));
       }
 
       if (url.pathname === '/webhooks/stripe' && req.method === 'POST') {
         const raw = await readBody(req, true);
         const event = normalizeWebhook(raw, req.headers['stripe-signature']);
+        if (event != null) {
+          await applyEvent(event, log);
+        }
+        return send(200, { received: true });
+      }
+
+      if (url.pathname === '/webhooks/polar' && req.method === 'POST') {
+        const raw = await readBody(req, true);
+        const event = polarNormalizeWebhook(raw, req.headers);
         if (event != null) {
           await applyEvent(event, log);
         }

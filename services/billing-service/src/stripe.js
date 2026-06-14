@@ -81,14 +81,14 @@ export function normalizeWebhook(rawBody, signature) {
         type: 'subscription_started',
         orgId,
         plan: object.metadata?.plan ?? 'pro',
-        stripeCustomerId: object.customer,
-        stripeSubscriptionId: object.subscription,
+        customerId: object.customer,
+        subscriptionId: object.subscription,
       };
     }
     case 'customer.subscription.deleted':
-      return { type: 'subscription_ended', stripeSubscriptionId: object.id };
+      return { type: 'subscription_ended', subscriptionId: object.id };
     case 'invoice.payment_failed':
-      return { type: 'payment_failed', stripeCustomerId: object.customer };
+      return { type: 'payment_failed', customerId: object.customer };
     default:
       return null;
   }
