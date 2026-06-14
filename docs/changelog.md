@@ -11,6 +11,11 @@ Deploy target: `git push linuxg6 main` → `scripts/deploy.sh` on linuxg6.
   (commits `ffadb6b9f`, `100374393`) — baked into g3's image at build.
 
 ## Committed
+- `bee0cb6bd` feat(hermes): toolset selector + model/provider picker in PreviewRail agent tab
+  (26 toolsets, All/None, provider/model). run()→route→service→adapter forwards
+  enabled_toolsets/disabled_toolsets/model/provider. Deploy: client dist + Node route file.
+- `2b0a9dbcc` fix(search): on-page autofocused search input on /search (Meili confirmed live)
+- `3d33e64dd` fix(models): restore full Agent Builder in Model drawer via ChatContext stub
 - `cc3113fe9` feat(ui): OWUI-style Workspace Models page (`/workspace/models`) — grid of
   user agents as model cards (Edit/Duplicate/Delete), New Model, reuses Agent Builder via
   ModelBuilderDrawer (error-boundary fallback to /agents)
