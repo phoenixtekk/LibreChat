@@ -1,4 +1,5 @@
 import { useEffect, useMemo } from 'react';
+import { Search as SearchIcon } from 'lucide-react';
 import { useRecoilValue } from 'recoil';
 import { Spinner, useToastContext } from '@librechat/client';
 import MinimalMessagesWrapper from '~/components/Chat/Messages/MinimalMessages';
@@ -75,7 +76,8 @@ export default function Search() {
     return localize('com_ui_results_found', { count: resultsCount });
   }, [resultsCount, localize]);
 
-  const isSearchLoading = search.isTyping || isLoading || isFetchingNextPage;
+  const queryEnabled = isAuthenticated && !!searchQuery;
+  const isSearchLoading = search.isTyping || (queryEnabled && isLoading) || isFetchingNextPage;
 
   if (isSearchLoading) {
     return (
@@ -86,7 +88,14 @@ export default function Search() {
   }
 
   if (!searchQuery) {
-    return null;
+    return (
+      <div className="absolute inset-0 flex items-center justify-center px-6">
+        <div className="flex max-w-sm flex-col items-center gap-3 text-center">
+          <SearchIcon className="text-text-secondary" size={28} aria-hidden="true" />
+          <p className="text-text-secondary">{localize('com_atk_search_prompt')}</p>
+        </div>
+      </div>
+    );
   }
 
   return (

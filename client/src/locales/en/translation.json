@@ -1903,6 +1903,7 @@
   "com_atk_notes_perm_readonly": "Read Only",
   "com_atk_notes_title_ph": "Title",
   "com_atk_sb_search": "Search",
+  "com_atk_search_prompt": "Type in the search box to find messages across your chats.",
   "com_atk_sb_workspace": "Workspace",
   "com_atk_sb_agents": "Agents",
   "com_atk_sb_prompts": "Prompts",
