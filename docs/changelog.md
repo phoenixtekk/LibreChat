@@ -3,7 +3,17 @@
 Commits are on `main`, based on LibreChat upstream. Newest first.
 Deploy target: `git push linuxg6 main` → `scripts/deploy.sh` on linuxg6.
 
+## Ops (no code) — 2026-06-14
+- **Production migrated linuxg6 → linuxg3** (lift-and-shift: rebuild images on g3, dump/restore
+  Mongo+Postgres with verified parity, Cloudflare cutover, g6 analytikul stack decommissioned).
+  Deploy remote is now `git push linuxg3 main`; g3 tunnel `97dd7bda-…` (dashboard-managed).
+- Live client hotfixes on prod (paste-as-rich-text + tight list spacing) via `docker cp` dist
+  (commits `ffadb6b9f`, `100374393`) — baked into g3's image at build.
+
 ## Committed
+- `100374393` fix(notes): tight list spacing (OWUI parity) — scoped .atk-note-prose CSS
+- `ffadb6b9f` fix(notes): paste markdown as rich text (handlePaste via marked)
+- `c1b8e69ce` fix(notes): match Open WebUI text formatting (marked + no-escape Turndown) + toolbar
 - `8fb5d3456` feat: Open WebUI parity for Notes + sidebar (faithful React rebuild) —
   **DEPLOYED to prod 2026-06-13** (image `9a62c2c4ead7`). OWUI-source-faithful list controls
   (viewOption/permission/display dropdowns), search restyle, editor trims (no back-chevron,

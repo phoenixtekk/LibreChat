@@ -1,6 +1,16 @@
 # ADR-005: Deployment Model
 
-**Status:** Accepted · **Date:** 2026-06-12
+**Status:** Accepted · **Date:** 2026-06-12 · **Updated:** 2026-06-14 (host migration)
+
+> **2026-06-14 — Production migrated linuxg6 → linuxg3.** Same model (Docker Compose, only app
+> exposed on 127.0.0.1:3180, Cloudflare tunnel, direct SSH push to a bare repo). What changed:
+> host is now **linuxg3** (12c/31GB/AVX, idle — far better than g6); deploy remote is
+> `git push linuxg3 main`; the tunnel is g3's **dashboard-managed** token tunnel
+> `97dd7bda-d886-48aa-9b1f-e80779ad7baf` (ingress configured in the CF dashboard, no local
+> config.yml). Migration was a lift-and-shift: rebuild images on g3, `mongodump`/`pg_dump` →
+> restore (verified parity), cutover via CF, then g6 analytikul stack fully removed. g3's Docker
+> data-root is on a slow disk → use the client hotfix path (see architecture.md) for client-only
+> changes instead of the 30-45 min full build.
 
 ## Context
 Need to ship Analytikul to production on Lacy's existing infrastructure (linuxg6) and serve it at

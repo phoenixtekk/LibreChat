@@ -68,13 +68,26 @@ scripts/gen-prod-env.sh           ← fresh-secret production .env generator
 - **SSE auth**: client uses `sse.js` with `Authorization: Bearer` header (see `useAgentStream`).
 - JWTs expire ~15 min — curl test scripts must re-login.
 
-## Production topology (linuxg6)
-Cloudflare (dashboard-managed tunnel `4623e38d-…`, route `analytikul.ai → http://localhost:3180`,
-www→apex 301) → `analytikul-app` container (127.0.0.1:3180→3080) → internal compose network
-(adapter/analytics/memory/billing/gateway/mongo4.4/pgvector/redis/meili/rag). No other ports
-exposed. Deploy: `git push linuxg6 main` then run `scripts/deploy.sh` on the host
-(`~/analytikul`, bare repo `~/analytikul.git`).
+## Production topology (linuxg3 — migrated from linuxg6 on 2026-06-14)
+Cloudflare (**dashboard-managed** tunnel `97dd7bda-d886-48aa-9b1f-e80779ad7baf`, token-based —
+ingress is set in the CF Zero Trust dashboard, NOT a local config.yml; route
+`analytikul.ai → http://localhost:3180`) → `analytikul-app` container (127.0.0.1:3180→3080) →
+internal compose network (adapter/analytics/memory/billing/gateway/mongo4.4/pgvector/redis/meili/
+rag). No other ports exposed. Deploy: `git push linuxg3 main` then `scripts/deploy.sh` on the host
+(`~/analytikul`, bare repo `~/analytikul.git`, user `lacy`).
 
-**linuxg6 quirks**: no AVX CPU → `mongo:4.4` pinned; docker default-bridge DNS broken at BUILD
-time → `build.network: host` in prod compose; image builds are SLOW (20-40 min for the app);
-the host also runs an unrelated LibreChat (`librechat-*`, :3080, ai.analytikul.ai) — never touch.
+**linuxg3 specs/quirks**: 12 cores, 31 GB RAM, **AVX present** (mongo:4.4 still pinned for now —
+kept matching the migrated data; can upgrade Mongo later since AVX is available). Docker data-root
+is on **`/data` (the slow `sda` spinning disk)** → the `npm prune` step in the app build is very
+slow (30-45 min), same symptom as g6. **Mitigation:** for client-only changes, hotfix without a
+full rebuild — build the client locally (`npm run build:client`), scp `client/dist`, `docker cp`
+into `analytikul-app:/app/client/dist`, then `docker restart analytikul-app` (the server caches
+index.html in memory, so a restart is required). Planned fix: move Docker data-root to g3's SSD
+root (frees fast builds). g3 also runs many unrelated sites (ollama llama3 on :11434, comfyui,
+wikijs, searxng, firecrawl, postiz, temporal, phoenixtekk-open-webui, paperclip) — never touch.
+
+**Old host linuxg6** (pre-2026-06-14): no AVX (forced `mongo:4.4`), slow disk, decommissioned of
+Analytikul (containers/volumes/images/repo removed). g6 still runs an unrelated LibreChat
+(`librechat-*`, :3080, ai.analytikul.ai), Minecraft (cobblemon/cobbleverse), openclaw — never touch.
+A now-dead `analytikul.ai` ingress may linger in g6's `/etc/cloudflared/config.yml` (harmless; DNS
+points at g3's tunnel).

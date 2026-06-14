@@ -19,7 +19,8 @@ Paste/follow this at the start of any new Claude Code session on this project.
    - `git log --oneline -12` and `git status` (is the Open WebUI redesign committed yet?).
    - `ls client/src/components/analytikul/{notes,sidebar}/` — confirm the new components exist.
    - Verify production is alive: `curl -I https://analytikul.ai` (expect 200) and
-     `ssh linuxg6 'docker ps --format "{{.Names}}\t{{.Status}}" | grep analytikul-'`.
+     `ssh linuxg3 'docker ps --format "{{.Names}}\t{{.Status}}" | grep analytikul-'`.
+     (**Production host is linuxg3 since 2026-06-14** — migrated off linuxg6.)
    - Confirm which commit prod runs vs `git log` HEAD (dev may be ahead/uncommitted).
 8. **Only then begin development**, starting from `next-actions.md` P0 unless the user redirects.
 
@@ -44,7 +45,10 @@ Paste/follow this at the start of any new Claude Code session on this project.
   (:3090, proxies to :3080). Use the preview_* tools to verify UI.
 - Provider key + secrets are in `.env` (gitignored). Anthropic base URL has NO `/v1`.
 
-## Deploy
-`git push linuxg6 main` → `ssh linuxg6 'cd ~/analytikul && git pull --ff-only && APP_DIR=$HOME/analytikul bash scripts/deploy.sh'`.
-Builds are slow; watch `docker inspect analytikul-app --format '{{.Image}}'` change. Get user
-approval before any Docker daemon restart (bounces other sites on the shared host).
+## Deploy (production host = linuxg3)
+`git push linuxg3 main` → `ssh linuxg3 'cd ~/analytikul && git pull --ff-only && APP_DIR=$HOME/analytikul bash scripts/deploy.sh'`.
+Full image builds are SLOW on g3 too (Docker data-root on the slow `/data` disk; `npm prune`
+30-45 min) — see architecture.md. **For client-only changes, prefer the hotfix path** (build
+client locally → scp `client/dist` → `docker cp` into `analytikul-app:/app/client/dist` →
+`docker restart analytikul-app`); avoids the full rebuild. Get user approval before any Docker
+daemon restart (bounces other sites on the shared host).

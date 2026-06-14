@@ -1,6 +1,7 @@
 # Analytikul — Project Overview
 
-**Live at: https://analytikul.ai** (production since 2026-06-12, host: linuxg6)
+**Live at: https://analytikul.ai** (production since 2026-06-12; **migrated to host linuxg3 on
+2026-06-14** — was linuxg6; see current-state.md / ADR-005)
 
 ## What it is
 Analytikul is an **analytics-native AI workspace SaaS** — a fork of LibreChat (MIT) with the

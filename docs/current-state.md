@@ -1,4 +1,18 @@
-# Analytikul — Current State (as of 2026-06-13)
+# Analytikul — Current State (as of 2026-06-14)
+
+## PRODUCTION MIGRATED linuxg6 → linuxg3 (2026-06-14)
+Lift-and-shift of the whole Docker Compose stack. Provisioned g3 (repo + `.env` with the **vault
+key** intact), rebuilt images on g3, `mongodump`/`pg_dump` → restore (**verified exact parity**:
+notes=3, traces=1, users=1, cost_events=2, vault=0), brought up + smoke-tested privately, then
+cutover via Cloudflare (`analytikul.ai` DNS moved to g3's tunnel `97dd7bda-…`). Validated live
+(public login + notes). **g6 analytikul stack fully decommissioned** (containers/volumes/images/
+repo removed; g6's other sites — librechat/ai.analytikul.ai, Minecraft, openclaw — untouched).
+Prod now: 12c/31GB/AVX, idle. Deploy = `git push linuxg3 main`. See architecture.md + ADR-005.
+
+**Open follow-ups (tasks):** move g3 Docker data-root to SSD (fast builds), add Ollama `llama3`
+(host :11434) to the chat model picker, fix g3 NVIDIA driver mismatch (GPU for Ollama). **New
+request (not started):** landing page at `analytikul.ai/` + move chat UI to `analytikul.ai/chat`
+(modern alien/space/Anunnaki/Agartha aesthetic, faint hints).
 
 ## Milestones: M0–M4 COMPLETE and live in production
 | Milestone | Status | Verified |
