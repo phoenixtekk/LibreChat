@@ -22,6 +22,13 @@ const router = express.Router();
 const taskMeta = new Map();
 const TASK_META_MAX = 1000;
 
+// Shared secret for calls into the internal services (billing/analytics/memory/gateway).
+const INTERNAL_TOKEN = process.env.INTERNAL_SERVICE_TOKEN || '';
+const internalHeaders = (extra = {}) =>
+  INTERNAL_TOKEN ? { ...extra, 'x-internal-token': INTERNAL_TOKEN } : extra;
+// Escape user input before using it as a Mongo $regex (prevents ReDoS / regex injection).
+const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 router.use(requireJwtAuth);
 
 router.post('/agent/run', async (req, res) => {
@@ -65,6 +72,16 @@ router.post('/agent/run', async (req, res) => {
       effectiveProvider,
       req.user.tenantId ?? 'default',
     );
+    // Fail closed for platform-key runs we can't budget-check: if the budget
+    // service was unreachable (degraded fail-open) and the user has no BYOK key,
+    // the run would bill the shared platform key uncapped — refuse it. BYOK users
+    // are unaffected.
+    if (budget.degraded && !vaultedKey) {
+      return res.status(503).json({
+        message:
+          'Budget service unavailable; platform-key runs are paused. Add your own API key to continue.',
+      });
+    }
     const ctx = {
       userId: req.user.id,
       tenantId: req.user.tenantId,
@@ -174,7 +191,10 @@ router.get('/analytics/:view', async (req, res) => {
     if (req.params.view === 'conversations') {
       url.searchParams.set('userId', req.user.id);
     }
-    const upstream = await fetch(url, { signal: AbortSignal.timeout(5000) });
+    const upstream = await fetch(url, {
+      headers: internalHeaders(),
+      signal: AbortSignal.timeout(5000),
+    });
     res.status(upstream.status).json(await upstream.json());
   } catch (error) {
     logger.error('[analytikul] analytics proxy failed', error);
@@ -222,9 +242,10 @@ const noteScope = (req) => ({
 
 router.get('/notes', async (req, res) => {
   try {
-    const q = (req.query.q ?? '').toString().trim();
+    const q = (req.query.q ?? '').toString().trim().slice(0, 200);
+    const safeQ = escapeRegex(q);
     const filter = q
-      ? { $and: [noteScope(req), { $or: [{ title: { $regex: q, $options: 'i' } }, { content: { $regex: q, $options: 'i' } }] }] }
+      ? { $and: [noteScope(req), { $or: [{ title: { $regex: safeQ, $options: 'i' } }, { content: { $regex: safeQ, $options: 'i' } }] }] }
       : noteScope(req);
     const notes = await Note.find(filter)
       .select('title user sharedWithOrg pinnedBy updatedAt createdAt')
@@ -320,6 +341,11 @@ router.post('/notes/ai', async (req, res) => {
     }
     const effectiveProvider = process.env.AGENT_DEFAULT_PROVIDER ?? 'anthropic';
     const vaultedKey = await getVaultedKey(req.user.id, effectiveProvider, req.user.tenantId ?? 'default');
+    if (budget.degraded && !vaultedKey) {
+      return res
+        .status(503)
+        .json({ message: 'Budget service unavailable; platform-key runs are paused.' });
+    }
     const result = await collectAgentRun(
       {
         message: `${prompt}\n\n<text>\n${text.slice(0, 24000)}\n</text>`,
@@ -351,7 +377,7 @@ router.post('/telegram/link-code', async (req, res) => {
   try {
     const upstream = await fetch(`${GATEWAY_URL}/telegram/link-code`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: internalHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ org_id: req.user.tenantId ?? 'default', user_id: req.user.id }),
       signal: AbortSignal.timeout(5000),
     });
@@ -368,7 +394,10 @@ router.get('/memory', async (req, res) => {
   try {
     const url = new URL(`${MEMORY_URL}/memories`);
     url.searchParams.set('orgId', req.user.tenantId ?? 'default');
-    const upstream = await fetch(url, { signal: AbortSignal.timeout(5000) });
+    const upstream = await fetch(url, {
+      headers: internalHeaders(),
+      signal: AbortSignal.timeout(5000),
+    });
     res.status(upstream.status).json(await upstream.json());
   } catch (error) {
     logger.error('[analytikul] memory list failed', error);
@@ -380,7 +409,7 @@ router.post('/memory', async (req, res) => {
   try {
     const upstream = await fetch(`${MEMORY_URL}/memories`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: internalHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
         orgId: req.user.tenantId ?? 'default',
         content: req.body?.content,
@@ -401,7 +430,11 @@ router.delete('/memory/:id', async (req, res) => {
   try {
     const url = new URL(`${MEMORY_URL}/memories/${encodeURIComponent(req.params.id)}`);
     url.searchParams.set('orgId', req.user.tenantId ?? 'default');
-    const upstream = await fetch(url, { method: 'DELETE', signal: AbortSignal.timeout(5000) });
+    const upstream = await fetch(url, {
+      method: 'DELETE',
+      headers: internalHeaders(),
+      signal: AbortSignal.timeout(5000),
+    });
     res.status(upstream.status).json(await upstream.json());
   } catch (error) {
     logger.error('[analytikul] memory delete failed', error);

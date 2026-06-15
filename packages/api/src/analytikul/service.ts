@@ -5,6 +5,12 @@ import type { AgentRunBody, AdapterRunRequest, AgentStreamEvent } from './types'
 const ADAPTER_URL = () => process.env.HERMES_ADAPTER_URL ?? 'http://hermes-adapter:8001';
 const ANALYTICS_URL = () => process.env.ANALYTICS_SERVICE_URL ?? 'http://localhost:8011';
 
+/** Shared secret for calls into the internal services. */
+const internalHeaders = (extra: Record<string, string> = {}): Record<string, string> => {
+  const token = process.env.INTERNAL_SERVICE_TOKEN ?? '';
+  return token ? { ...extra, 'x-internal-token': token } : extra;
+};
+
 export interface BudgetCheck {
   allowed: boolean;
   exceeded: boolean;
@@ -13,21 +19,27 @@ export interface BudgetCheck {
   spent?: number;
   limit?: number;
   hard?: boolean;
+  /** True when the budget could not be verified (analytics unreachable). The
+   * caller must fail closed for platform-key runs rather than spend uncapped. */
+  degraded?: boolean;
 }
 
-/** Fail-open: if the analytics service is unreachable, runs proceed. */
+/**
+ * Fail-open by default (BYOK users proceed), but flags `degraded` so callers can
+ * fail closed for platform-key runs when the budget service is unreachable.
+ */
 export async function checkBudget(userId: string, orgId = 'default'): Promise<BudgetCheck> {
   try {
     const res = await fetch(
       `${ANALYTICS_URL()}/budgets/check?userId=${encodeURIComponent(userId)}&orgId=${encodeURIComponent(orgId)}`,
-      { signal: AbortSignal.timeout(3000) },
+      { headers: internalHeaders(), signal: AbortSignal.timeout(3000) },
     );
     if (!res.ok) {
-      return { allowed: true, exceeded: false };
+      return { allowed: true, exceeded: false, degraded: true };
     }
     return (await res.json()) as BudgetCheck;
   } catch {
-    return { allowed: true, exceeded: false };
+    return { allowed: true, exceeded: false, degraded: true };
   }
 }
 
@@ -55,7 +67,7 @@ export async function startAgentRun(
   };
   const res = await fetch(`${ADAPTER_URL()}/run`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: internalHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(payload),
   });
   if (!res.ok) {
@@ -69,12 +81,13 @@ export async function startAgentRun(
 export async function cancelAgentRun(taskId: string): Promise<boolean> {
   const res = await fetch(`${ADAPTER_URL()}/cancel/${encodeURIComponent(taskId)}`, {
     method: 'POST',
+    headers: internalHeaders(),
   });
   return res.ok;
 }
 
 export async function getAgentTools(): Promise<unknown> {
-  const res = await fetch(`${ADAPTER_URL()}/tools`);
+  const res = await fetch(`${ADAPTER_URL()}/tools`, { headers: internalHeaders() });
   if (!res.ok) {
     throw new AdapterError(res.status, await safeDetail(res));
   }
@@ -93,7 +106,7 @@ export async function collectAgentRun(
 ): Promise<string> {
   const { taskId } = await startAgentRun(body, ctx);
   const upstream = await fetch(`${ADAPTER_URL()}/stream/${encodeURIComponent(taskId)}`, {
-    headers: { Accept: 'text/event-stream' },
+    headers: internalHeaders({ Accept: 'text/event-stream' }),
     signal: AbortSignal.timeout(timeoutMs),
   });
   if (!upstream.ok || upstream.body == null) {
@@ -137,7 +150,7 @@ export async function pipeAgentStream(
   onEvent?: (event: AgentStreamEvent) => void,
 ): Promise<void> {
   const upstream = await fetch(`${ADAPTER_URL()}/stream/${encodeURIComponent(taskId)}`, {
-    headers: { Accept: 'text/event-stream' },
+    headers: internalHeaders({ Accept: 'text/event-stream' }),
   });
   if (!upstream.ok || upstream.body == null) {
     throw new AdapterError(upstream.status, await safeDetail(upstream));
@@ -244,7 +257,7 @@ export async function getVaultedKey(
   try {
     const res = await fetch(`${BILLING_URL()}/vault/key`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: internalHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ orgId, userId, provider }),
       signal: AbortSignal.timeout(4000),
     });
@@ -261,7 +274,7 @@ export async function getVaultedKey(
 export async function listVaultKeys(userId: string, orgId = 'default'): Promise<VaultKeyInfo[]> {
   const res = await fetch(
     `${BILLING_URL()}/vault/keys?userId=${encodeURIComponent(userId)}&orgId=${encodeURIComponent(orgId)}`,
-    { signal: AbortSignal.timeout(4000) },
+    { headers: internalHeaders(), signal: AbortSignal.timeout(4000) },
   );
   if (!res.ok) {
     throw new AdapterError(res.status, 'vault unavailable');
@@ -278,7 +291,7 @@ export async function putVaultKey(
 ): Promise<{ provider: string; hint: string }> {
   const res = await fetch(`${BILLING_URL()}/vault/keys`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: internalHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ orgId, userId, provider, apiKey }),
     signal: AbortSignal.timeout(6000),
   });
@@ -296,7 +309,7 @@ export async function deleteVaultKey(
 ): Promise<boolean> {
   const res = await fetch(`${BILLING_URL()}/vault/keys`, {
     method: 'DELETE',
-    headers: { 'Content-Type': 'application/json' },
+    headers: internalHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ orgId, userId, provider }),
     signal: AbortSignal.timeout(4000),
   });

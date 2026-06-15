@@ -9,10 +9,11 @@ Internal-only: the Express backend proxies user-facing CRUD.
 from __future__ import annotations
 
 import logging
+import os
 import secrets
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from cron import reload_jobs, start_cron
@@ -21,7 +22,25 @@ from telegram import start_telegram, telegram_enabled
 
 logging.basicConfig(level="INFO")
 
+INTERNAL_TOKEN = os.environ.get("INTERNAL_SERVICE_TOKEN", "")
+if not INTERNAL_TOKEN:
+    logging.warning(
+        "INTERNAL_SERVICE_TOKEN unset — gateway endpoints are unauthenticated. Set it in prod."
+    )
+
+
+def require_internal(x_internal_token: Optional[str] = Header(default=None)) -> None:
+    """Reject callers without the shared internal token (enforced when configured)."""
+    if INTERNAL_TOKEN and not (
+        x_internal_token and secrets.compare_digest(x_internal_token, INTERNAL_TOKEN)
+    ):
+        raise HTTPException(status_code=401, detail="unauthorized")
+
+
 app = FastAPI(title="analytikul-gateway", version="0.2.0")
+
+# Apply to every route except /health (see per-route dependencies below).
+PROTECTED = [Depends(require_internal)]
 
 
 @app.on_event("startup")
@@ -41,9 +60,10 @@ class LinkCodeRequest(BaseModel):
     user_id: str
 
 
-@app.post("/telegram/link-code")
+@app.post("/telegram/link-code", dependencies=PROTECTED)
 def create_link_code(req: LinkCodeRequest) -> dict:
-    code = secrets.token_hex(4)
+    # High-entropy, short-lived code (expiry enforced in the DB default + claim).
+    code = secrets.token_urlsafe(24)
     execute(
         "INSERT INTO gateway.link_codes (code, org_id, user_id) VALUES (%s, %s, %s)",
         (code, req.org_id, req.user_id),
@@ -60,7 +80,7 @@ class CronJobRequest(BaseModel):
     enabled: bool = True
 
 
-@app.get("/cron")
+@app.get("/cron", dependencies=PROTECTED)
 def list_jobs(org_id: str = "default", user_id: Optional[str] = None) -> dict:
     if user_id:
         jobs = query(
@@ -72,7 +92,7 @@ def list_jobs(org_id: str = "default", user_id: Optional[str] = None) -> dict:
     return {"jobs": jobs}
 
 
-@app.post("/cron")
+@app.post("/cron", dependencies=PROTECTED)
 def create_job(req: CronJobRequest) -> dict:
     from apscheduler.triggers.cron import CronTrigger
 
@@ -89,7 +109,7 @@ def create_job(req: CronJobRequest) -> dict:
     return {"id": rows[0]["id"]}
 
 
-@app.delete("/cron/{job_id}")
+@app.delete("/cron/{job_id}", dependencies=PROTECTED)
 def delete_job(job_id: int, org_id: str = "default", user_id: Optional[str] = None) -> dict:
     scope = "id = %s AND org_id = %s" + (" AND user_id = %s" if user_id else "")
     params = (job_id, org_id, user_id) if user_id else (job_id, org_id)
@@ -100,7 +120,7 @@ def delete_job(job_id: int, org_id: str = "default", user_id: Optional[str] = No
     return {"deleted": True}
 
 
-@app.patch("/cron/{job_id}/toggle")
+@app.patch("/cron/{job_id}/toggle", dependencies=PROTECTED)
 def toggle_job(job_id: int, org_id: str = "default") -> dict:
     updated = execute(
         "UPDATE gateway.cron_jobs SET enabled = NOT enabled WHERE id = %s AND org_id = %s",

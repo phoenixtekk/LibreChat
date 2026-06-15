@@ -35,6 +35,9 @@ set_var CREDS_IV "$(rand_hex 16)"
 set_var MEILI_MASTER_KEY "$(rand_hex 16)"
 set_var POSTGRES_PASSWORD "$(rand_hex 16)"
 set_var ANALYTIKUL_VAULT_KEY "$(rand_hex 32)"
+# Shared secret authenticating the Node backend to the internal services
+# (billing/analytics/memory/gateway/hermes-adapter). Required in prod.
+set_var INTERNAL_SERVICE_TOKEN "$(rand_hex 32)"
 set_var ANTHROPIC_API_KEY "$AGENT_KEY"
 set_var AGENT_DEFAULT_API_KEY "$AGENT_KEY"
 set_var AGENT_DEFAULT_PROVIDER anthropic

@@ -8,9 +8,10 @@ from typing import Any, Dict, List, Optional
 import psycopg2
 import psycopg2.extras
 
-PG_URI = os.environ.get(
-    "GATEWAY_PG_URI", "postgresql://myuser:mypassword@vectordb:5432/mydatabase"
-)
+# Fail fast rather than ship an embedded-credential default.
+PG_URI = os.environ.get("GATEWAY_PG_URI")
+if not PG_URI:
+    raise RuntimeError("GATEWAY_PG_URI is required (no default — refusing to start)")
 
 MIGRATION = """
 CREATE SCHEMA IF NOT EXISTS gateway;
@@ -26,8 +27,11 @@ CREATE TABLE IF NOT EXISTS gateway.link_codes (
   code TEXT PRIMARY KEY,
   org_id TEXT NOT NULL DEFAULT 'default',
   user_id TEXT NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expires_at TIMESTAMPTZ NOT NULL DEFAULT now() + interval '10 minutes'
 );
+ALTER TABLE gateway.link_codes
+  ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ NOT NULL DEFAULT now() + interval '10 minutes';
 
 CREATE TABLE IF NOT EXISTS gateway.cron_jobs (
   id BIGSERIAL PRIMARY KEY,
@@ -73,10 +77,16 @@ def resolve_telegram_link(chat_id: int) -> Optional[Dict[str, Any]]:
 
 
 def claim_link_code(code: str, chat_id: int) -> Optional[Dict[str, Any]]:
-    rows = query("SELECT org_id, user_id FROM gateway.link_codes WHERE code = %s", (code,))
+    # Atomic single-statement claim: delete-and-return only if the code exists AND
+    # is unexpired. Prevents the TOCTOU race where two concurrent claims both pass
+    # a separate SELECT, and enforces expiry server-side.
+    rows = query(
+        "DELETE FROM gateway.link_codes WHERE code = %s AND expires_at > now() "
+        "RETURNING org_id, user_id",
+        (code,),
+    )
     if not rows:
         return None
-    execute("DELETE FROM gateway.link_codes WHERE code = %s", (code,))
     execute(
         """INSERT INTO gateway.telegram_links (chat_id, org_id, user_id) VALUES (%s, %s, %s)
            ON CONFLICT (chat_id) DO UPDATE SET org_id = EXCLUDED.org_id, user_id = EXCLUDED.user_id""",

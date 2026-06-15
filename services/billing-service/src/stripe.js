@@ -39,14 +39,18 @@ export async function createSubscriptionCheckout({ orgId, plan, successUrl, canc
 }
 
 export async function createCreditsCheckout({ orgId, amountUsd, successUrl, cancelUrl }) {
+  const amount = Number(amountUsd);
+  if (!Number.isFinite(amount) || amount < 1 || amount > 100000) {
+    throw new Error('amountUsd must be a number between 1 and 100000');
+  }
   const session = await stripe().checkout.sessions.create({
     mode: 'payment',
     line_items: [
       {
         price_data: {
           currency: 'usd',
-          unit_amount: Math.round(amountUsd * 100),
-          product_data: { name: `Analytikul credits ($${amountUsd})` },
+          unit_amount: Math.round(amount * 100),
+          product_data: { name: `Analytikul credits ($${amount})` },
         },
         quantity: 1,
       },
@@ -67,18 +71,23 @@ export function normalizeWebhook(rawBody, signature) {
     process.env.STRIPE_WEBHOOK_SECRET,
   );
   const object = event.data.object;
+  const eventId = event.id;
   switch (event.type) {
     case 'checkout.session.completed': {
       const orgId = object.client_reference_id ?? object.metadata?.orgId;
       if (object.mode === 'payment') {
         return {
           type: 'credits_purchased',
+          eventId,
           orgId,
-          creditsUsd: Number(object.metadata?.creditsUsd ?? object.amount_total / 100),
+          // Credit strictly from the amount Stripe actually collected, never from
+          // client-supplied metadata — metadata can claim more than was paid.
+          creditsUsd: object.amount_total / 100,
         };
       }
       return {
         type: 'subscription_started',
+        eventId,
         orgId,
         plan: object.metadata?.plan ?? 'pro',
         customerId: object.customer,
@@ -86,9 +95,9 @@ export function normalizeWebhook(rawBody, signature) {
       };
     }
     case 'customer.subscription.deleted':
-      return { type: 'subscription_ended', subscriptionId: object.id };
+      return { type: 'subscription_ended', eventId, subscriptionId: object.id };
     case 'invoice.payment_failed':
-      return { type: 'payment_failed', customerId: object.customer };
+      return { type: 'payment_failed', eventId, customerId: object.customer };
     default:
       return null;
   }

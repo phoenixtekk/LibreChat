@@ -2,7 +2,10 @@
 // Organization collection in Mongo). Runtime authorization never reads Stripe.
 import { MongoClient } from 'mongodb';
 
-const client = new MongoClient(process.env.MONGO_URI ?? 'mongodb://mongodb:27017/LibreChat');
+if (!process.env.MONGO_URI) {
+  throw new Error('MONGO_URI is required (no default — refusing to start)');
+}
+const client = new MongoClient(process.env.MONGO_URI);
 let orgs = null;
 
 async function collection() {

@@ -22,6 +22,11 @@ MEMORY_URL = os.environ.get("MEMORY_SERVICE_URL", "http://memory-service:8012")
 INJECT_LIMIT = 5
 INJECT_CHAR_BUDGET = 800
 
+
+def _internal_headers() -> dict:
+    token = os.environ.get("INTERNAL_SERVICE_TOKEN", "")
+    return {"x-internal-token": token} if token else {}
+
 _task_context: Dict[str, Dict[str, str]] = {}
 _lock = threading.Lock()
 
@@ -48,6 +53,7 @@ def build_memory_block(org_id: str, query: str) -> Optional[str]:
         res = requests.get(
             f"{MEMORY_URL}/memories/search",
             params={"q": query[:1000], "orgId": org_id, "limit": INJECT_LIMIT},
+            headers=_internal_headers(),
             timeout=5,
         )
         res.raise_for_status()
@@ -100,6 +106,7 @@ def _save_handler(args: Dict[str, Any], **kwargs: Any) -> str:
                 "sourceTaskId": task_id,
                 "tags": args.get("tags") or [],
             },
+            headers=_internal_headers(),
             timeout=10,
         )
         res.raise_for_status()

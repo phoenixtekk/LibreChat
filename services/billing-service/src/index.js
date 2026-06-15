@@ -2,7 +2,8 @@
 // Internal-only: never publicly proxied; only the Express backend calls it
 // (except /webhooks/stripe which Express forwards raw).
 import http from 'node:http';
-import { migrateVault, putKey, getKey, listKeys, deleteKey } from './vault.js';
+import crypto from 'node:crypto';
+import { migrateVault, putKey, getKey, listKeys, deleteKey, claimEvent } from './vault.js';
 import {
   stripeReady,
   normalizeWebhook,
@@ -19,7 +20,22 @@ import { applyEvent, getOrg } from './entitlements.js';
 
 const PORT = process.env.BILLING_PORT || 8013;
 const PROVIDER = process.env.BILLING_PROVIDER ?? 'polar';
+const INTERNAL_TOKEN = process.env.INTERNAL_SERVICE_TOKEN || '';
+const MAX_BODY = 256 * 1024;
 const log = (msg) => console.log(`[billing] ${msg}`);
+
+// Constant-time check of the internal service token. Webhooks are exempt (they
+// authenticate via provider signature); /health is public.
+function authorized(req) {
+  if (!INTERNAL_TOKEN) {
+    return true;
+  }
+  const provided = req.headers['x-internal-token'];
+  if (typeof provided !== 'string' || provided.length !== INTERNAL_TOKEN.length) {
+    return false;
+  }
+  return crypto.timingSafeEqual(Buffer.from(provided), Buffer.from(INTERNAL_TOKEN));
+}
 
 const subscriptionCheckout =
   PROVIDER === 'polar' ? polarCreateSubscriptionCheckout : createSubscriptionCheckout;
@@ -27,10 +43,20 @@ const creditsCheckout = PROVIDER === 'polar' ? polarCreateCreditsCheckout : crea
 
 await migrateVault();
 log(`vault schema ready; provider: ${PROVIDER}; stripe: ${stripeReady()}; polar: ${polarReady()}`);
+if (!INTERNAL_TOKEN) {
+  log('WARNING: INTERNAL_SERVICE_TOKEN unset — internal endpoints are unauthenticated. Set it in prod.');
+}
 
 async function readBody(req, raw = false) {
   const chunks = [];
+  let size = 0;
   for await (const chunk of req) {
+    size += chunk.length;
+    if (size > MAX_BODY) {
+      const err = new Error('request body too large');
+      err.status = 413;
+      throw err;
+    }
     chunks.push(chunk);
   }
   const buffer = Buffer.concat(chunks);
@@ -48,6 +74,12 @@ http
     try {
       if (url.pathname === '/health') {
         return send(200, { status: 'ok', service: 'billing-service', stripe: stripeReady() });
+      }
+
+      // All non-health, non-webhook routes require the internal service token.
+      const isWebhook = url.pathname.startsWith('/webhooks/');
+      if (!isWebhook && !authorized(req)) {
+        return send(401, { error: 'unauthorized' });
       }
 
       if (url.pathname === '/vault/keys' && req.method === 'GET') {
@@ -96,7 +128,11 @@ http
         const raw = await readBody(req, true);
         const event = normalizeWebhook(raw, req.headers['stripe-signature']);
         if (event != null) {
-          await applyEvent(event, log);
+          if (await claimEvent(event.eventId)) {
+            await applyEvent(event, log);
+          } else {
+            log(`stripe event ${event.eventId} already processed — skipping (replay/retry)`);
+          }
         }
         return send(200, { received: true });
       }
@@ -105,7 +141,11 @@ http
         const raw = await readBody(req, true);
         const event = polarNormalizeWebhook(raw, req.headers);
         if (event != null) {
-          await applyEvent(event, log);
+          if (await claimEvent(event.eventId)) {
+            await applyEvent(event, log);
+          } else {
+            log(`polar event ${event.eventId} already processed — skipping (replay/retry)`);
+          }
         }
         return send(200, { received: true });
       }
@@ -118,8 +158,12 @@ http
       return send(404, { error: 'not found' });
     } catch (err) {
       log(`api error ${url.pathname}: ${err.message}`);
+      if (err.status === 413) {
+        return send(413, { error: 'request body too large' });
+      }
       const status = /not configured|no Stripe price/.test(err.message) ? 503 : 500;
-      return send(status, { error: err.message });
+      // Don't reflect internal error detail to the caller.
+      return send(status, { error: status === 503 ? err.message : 'internal error' });
     }
   })
   .listen(PORT, () => log(`listening on :${PORT}`));

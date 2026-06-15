@@ -66,6 +66,11 @@ export async function createCreditsCheckout() {
 
 /** Verify a standard-webhooks signature (Polar's scheme) over the raw body. */
 function verifySignature(rawBody, headers, secret) {
+  // Fail closed if the secret is unset/empty: an empty HMAC key is attacker-computable,
+  // which would turn a misconfigured deploy into a full signature bypass.
+  if (!secret) {
+    throw new Error('POLAR_WEBHOOK_SECRET not configured');
+  }
   const id = headers['webhook-id'];
   const timestamp = headers['webhook-timestamp'];
   const signatureHeader = headers['webhook-signature'];
@@ -99,6 +104,7 @@ export function normalizeWebhook(rawBody, headers) {
   verifySignature(rawBody, headers, process.env.POLAR_WEBHOOK_SECRET);
   const event = JSON.parse(rawBody.toString('utf8'));
   const data = event.data ?? {};
+  const eventId = headers['webhook-id'];
   const orgId = data.metadata?.orgId ?? data.checkout?.metadata?.orgId;
   const plan = data.metadata?.plan ?? data.checkout?.metadata?.plan ?? 'pro';
   switch (event.type) {
@@ -106,6 +112,7 @@ export function normalizeWebhook(rawBody, headers) {
     case 'subscription.active':
       return {
         type: 'subscription_started',
+        eventId,
         orgId,
         plan,
         customerId: data.customer_id,
@@ -113,9 +120,9 @@ export function normalizeWebhook(rawBody, headers) {
       };
     case 'subscription.canceled':
     case 'subscription.revoked':
-      return { type: 'subscription_ended', subscriptionId: data.id };
+      return { type: 'subscription_ended', eventId, subscriptionId: data.id };
     case 'order.refunded':
-      return { type: 'payment_failed', customerId: data.customer_id };
+      return { type: 'payment_failed', eventId, customerId: data.customer_id };
     default:
       return null;
   }

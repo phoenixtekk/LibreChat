@@ -2,14 +2,30 @@
 // pgvector store under Postgres RLS (org isolation enforced in the database,
 // not just the application), local transformers.js embeddings (no API key).
 import http from 'node:http';
+import crypto from 'node:crypto';
 import { warmup } from './embedder.js';
 import { migrate, saveMemory, searchMemories, listMemories, deleteMemory } from './store.js';
 
 const PORT = process.env.MEMORY_PORT || 8012;
+const INTERNAL_TOKEN = process.env.INTERNAL_SERVICE_TOKEN || '';
 const log = (msg) => console.log(`[memory] ${msg}`);
+
+function authorized(req) {
+  if (!INTERNAL_TOKEN) {
+    return true;
+  }
+  const provided = req.headers['x-internal-token'];
+  if (typeof provided !== 'string' || provided.length !== INTERNAL_TOKEN.length) {
+    return false;
+  }
+  return crypto.timingSafeEqual(Buffer.from(provided), Buffer.from(INTERNAL_TOKEN));
+}
 
 await migrate();
 log('postgres schema ready (RLS enforced)');
+if (!INTERNAL_TOKEN) {
+  log('WARNING: INTERNAL_SERVICE_TOKEN unset — memory endpoints are unauthenticated. Set it in prod.');
+}
 warmup(log).catch((err) => log(`embedder warmup failed: ${err.message}`));
 
 http
@@ -23,6 +39,10 @@ http
     try {
       if (url.pathname === '/health') {
         return send(200, { status: 'ok', service: 'memory-service' });
+      }
+
+      if (!authorized(req)) {
+        return send(401, { error: 'unauthorized' });
       }
 
       const orgId = url.searchParams.get('orgId') ?? 'default';

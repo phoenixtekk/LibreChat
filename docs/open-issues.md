@@ -41,6 +41,20 @@
   deferred to phase 2.
 - Old `UnifiedSidebar` component tree now unused after sidebar swap but not yet deleted.
 
+## Security audit 2026-06-14 (branch `security/internal-svc-hardening`) — DEPLOY ACTION REQUIRED
+Fixed in code (see FEATURES.md → Security hardening): internal services bound to `127.0.0.1` +
+shared-token auth; billing webhook idempotency / paid-amount credits / Polar fail-closed /
+creds fail-fast; non-overridable runtime toolset floor; Telegram link-code entropy+expiry+atomic
+claim; budget fail-closed for platform-key runs; notes regex escape.
+- **REQUIRED before/at next deploy:** add `INTERNAL_SERVICE_TOKEN` to prod `.env` (32-byte hex;
+  `gen-prod-env.sh` now emits it) and redeploy the **whole** stack so all services share it. If
+  it's set on only some services, cross-service calls 401. Until set, services log a warning and
+  stay open (loopback binding still protects them).
+- **Not auto-fixed (need a product decision):** the `tenantId == 'default'` shared-tenant
+  fallback (un-tenanted users share one org for notes/memory/analytics — assign real tenantIds
+  + `TENANT_ISOLATION_STRICT=true`); per-user vs per-org visibility of `/analytics` events and
+  `/memory` delete; edge webhook signature pre-verification + rate-limiting.
+
 ## Security / ops to confirm before scale
 - Test prod account `lacy@analytikul.ai` has a known weak password from chat — change it.
 - gVisor sandboxing NOT yet on production (agent code-exec isolation = container boundary only).

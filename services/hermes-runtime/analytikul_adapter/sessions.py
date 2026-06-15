@@ -33,6 +33,16 @@ IDLE_TTL_S = int(os.environ.get("AGENT_IDLE_TTL_S", "600"))
 MAX_CONCURRENT_TASKS = int(os.environ.get("AGENT_MAX_CONCURRENT", "8"))
 MAX_TASKS_PER_USER = int(os.environ.get("AGENT_MAX_PER_USER", "2"))
 
+# SECURITY: non-overridable runtime floor. These toolsets can run host commands,
+# read/write the filesystem, or pivot to internal services and are NOT sandboxed
+# (TERMINAL_ENV=local). The Node route also blocks them, but the runtime must
+# enforce its own floor so a caller that reaches this service directly cannot
+# re-enable them. Defense in depth — must mirror FORBIDDEN_TOOLSETS in
+# api/server/routes/analytikul.js.
+FORBIDDEN_TOOLSETS = frozenset(
+    {"terminal", "code_execution", "file", "computer_use", "messaging", "homeassistant"}
+)
+
 _executor = ThreadPoolExecutor(max_workers=MAX_CONCURRENT_TASKS, thread_name_prefix="agent")
 
 
@@ -99,6 +109,16 @@ class SessionPool:
 
             from run_agent import AIAgent
 
+            # Apply the non-overridable floor: strip forbidden toolsets from the
+            # caller's enabled list and always union them into the disabled set,
+            # regardless of what the caller supplied.
+            safe_enabled = (
+                [t for t in enabled_toolsets if t not in FORBIDDEN_TOOLSETS]
+                if enabled_toolsets is not None
+                else None
+            )
+            safe_disabled = sorted(set(disabled_toolsets or []) | FORBIDDEN_TOOLSETS)
+
             agent = AIAgent(
                 base_url=base_url,
                 api_key=api_key,
@@ -110,8 +130,8 @@ class SessionPool:
                 save_trajectories=False,
                 session_id=f"atk-{conversation_id}",
                 platform="analytikul",
-                enabled_toolsets=enabled_toolsets,
-                disabled_toolsets=disabled_toolsets or ["messaging", "homeassistant", "computer_use"],
+                enabled_toolsets=safe_enabled,
+                disabled_toolsets=safe_disabled,
             )
             session = AgentSession(
                 key=key,

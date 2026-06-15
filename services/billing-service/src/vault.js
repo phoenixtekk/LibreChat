@@ -5,9 +5,14 @@
 import crypto from 'node:crypto';
 import pg from 'pg';
 
+// Fail fast rather than ship an embedded-credential default: a missing
+// BILLING_PG_URI must never silently fall back to known public credentials.
+if (!process.env.BILLING_PG_URI) {
+  throw new Error('BILLING_PG_URI is required (no default — refusing to start)');
+}
+
 export const pool = new pg.Pool({
-  connectionString:
-    process.env.BILLING_PG_URI ?? 'postgresql://myuser:mypassword@vectordb:5432/mydatabase',
+  connectionString: process.env.BILLING_PG_URI,
   max: 5,
 });
 
@@ -25,10 +30,30 @@ CREATE TABLE IF NOT EXISTS billing.vault (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (org_id, user_id, provider)
 );
+CREATE TABLE IF NOT EXISTS billing.processed_events (
+  event_id TEXT PRIMARY KEY,
+  processed_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 `;
 
 export async function migrateVault() {
   await pool.query(MIGRATION);
+}
+
+/**
+ * Atomically claim a provider webhook event id for processing.
+ * Returns true if this is the first time we've seen it (safe to apply),
+ * false if it was already processed (a retry or replay — must be skipped).
+ */
+export async function claimEvent(eventId) {
+  if (!eventId) {
+    return false;
+  }
+  const { rowCount } = await pool.query(
+    `INSERT INTO billing.processed_events (event_id) VALUES ($1) ON CONFLICT DO NOTHING`,
+    [eventId],
+  );
+  return rowCount > 0;
 }
 
 function masterKey() {

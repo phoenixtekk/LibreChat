@@ -15,6 +15,11 @@ ADAPTER_URL = os.environ.get("HERMES_ADAPTER_URL", "http://hermes-adapter:8001")
 RUN_TIMEOUT_S = int(os.environ.get("GATEWAY_RUN_TIMEOUT_S", "300"))
 
 
+def _internal_headers() -> dict:
+    token = os.environ.get("INTERNAL_SERVICE_TOKEN", "")
+    return {"x-internal-token": token} if token else {}
+
+
 def run_agent_task(
     *,
     org_id: str,
@@ -34,12 +39,13 @@ def run_agent_task(
         "base_url": os.environ.get("AGENT_DEFAULT_BASE_URL", "https://api.anthropic.com"),
         "api_key": api_key or os.environ.get("AGENT_DEFAULT_API_KEY", ""),
     }
-    res = requests.post(f"{ADAPTER_URL}/run", json=payload, timeout=30)
+    headers = _internal_headers()
+    res = requests.post(f"{ADAPTER_URL}/run", json=payload, headers=headers, timeout=30)
     res.raise_for_status()
     task_id = res.json()["task_id"]
 
     with requests.get(
-        f"{ADAPTER_URL}/stream/{task_id}", stream=True, timeout=RUN_TIMEOUT_S
+        f"{ADAPTER_URL}/stream/{task_id}", stream=True, headers=headers, timeout=RUN_TIMEOUT_S
     ) as stream:
         stream.raise_for_status()
         for line in stream.iter_lines(decode_unicode=True):

@@ -13,10 +13,11 @@ from __future__ import annotations
 import os
 import sys
 import asyncio
+import secrets
 import logging
 from typing import List, Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -30,6 +31,27 @@ logger = logging.getLogger("analytikul.adapter")
 
 HERMES_PIN = "484f484c25bc89fbddc73f1d80410e99e6133fd5"
 STREAM_IDLE_TIMEOUT_S = 120
+
+INTERNAL_TOKEN = os.environ.get("INTERNAL_SERVICE_TOKEN", "")
+if not INTERNAL_TOKEN:
+    logger.warning(
+        "INTERNAL_SERVICE_TOKEN unset — adapter endpoints are unauthenticated. Set it in prod."
+    )
+
+
+def require_internal(x_internal_token: Optional[str] = Header(default=None)) -> None:
+    """Reject callers without the shared internal token (enforced when configured).
+
+    Critical: this runtime executes agent tools and falls back to the platform key.
+    It must never trust an unauthenticated caller. /health is the only open route.
+    """
+    if INTERNAL_TOKEN and not (
+        x_internal_token and secrets.compare_digest(x_internal_token, INTERNAL_TOKEN)
+    ):
+        raise HTTPException(status_code=401, detail="unauthorized")
+
+
+PROTECTED = [Depends(require_internal)]
 
 app = FastAPI(title="analytikul-hermes-adapter", version="0.3.0")
 
@@ -68,7 +90,7 @@ def health():
     return {"status": "ok", "adapter": "0.2.0", "hermes_pin": HERMES_PIN}
 
 
-@app.get("/tools")
+@app.get("/tools", dependencies=PROTECTED)
 def tools():
     try:
         from model_tools import get_tool_definitions
@@ -89,7 +111,7 @@ def tools():
         raise HTTPException(status_code=503, detail=f"tool registry error: {exc}")
 
 
-@app.post("/run")
+@app.post("/run", dependencies=PROTECTED)
 async def run(req: RunRequest):
     api_key = req.api_key or os.environ.get("AGENT_DEFAULT_API_KEY", "")
     if not api_key:
@@ -128,7 +150,7 @@ async def run(req: RunRequest):
     return {"task_id": task_id}
 
 
-@app.get("/stream/{task_id}")
+@app.get("/stream/{task_id}", dependencies=PROTECTED)
 async def stream(task_id: str):
     bus = pool.get_bus(task_id)
     if bus is None:
@@ -164,7 +186,7 @@ async def stream(task_id: str):
     )
 
 
-@app.post("/cancel/{task_id}")
+@app.post("/cancel/{task_id}", dependencies=PROTECTED)
 def cancel(task_id: str):
     if not pool.cancel(task_id):
         raise HTTPException(status_code=404, detail="no running task with that id")
