@@ -45,5 +45,15 @@ set_var AGENT_DEFAULT_MODEL claude-sonnet-4-6
 set_var AGENT_DEFAULT_BASE_URL https://api.anthropic.com
 set_var ALLOW_REGISTRATION true
 
+# Hybrid billing (free = platform-paid but capped; paid = top-up / BYOK).
+# CHECK_BALANCE meters every platform-key call against the user's tokenCredits
+# (1000 tokenCredits = $0.001). START_BALANCE is the free-tier grant on signup
+# (1,000,000 = ~$1.00). Paid plans top up via the billing webhook
+# (PLAN_CREDIT_GRANT_*); BYOK users bypass platform cost via the agent vault.
+set_var CHECK_BALANCE true
+set_var START_BALANCE 1000000
+set_var PLAN_CREDIT_GRANT_PRO 50000000
+set_var PLAN_CREDIT_GRANT_TEAM 200000000
+
 chmod 600 .env
 echo "production .env written ($(grep -c '=' .env) vars), secrets regenerated"

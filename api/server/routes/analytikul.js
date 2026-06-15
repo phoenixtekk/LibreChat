@@ -28,6 +28,11 @@ const internalHeaders = (extra = {}) =>
   INTERNAL_TOKEN ? { ...extra, 'x-internal-token': INTERNAL_TOKEN } : extra;
 // Escape user input before using it as a Mongo $regex (prevents ReDoS / regex injection).
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+// Tenant/org scope for the caller. Users in an org share its tenantId; a solo
+// user (no tenantId) is isolated to their own id — NEVER collapsed into a shared
+// 'default' bucket (that leaked org-shared notes / memory / analytics across all
+// un-tenanted users).
+const tenantOf = (req) => req.user.tenantId || String(req.user.id);
 
 router.use(requireJwtAuth);
 
@@ -59,7 +64,7 @@ router.post('/agent/run', async (req, res) => {
         ...FORBIDDEN_TOOLSETS,
       ]),
     );
-    const budget = await checkBudget(req.user.id, req.user.tenantId ?? 'default');
+    const budget = await checkBudget(req.user.id, tenantOf(req));
     if (!budget.allowed) {
       return res.status(402).json({
         message: `Budget exceeded: $${budget.spent?.toFixed(4)} of $${budget.limit?.toFixed(2)} (${budget.scope} ${budget.period} limit). Agent runs are paused until the period resets or an admin raises the limit.`,
@@ -70,7 +75,7 @@ router.post('/agent/run', async (req, res) => {
     const vaultedKey = await getVaultedKey(
       req.user.id,
       effectiveProvider,
-      req.user.tenantId ?? 'default',
+      tenantOf(req),
     );
     // Fail closed for platform-key runs we can't budget-check: if the budget
     // service was unreachable (degraded fail-open) and the user has no BYOK key,
@@ -84,7 +89,7 @@ router.post('/agent/run', async (req, res) => {
     }
     const ctx = {
       userId: req.user.id,
-      tenantId: req.user.tenantId,
+      tenantId: tenantOf(req),
       apiKey: vaultedKey ?? process.env.AGENT_DEFAULT_API_KEY,
     };
     const { taskId } = await startAgentRun(
@@ -104,7 +109,7 @@ router.post('/agent/run', async (req, res) => {
     }
     taskMeta.set(taskId, {
       userId: req.user.id,
-      tenantId: req.user.tenantId,
+      tenantId: tenantOf(req),
       conversationId,
       model: model ?? process.env.AGENT_DEFAULT_MODEL ?? '',
       provider: provider ?? process.env.AGENT_DEFAULT_PROVIDER ?? 'openrouter',
@@ -178,12 +183,16 @@ router.get('/analytics/:view', async (req, res) => {
   if (upstreamPath == null) {
     return res.status(404).json({ message: 'unknown analytics view' });
   }
-  if (req.params.view === 'users' && req.user.role !== 'ADMIN') {
+  // Raw, per-event and per-user views can expose other org members' activity;
+  // restrict them to admins. Aggregate cost views (daily/models/conversations)
+  // are fine for any org member (and conversations is self-scoped below).
+  const ADMIN_ONLY_VIEWS = new Set(['users', 'events', 'unpriced']);
+  if (ADMIN_ONLY_VIEWS.has(req.params.view) && req.user.role !== 'ADMIN') {
     return res.status(403).json({ message: 'admin only' });
   }
   try {
     const url = new URL(ANALYTICS_URL + upstreamPath);
-    url.searchParams.set('orgId', req.user.tenantId ?? 'default');
+    url.searchParams.set('orgId', tenantOf(req));
     const days = Number(req.query.days);
     if (Number.isFinite(days)) {
       url.searchParams.set('days', String(Math.min(days, 365)));
@@ -204,7 +213,7 @@ router.get('/analytics/:view', async (req, res) => {
 
 router.get('/keys', async (req, res) => {
   try {
-    res.status(200).json({ keys: await listVaultKeys(req.user.id, req.user.tenantId ?? 'default') });
+    res.status(200).json({ keys: await listVaultKeys(req.user.id, tenantOf(req)) });
   } catch (error) {
     logger.error('[analytikul] vault list failed', error);
     res.status(502).json({ message: 'vault unavailable' });
@@ -217,7 +226,7 @@ router.put('/keys', async (req, res) => {
     if (!provider || !apiKey) {
       return res.status(400).json({ message: 'provider and apiKey required' });
     }
-    const key = await putVaultKey(req.user.id, provider, apiKey, req.user.tenantId ?? 'default');
+    const key = await putVaultKey(req.user.id, provider, apiKey, tenantOf(req));
     res.status(200).json({ key });
   } catch (error) {
     logger.error('[analytikul] vault put failed', error);
@@ -229,7 +238,7 @@ router.delete('/keys/:provider', async (req, res) => {
   const deleted = await deleteVaultKey(
     req.user.id,
     req.params.provider,
-    req.user.tenantId ?? 'default',
+    tenantOf(req),
   );
   res.status(deleted ? 200 : 404).json({ deleted });
 });
@@ -237,7 +246,7 @@ router.delete('/keys/:provider', async (req, res) => {
 /* ---------------- Notes (Open WebUI-parity notes workspace) ---------------- */
 
 const noteScope = (req) => ({
-  $or: [{ user: req.user.id }, { tenantId: req.user.tenantId ?? 'default', sharedWithOrg: true }],
+  $or: [{ user: req.user.id }, { tenantId: tenantOf(req), sharedWithOrg: true }],
 });
 
 router.get('/notes', async (req, res) => {
@@ -263,7 +272,7 @@ router.post('/notes', async (req, res) => {
   try {
     const note = await Note.create({
       user: req.user.id,
-      tenantId: req.user.tenantId ?? 'default',
+      tenantId: tenantOf(req),
       title: req.body?.title ?? 'Untitled',
       content: req.body?.content ?? '',
     });
@@ -335,12 +344,12 @@ router.post('/notes/ai', async (req, res) => {
     if (!prompt || typeof text !== 'string' || text.trim() === '') {
       return res.status(400).json({ message: 'action (enhance|summarize|continue) and text required' });
     }
-    const budget = await checkBudget(req.user.id, req.user.tenantId ?? 'default');
+    const budget = await checkBudget(req.user.id, tenantOf(req));
     if (!budget.allowed) {
       return res.status(402).json({ message: 'Budget exceeded', budget });
     }
     const effectiveProvider = process.env.AGENT_DEFAULT_PROVIDER ?? 'anthropic';
-    const vaultedKey = await getVaultedKey(req.user.id, effectiveProvider, req.user.tenantId ?? 'default');
+    const vaultedKey = await getVaultedKey(req.user.id, effectiveProvider, tenantOf(req));
     if (budget.degraded && !vaultedKey) {
       return res
         .status(503)
@@ -359,7 +368,7 @@ router.post('/notes/ai', async (req, res) => {
       },
       {
         userId: req.user.id,
-        tenantId: req.user.tenantId,
+        tenantId: tenantOf(req),
         apiKey: vaultedKey ?? process.env.AGENT_DEFAULT_API_KEY,
       },
     );
@@ -378,7 +387,7 @@ router.post('/telegram/link-code', async (req, res) => {
     const upstream = await fetch(`${GATEWAY_URL}/telegram/link-code`, {
       method: 'POST',
       headers: internalHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ org_id: req.user.tenantId ?? 'default', user_id: req.user.id }),
+      body: JSON.stringify({ org_id: tenantOf(req), user_id: req.user.id }),
       signal: AbortSignal.timeout(5000),
     });
     res.status(upstream.status).json(await upstream.json());
@@ -393,7 +402,7 @@ const MEMORY_URL = process.env.MEMORY_SERVICE_URL ?? 'http://localhost:8012';
 router.get('/memory', async (req, res) => {
   try {
     const url = new URL(`${MEMORY_URL}/memories`);
-    url.searchParams.set('orgId', req.user.tenantId ?? 'default');
+    url.searchParams.set('orgId', tenantOf(req));
     const upstream = await fetch(url, {
       headers: internalHeaders(),
       signal: AbortSignal.timeout(5000),
@@ -411,7 +420,7 @@ router.post('/memory', async (req, res) => {
       method: 'POST',
       headers: internalHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
-        orgId: req.user.tenantId ?? 'default',
+        orgId: tenantOf(req),
         content: req.body?.content,
         tags: req.body?.tags ?? [],
         sourceUserId: req.user.id,
@@ -429,7 +438,7 @@ router.post('/memory', async (req, res) => {
 router.delete('/memory/:id', async (req, res) => {
   try {
     const url = new URL(`${MEMORY_URL}/memories/${encodeURIComponent(req.params.id)}`);
-    url.searchParams.set('orgId', req.user.tenantId ?? 'default');
+    url.searchParams.set('orgId', tenantOf(req));
     const upstream = await fetch(url, {
       method: 'DELETE',
       headers: internalHeaders(),

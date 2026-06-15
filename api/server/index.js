@@ -185,11 +185,24 @@ const startServer = async () => {
     return res.status(200).send('OK');
   });
 
+  /* Rate-limit the public, unauthenticated webhook forwarders so they can't be
+   * used to flood the internal billing-service (each request triggers an
+   * outbound 1mb forward). Signature verification still happens downstream. */
+  const rateLimit = require('express-rate-limit');
+  const webhookLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 120,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'too many requests' },
+  });
+
   /* Stripe webhook needs the raw body for signature verification — mounted
    * before the JSON parser. Forwards verbatim to the internal billing-service;
    * Stripe authenticates via its signature header, not JWT. */
   app.post(
     '/api/analytikul/webhooks/stripe',
+    webhookLimiter,
     express.raw({ type: 'application/json', limit: '1mb' }),
     async (req, res) => {
       try {
@@ -218,6 +231,7 @@ const startServer = async () => {
    * via its webhook-signature headers, not JWT. */
   app.post(
     '/api/analytikul/webhooks/polar',
+    webhookLimiter,
     express.raw({ type: '*/*', limit: '1mb' }),
     async (req, res) => {
       try {

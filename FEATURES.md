@@ -26,10 +26,19 @@ See also `docs/` (authoritative project memory) and the public Help Center at `/
 - **Org Memory** + **BYOK API Keys vault** (encrypted) — surfaced in the sidebar / Preview Rail.
 - **Org / roles**, cost tracking & budgets.
 
-## Known commercial risk (see pricing audit 2026-06-14)
-- Anthropic chat + default agent are **platform-paid** and chat is **uncapped** (`CHECK_BALANCE`
-  off). Pricing page promises BYOK. Reconcile before scaling paid users — set Anthropic to
-  `user_provided` and/or enable `CHECK_BALANCE` with credits + overage.
+## Billing model — hybrid (resolved 2026-06-14)
+- **Free tier:** platform-paid but **capped** — `CHECK_BALANCE=true` + `START_BALANCE` free grant
+  (set by `gen-prod-env.sh`). No more uncapped chat.
+- **Paid tiers:** subscription tops up LibreChat balance via the billing webhook
+  (`PLAN_CREDIT_GRANT_PRO/TEAM` → `entitlements.grantPlanBalance`).
+- **BYOK:** the agent path uses the per-user vault key when present (platform pays $0). Native-chat
+  per-user BYOK is deferred (endpoint `user_provided` is all-or-nothing — see `docs/open-issues.md`).
+
+## Tenant isolation (hardened 2026-06-14)
+- Routes scope to `tenantId || userId` (`tenantOf`) — solo users are isolated; orgs share. No more
+  `'default'` collapse. Note model has `applyTenantIsolation`. Backfill:
+  `node scripts/analytikul-backfill-tenant.mjs`. `TENANT_ISOLATION_STRICT=true` available once
+  tenant-context middleware is confirmed on all paths.
 
 ## Security hardening (2026-06-14 audit + fixes — branch `security/internal-svc-hardening`)
 Internal services (billing 8013 / analytics 8011 / memory 8012 / gateway 8014 / hermes-adapter

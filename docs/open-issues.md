@@ -50,10 +50,27 @@ claim; budget fail-closed for platform-key runs; notes regex escape.
   `gen-prod-env.sh` now emits it) and redeploy the **whole** stack so all services share it. If
   it's set on only some services, cross-service calls 401. Until set, services log a warning and
   stay open (loopback binding still protects them).
-- **Not auto-fixed (need a product decision):** the `tenantId == 'default'` shared-tenant
-  fallback (un-tenanted users share one org for notes/memory/analytics — assign real tenantIds
-  + `TENANT_ISOLATION_STRICT=true`); per-user vs per-org visibility of `/analytics` events and
-  `/memory` delete; edge webhook signature pre-verification + rate-limiting.
+
+## Round 2 fixes (2026-06-14, same branch) — tenant isolation, hybrid billing, cleanup
+- **Tenant isolation:** routes no longer collapse un-tenanted users into a shared `'default'`
+  org — scope is now `tenantId || userId` (`tenantOf()`), so solo users are isolated and orgs
+  still share. `applyTenantIsolation` added to the Note model (defense-in-depth). **Run the
+  backfill once on prod:** `MONGO_URI=… node scripts/analytikul-backfill-tenant.mjs` (re-keys
+  existing `'default'` notes/traces to each owner). Postgres org-memory/analytics rows keyed by
+  `orgId='default'` are separate — re-key them too if you have shared org data (prod had ~none).
+  To turn on the framework's hard fail-closed mode later, set `TENANT_ISOLATION_STRICT=true`
+  **after** confirming the tenant-context middleware runs on all Note/Trace request paths.
+- **Analytics:** raw `events`/`unpriced` views are now admin-only (like `users`); aggregate cost
+  views stay open to org members.
+- **Webhook forwarders:** rate-limited (120/min/IP) to stop unauthenticated amplification.
+- **Hybrid billing (chosen model):** `CHECK_BALANCE=true` + `START_BALANCE` (free-tier grant) in
+  `gen-prod-env.sh`; paid plans top up balance via the webhook (`PLAN_CREDIT_GRANT_PRO/TEAM` →
+  `entitlements.grantPlanBalance`). NOTE: native-chat is platform-paid+capped for all tiers;
+  **true BYOK for paid users currently applies to the agent path (vault)**. Native-chat per-user
+  BYOK needs a LibreChat endpoint-override (deferred — `ANTHROPIC_API_KEY=user_provided` is
+  all-or-nothing per endpoint and conflicts with a platform-paid free tier).
+- **Dead code:** `useUnifiedSidebarLinks.ts` was already removed; `ConversationsSection` is still
+  in use by `AnalytikulSidebar` (kept).
 
 ## Security / ops to confirm before scale
 - Test prod account `lacy@analytikul.ai` has a known weak password from chat — change it.
