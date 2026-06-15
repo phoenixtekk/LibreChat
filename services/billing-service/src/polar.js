@@ -72,6 +72,11 @@ function verifySignature(rawBody, headers, secret) {
   if (!id || !timestamp || !signatureHeader) {
     throw new Error('missing webhook signature headers');
   }
+  // Replay protection (standard-webhooks): reject events outside a 5-minute skew.
+  const ts = Number(timestamp);
+  if (!Number.isFinite(ts) || Math.abs(Date.now() - ts * 1000) > 5 * 60 * 1000) {
+    throw new Error('polar webhook timestamp outside tolerance');
+  }
   const key = Buffer.from(String(secret).replace(/^whsec_/, ''), 'base64');
   const signedContent = `${id}.${timestamp}.${rawBody.toString('utf8')}`;
   const expected = crypto.createHmac('sha256', key).update(signedContent).digest('base64');

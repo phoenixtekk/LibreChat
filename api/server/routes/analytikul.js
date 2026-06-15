@@ -31,6 +31,27 @@ router.post('/agent/run', async (req, res) => {
     if (!message || !conversationId) {
       return res.status(400).json({ message: 'message and conversationId are required' });
     }
+    // SECURITY: server-enforced toolset floor. These can run host commands / read
+    // the filesystem / pivot to internal services, and are NOT safely sandboxed
+    // yet (TERMINAL_ENV=local). They are force-disabled regardless of client input
+    // and can only be re-enabled once the runtime is sandboxed (gVisor/ephemeral).
+    const FORBIDDEN_TOOLSETS = [
+      'terminal',
+      'code_execution',
+      'file',
+      'computer_use',
+      'messaging',
+      'homeassistant',
+    ];
+    const safeEnabled = Array.isArray(enabledToolsets)
+      ? enabledToolsets.filter((t) => !FORBIDDEN_TOOLSETS.includes(t))
+      : undefined;
+    const safeDisabled = Array.from(
+      new Set([
+        ...(Array.isArray(disabledToolsets) ? disabledToolsets : []),
+        ...FORBIDDEN_TOOLSETS,
+      ]),
+    );
     const budget = await checkBudget(req.user.id, req.user.tenantId ?? 'default');
     if (!budget.allowed) {
       return res.status(402).json({
@@ -56,8 +77,8 @@ router.post('/agent/run', async (req, res) => {
         model: model ?? process.env.AGENT_DEFAULT_MODEL,
         provider: provider ?? process.env.AGENT_DEFAULT_PROVIDER,
         baseUrl: baseUrl ?? process.env.AGENT_DEFAULT_BASE_URL,
-        enabledToolsets: Array.isArray(enabledToolsets) ? enabledToolsets : undefined,
-        disabledToolsets: Array.isArray(disabledToolsets) ? disabledToolsets : undefined,
+        enabledToolsets: safeEnabled,
+        disabledToolsets: safeDisabled,
       },
       ctx,
     );

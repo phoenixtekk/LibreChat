@@ -14,7 +14,12 @@ const PROVIDER_MODEL_KEY: Record<string, string> = {
   google: 'google',
 };
 
-/** User-facing Hermes toolsets (the internal hermes-* platform bundles are hidden). */
+/**
+ * User-facing Hermes toolsets. Host-command / filesystem / device tools
+ * (terminal, code_execution, file, computer_use, messaging, homeassistant) are
+ * intentionally omitted — they are force-disabled server-side until the runtime
+ * is sandboxed, so offering them here would be misleading.
+ */
 const TOOLSETS = [
   'web',
   'search',
@@ -24,14 +29,11 @@ const TOOLSETS = [
   'image_gen',
   'video_gen',
   'browser',
-  'terminal',
-  'file',
   'tts',
   'todo',
   'memory',
   'context_engine',
   'session_search',
-  'code_execution',
   'delegation',
   'skills',
   'kanban',
@@ -39,13 +41,10 @@ const TOOLSETS = [
   'clarify',
   'moa',
   'discord',
-  'messaging',
-  'computer_use',
-  'homeassistant',
 ] as const;
 
-/** Off by default — matches the adapter's default disabled set (sensitive/host tools). */
-const DEFAULT_OFF = new Set<string>(['messaging', 'computer_use', 'homeassistant']);
+/** Off by default. */
+const DEFAULT_OFF = new Set<string>([]);
 
 const PROVIDERS = ['', 'openrouter', 'openai', 'anthropic', 'google', 'groq', 'mistral'];
 
