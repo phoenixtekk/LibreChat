@@ -186,6 +186,7 @@ const MessageRender = memo(function MessageRender({
     <div
       id={msg.messageId}
       aria-label={getMessageAriaLabel(msg, localize)}
+      data-streaming={isSubmitting && isLatestMessage ? 'true' : undefined}
       className={cn(
         baseClasses.common,
         baseClasses.chat,

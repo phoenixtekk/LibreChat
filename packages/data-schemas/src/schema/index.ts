@@ -35,3 +35,5 @@ export { default as organizationSchema } from './organization';
 export type { IOrganization } from './organization';
 export { default as noteSchema } from './note';
 export type { INote } from './note';
+export { default as annotationSchema } from './annotation';
+export type { IAnnotation } from './annotation';

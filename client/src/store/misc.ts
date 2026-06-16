@@ -72,6 +72,43 @@ const previewRail = atom<{ open: boolean; tab: PreviewRailTab }>({
   default: { open: false, tab: 'agent' },
 });
 
+/** Annotations panel — the second column that slides out from the left sidebar.
+ *  `conversationId` = which conversation's annotations to show. */
+const annotationsPanel = atom<{ open: boolean; conversationId: string | null }>({
+  key: 'analytikulAnnotationsPanel',
+  default: { open: false, conversationId: null },
+});
+
+/** Bumped after every create/update/delete so the sidebar tree + panel re-fetch
+ *  (the Analytikul data layer is plain fetch + useEffect, not React Query). */
+const annotationsChangedAt = atom<number>({
+  key: 'analytikulAnnotationsChangedAt',
+  default: 0,
+});
+
+/** Recently scrolled-to annotation id — used to pulse the matching <mark>
+ *  briefly after navigation; reset by the chat view after the animation. */
+const annotationScrollTarget = atom<string | null>({
+  key: 'analytikulAnnotationScrollTarget',
+  default: null,
+});
+
+/** Annotations for the active conversation, indexed by messageId, populated by
+ *  the AnnotationsLoader (mounted in ChatView) and read by the paragraph
+ *  renderer to inject persistent <mark> spans. */
+export type AnnotationLite = {
+  _id: string;
+  messageId: string;
+  highlightedText: string;
+  contextBefore: string;
+  contextAfter: string;
+  note?: string;
+};
+const annotationsByMessageId = atom<Record<string, AnnotationLite[]>>({
+  key: 'analytikulAnnotationsByMessageId',
+  default: {},
+});
+
 export default {
   hideBannerHint,
   messageAttachmentsMap,
@@ -80,4 +117,8 @@ export default {
   isEditingBadges,
   chatBadges,
   previewRail,
+  annotationsPanel,
+  annotationsChangedAt,
+  annotationScrollTarget,
+  annotationsByMessageId,
 };

@@ -342,3 +342,79 @@ kbd.atk-kbd {
   margin-top: 0.15em;
   margin-bottom: 0.15em;
 }
+
+/* -------- Annotations (Diigo-style highlights) -------- */
+
+/* Yellow highlight on saved annotations. Inherits color so message text stays
+ * readable in both light and dark modes. */
+mark.atk-annotation {
+  background-color: rgba(250, 204, 21, 0.45);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 2px;
+  cursor: pointer;
+  transition: background-color 140ms ease;
+}
+mark.atk-annotation:hover {
+  background-color: rgba(250, 204, 21, 0.6);
+}
+.dark mark.atk-annotation {
+  background-color: rgba(250, 204, 21, 0.32);
+}
+.dark mark.atk-annotation:hover {
+  background-color: rgba(250, 204, 21, 0.48);
+}
+
+/* Brief pulse after jump-to-annotation navigation. */
+@keyframes atkAnnotationPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(250, 204, 21, 0); }
+  20%      { box-shadow: 0 0 0 6px rgba(250, 204, 21, 0.55); }
+  60%      { box-shadow: 0 0 0 3px rgba(250, 204, 21, 0.25); }
+}
+mark.atk-annotation.pulse {
+  animation: atkAnnotationPulse 2s ease-out;
+}
+
+/* Second-column panel that slides out from the right edge of the left sidebar.
+ * Width is slightly larger than the sidebar (264px → 320px). */
+.atk-annotations-panel {
+  position: fixed;
+  left: 264px;
+  top: 0;
+  bottom: 0;
+  width: 320px;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-primary-alt);
+  color: var(--text-primary);
+  border-right: 1px solid var(--border-medium);
+  box-shadow: 8px 0 24px rgb(0 0 0 / 0.18);
+  transform: translateX(-110%);
+  transition: transform 280ms cubic-bezier(0.2, 0, 0, 1);
+}
+.atk-annotations-panel[data-open='true'] {
+  transform: translateX(0);
+}
+.atk-annotations-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: transparent;
+}
+
+@media (max-width: 768px) {
+  .atk-annotations-panel {
+    left: 0;
+    top: auto;
+    bottom: 0;
+    width: 100vw;
+    height: 60dvh;
+    transform: translateY(100%);
+    border-right: 0;
+    border-top: 1px solid var(--border-medium);
+  }
+  .atk-annotations-panel[data-open='true'] {
+    transform: translateY(0);
+  }
+}

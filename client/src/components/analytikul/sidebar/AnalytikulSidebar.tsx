@@ -17,12 +17,14 @@ import {
   Brain,
   KeyRound,
   Boxes,
+  Highlighter,
 } from 'lucide-react';
 import type { PreviewRailTab } from '~/store/misc';
 import type { ChatFormValues } from '~/common';
 import ConversationsSection from '~/components/UnifiedSidebar/ConversationsSection';
 import { ChatContext, ChatFormProvider, ActivePanelProvider } from '~/Providers';
 import AccountSettings from '~/components/Nav/AccountSettings';
+import AnnotationsTree from '~/components/analytikul/annotations/AnnotationsTree';
 import { useLocalize, useNewConvo, useChatHelpers } from '~/hooks';
 import store from '~/store';
 import { cn } from '~/utils';
@@ -231,6 +233,7 @@ function AnalytikulSidebar() {
             ))}
           </div>
         )}
+        <AnnotationsTree />
       </div>
 
       <div className="mt-2 min-h-0 flex-1 overflow-hidden">

@@ -17,7 +17,8 @@ const {
 } = require('@librechat/api');
 const rateLimit = require('express-rate-limit');
 const requireJwtAuth = require('~/server/middleware/requireJwtAuth');
-const { AgentTrace, Note } = require('~/db/models');
+const { AgentTrace, Note, Annotation } = require('~/db/models');
+const mongoose = require('mongoose');
 
 const router = express.Router();
 
@@ -414,6 +415,131 @@ router.post('/notes/ai', notesAiLimiter, async (req, res) => {
     const status = error instanceof AdapterError ? error.status : 500;
     res.status(status).json({ message: error.message ?? 'note ai failed' });
   }
+});
+
+/* ---------------- Annotations (Diigo-style highlights on chat content) ---------------- */
+// Annotations are PRIVATE per user (no shared-with-org for MVP). Each is tied
+// to one assistant message in one conversation; the sidebar tree groups them
+// by conversation, the chat re-injects them as <mark> spans on render.
+const ANNOTATION_LIMITS = {
+  highlightedText: 8000,
+  containingParagraph: 16000,
+  context: 200,
+  note: 2000,
+};
+const clampStr = (v, n) => (typeof v === 'string' ? v.slice(0, n) : '');
+const validId = (s) => typeof s === 'string' && s.length > 0 && s.length <= 128;
+
+router.get('/annotations', async (req, res) => {
+  try {
+    const conversationId = req.query.conversationId
+      ? String(req.query.conversationId).slice(0, 128)
+      : null;
+    const filter = { user: req.user.id };
+    if (conversationId) {
+      filter.conversationId = conversationId;
+    }
+    const annotations = await Annotation.find(filter)
+      .sort({ createdAt: -1 })
+      .limit(500)
+      .lean();
+    res.status(200).json({ annotations });
+  } catch (error) {
+    logger.error('[analytikul] annotations list failed', error);
+    res.status(500).json({ message: 'failed to list annotations' });
+  }
+});
+
+router.get('/annotations/conversations', async (req, res) => {
+  try {
+    // Aggregate: distinct conversationIds with counts + most recent createdAt
+    // for ordering the sidebar tree.
+    const rows = await Annotation.aggregate([
+      { $match: { user: req.user.id } },
+      {
+        $group: {
+          _id: '$conversationId',
+          count: { $sum: 1 },
+          lastAt: { $max: '$createdAt' },
+        },
+      },
+      { $sort: { lastAt: -1 } },
+      { $limit: 500 },
+    ]);
+    const conversations = rows.map((r) => ({
+      conversationId: r._id,
+      count: r.count,
+      lastAt: r.lastAt,
+    }));
+    res.status(200).json({ conversations });
+  } catch (error) {
+    logger.error('[analytikul] annotations conversations failed', error);
+    res.status(500).json({ message: 'failed to list annotation conversations' });
+  }
+});
+
+router.post('/annotations', async (req, res) => {
+  try {
+    const { conversationId, messageId } = req.body ?? {};
+    if (!validId(conversationId) || !validId(messageId)) {
+      return res.status(400).json({ message: 'conversationId and messageId are required' });
+    }
+    const highlightedText = clampStr(req.body?.highlightedText, ANNOTATION_LIMITS.highlightedText);
+    if (!highlightedText.trim()) {
+      return res.status(400).json({ message: 'highlightedText is required' });
+    }
+    const annotation = await Annotation.create({
+      user: req.user.id,
+      tenantId: tenantOf(req),
+      conversationId,
+      messageId,
+      highlightedText,
+      containingParagraph: clampStr(req.body?.containingParagraph, ANNOTATION_LIMITS.containingParagraph),
+      contextBefore: clampStr(req.body?.contextBefore, ANNOTATION_LIMITS.context),
+      contextAfter: clampStr(req.body?.contextAfter, ANNOTATION_LIMITS.context),
+      note: clampStr(req.body?.note, ANNOTATION_LIMITS.note),
+    });
+    res.status(201).json({ annotation });
+  } catch (error) {
+    logger.error('[analytikul] annotation create failed', error);
+    res.status(500).json({ message: 'failed to create annotation' });
+  }
+});
+
+router.put('/annotations/:id', async (req, res) => {
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    return res.status(400).json({ message: 'invalid annotation id' });
+  }
+  // Allowlist: only `note` is mutable post-create.
+  const update = {};
+  if (req.body?.note !== undefined) {
+    update.note = clampStr(req.body.note, ANNOTATION_LIMITS.note);
+  }
+  const annotation = await Annotation.findOneAndUpdate(
+    { _id: req.params.id, user: req.user.id },
+    { $set: update },
+    { new: true },
+  ).lean();
+  if (annotation == null) {
+    return res.status(404).json({ message: 'annotation not found or not yours' });
+  }
+  res.status(200).json({ annotation });
+});
+
+router.delete('/annotations/:id', async (req, res) => {
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    return res.status(400).json({ message: 'invalid annotation id' });
+  }
+  const result = await Annotation.deleteOne({ _id: req.params.id, user: req.user.id });
+  res.status(result.deletedCount > 0 ? 200 : 404).json({ deleted: result.deletedCount > 0 });
+});
+
+// Cascade: caller (the conversation-delete proxy) hits this when a conversation
+// is removed so its annotations don't orphan. Scoped by owner.
+router.delete('/annotations/by-conversation/:conversationId', async (req, res) => {
+  const conversationId = String(req.params.conversationId).slice(0, 128);
+  const result = await Annotation.deleteMany({ user: req.user.id, conversationId });
+  res.status(200).json({ deleted: result.deletedCount });
 });
 
 const GATEWAY_URL = process.env.GATEWAY_SERVICE_URL ?? 'http://localhost:8014';

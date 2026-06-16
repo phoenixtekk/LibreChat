@@ -23,6 +23,7 @@ import { TermsAndConditionsModal } from '~/components/ui';
 import { useHealthCheck } from '~/data-provider';
 import { Banner } from '~/components/Banners';
 import AnalytikulProvider from '~/components/analytikul/AnalytikulProvider';
+import AnnotationsPanel from '~/components/analytikul/annotations/AnnotationsPanel';
 
 export default function Root() {
   const [showTerms, setShowTerms] = useState(false);
@@ -71,6 +72,7 @@ export default function Root() {
           <AgentsMapContext.Provider value={agentsMap}>
             <PromptGroupsProvider>
               <AnalytikulProvider />
+              <AnnotationsPanel />
               <Banner onHeightChange={setBannerHeight} />
               <div className="flex" style={{ height: `calc(100dvh - ${bannerHeight}px)` }}>
                 <div className="relative z-0 flex h-full w-full overflow-hidden">
