@@ -320,7 +320,44 @@ const startServer = async () => {
   });
 
   app.use(mongoSanitize());
-  app.use(cors());
+
+  // Analytikul: tighten CORS to the production origin(s). Same-origin / no-
+  // Origin requests (e.g. native browser navigations, curl, server-side) pass
+  // through; cross-origin XHR/fetch from unknown origins is blocked.
+  const corsAllowlist = new Set(
+    (process.env.CORS_ORIGINS ?? 'https://analytikul.ai,https://www.analytikul.ai')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean),
+  );
+  app.use(
+    cors({
+      origin: (origin, cb) => {
+        if (!origin) {
+          return cb(null, true);
+        }
+        cb(null, corsAllowlist.has(origin));
+      },
+      credentials: true,
+    }),
+  );
+
+  // Analytikul: baseline security headers (helmet-equivalent without the dep).
+  // CSP is intentionally NOT set here yet — it needs a CSP-specific rollout to
+  // avoid breaking inline analytics/marketing scripts; tracked separately.
+  app.use((req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader(
+      'Strict-Transport-Security',
+      'max-age=63072000; includeSubDomains; preload',
+    );
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('X-XSS-Protection', '0');
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    next();
+  });
+
   app.use(cookieParser());
 
   if (!isEnabled(DISABLE_COMPRESSION)) {

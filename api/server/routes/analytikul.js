@@ -15,10 +15,43 @@ const {
   deleteVaultKey,
   AdapterError,
 } = require('@librechat/api');
+const rateLimit = require('express-rate-limit');
 const requireJwtAuth = require('~/server/middleware/requireJwtAuth');
 const { AgentTrace, Note } = require('~/db/models');
 
 const router = express.Router();
+
+// Per-route rate limiters. Per-USER (authenticated) is the right key here; IP
+// is a fallback when the request slips in before JWT auth would have run.
+const userKey = (req) => (req.user && req.user.id ? `u:${req.user.id}` : `ip:${req.ip}`);
+// Expensive: every call spawns an agent run (token spend + adapter session).
+const agentRunLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: userKey,
+  message: { message: 'Too many agent runs in a minute — please slow down.' },
+});
+// Medium: every call calls the LLM (notes AI action — todo toolset only).
+const notesAiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: userKey,
+  message: { message: 'Too many notes AI requests in a minute.' },
+});
+// Cheap reads/writes (vault list/put, memory list/put, etc.) — generous cap that
+// still stops scripted abuse against the internal services.
+const generalLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 240,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: userKey,
+  message: { message: 'Too many requests.' },
+});
 const taskMeta = new Map();
 const TASK_META_MAX = 1000;
 
@@ -35,8 +68,11 @@ const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const tenantOf = (req) => req.user.tenantId || String(req.user.id);
 
 router.use(requireJwtAuth);
+// Apply a generous baseline cap to every authenticated /api/analytikul call.
+// Expensive routes layer a stricter limiter on top.
+router.use(generalLimiter);
 
-router.post('/agent/run', async (req, res) => {
+router.post('/agent/run', agentRunLimiter, async (req, res) => {
   try {
     const { message, conversationId, model, provider, baseUrl, enabledToolsets, disabledToolsets } =
       req.body ?? {};
@@ -337,7 +373,7 @@ const NOTE_AI_PROMPTS = {
     'Continue writing the following text in the same style, tone, and language. Reply with ONLY the continuation (do not repeat the original), no preamble.',
 };
 
-router.post('/notes/ai', async (req, res) => {
+router.post('/notes/ai', notesAiLimiter, async (req, res) => {
   try {
     const { action, text, noteId } = req.body ?? {};
     const prompt = NOTE_AI_PROMPTS[action];
