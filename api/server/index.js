@@ -343,8 +343,29 @@ const startServer = async () => {
   );
 
   // Analytikul: baseline security headers (helmet-equivalent without the dep).
-  // CSP is intentionally NOT set here yet — it needs a CSP-specific rollout to
-  // avoid breaking inline analytics/marketing scripts; tracked separately.
+  // CSP allows the surfaces actually used: inline scripts on the static landing
+  // and the GTM injection, Google Fonts, GTM/GA endpoints, and same-origin
+  // everything else. 'frame-ancestors none' duplicates X-Frame-Options.
+  // Toggle CSP_REPORT_ONLY=true in env to switch to report-only for debugging.
+  const cspDirectives = [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.google-analytics.com",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' data: https://fonts.gstatic.com",
+    "img-src 'self' data: blob: https:",
+    "media-src 'self' blob:",
+    "connect-src 'self' https://www.googletagmanager.com https://www.google-analytics.com https://*.analytics.google.com wss: ws:",
+    "worker-src 'self' blob:",
+    "frame-src 'self' https://www.googletagmanager.com",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+    'upgrade-insecure-requests',
+  ].join('; ');
+  const cspHeader = isEnabled(process.env.CSP_REPORT_ONLY)
+    ? 'Content-Security-Policy-Report-Only'
+    : 'Content-Security-Policy';
   app.use((req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'DENY');
@@ -355,6 +376,7 @@ const startServer = async () => {
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
     res.setHeader('X-XSS-Protection', '0');
     res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    res.setHeader(cspHeader, cspDirectives);
     next();
   });
 
