@@ -129,14 +129,56 @@ const startServer = async () => {
     await updateInterfacePermissions({ appConfig, getRoleByName, updateAccessPermissions });
   });
 
+  // Analytikul: inject the analytics tag (GTM container `GTM-…` or GA4 `G-…`) into
+  // every served HTML surface — the SPA shell and the static marketing pages — from a
+  // single env var (`ANALYTICS_GTM_ID`). Done server-side at boot so no client rebuild
+  // is needed to add/swap the ID, and nothing is hardcoded in source. No-op if unset.
+  const injectAnalytics = (html) => {
+    const raw = process.env.ANALYTICS_GTM_ID;
+    if (!html || !raw) {
+      return html;
+    }
+    // Only trust a well-formed Google tag id (defends the inline script string).
+    const id = raw.trim();
+    if (!/^(GTM|G|AW|UA)-[A-Z0-9-]+$/i.test(id)) {
+      logger.warn(`[analytics] ANALYTICS_GTM_ID "${id}" is not a valid Google tag id; skipping`);
+      return html;
+    }
+    let head;
+    let body = '';
+    if (/^GTM-/i.test(id)) {
+      head =
+        `<!-- Google Tag Manager -->\n<script>(function(w,d,s,l,i){w[l]=w[l]||[];` +
+        `w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],` +
+        `j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;` +
+        `j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);` +
+        `})(window,document,'script','dataLayer','${id}');</script>\n<!-- End Google Tag Manager -->`;
+      body =
+        `<!-- Google Tag Manager (noscript) --><noscript><iframe ` +
+        `src="https://www.googletagmanager.com/ns.html?id=${id}" height="0" width="0" ` +
+        `style="display:none;visibility:hidden"></iframe></noscript>`;
+    } else {
+      head =
+        `<!-- Google tag (gtag.js) -->\n` +
+        `<script async src="https://www.googletagmanager.com/gtag/js?id=${id}"></script>\n` +
+        `<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}` +
+        `gtag('js',new Date());gtag('config','${id}');</script>`;
+    }
+    let out = html.replace(/<head[^>]*>/i, (m) => `${m}\n${head}`);
+    if (body) {
+      out = out.replace(/<body[^>]*>/i, (m) => `${m}\n${body}`);
+    }
+    return out;
+  };
+
   const indexPath = path.join(appConfig.paths.dist, 'index.html');
-  let indexHTML = fs.readFileSync(indexPath, 'utf8');
+  let indexHTML = injectAnalytics(fs.readFileSync(indexPath, 'utf8'));
 
   // Analytikul: marketing landing page served at the apex `/`. The SPA lives at
   // `/chat` (and `/c/:id`, `/login`, etc.); see client/src/routes/index.tsx.
   const readDistHtml = (file) => {
     const p = path.join(appConfig.paths.dist, file);
-    return fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : null;
+    return fs.existsSync(p) ? injectAnalytics(fs.readFileSync(p, 'utf8')) : null;
   };
   const landingHTML = readDistHtml('landing.html');
   // Analytikul marketing pages served as static HTML (route -> cached html).

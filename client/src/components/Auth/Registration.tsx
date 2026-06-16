@@ -50,6 +50,20 @@ const Registration: React.FC = () => {
     },
     onSuccess: () => {
       setIsSubmitting(false);
+      // Analytikul: fire the free-signup conversion. Pushed to GTM's dataLayer (and
+      // gtag, when GA4 is wired directly) — the marketing `sign_up` Key event / Google
+      // Ads conversion. No-op when no analytics tag is configured. See api/server/index.js.
+      try {
+        const w = window as unknown as {
+          dataLayer?: Array<Record<string, unknown>>;
+          gtag?: (...args: unknown[]) => void;
+        };
+        w.dataLayer = w.dataLayer || [];
+        w.dataLayer.push({ event: 'sign_up', method: 'email' });
+        w.gtag?.('event', 'sign_up', { method: 'email' });
+      } catch {
+        /* analytics must never break the signup flow */
+      }
       setCountdown(3);
       const timer = setInterval(() => {
         setCountdown((prevCountdown) => {
