@@ -26,6 +26,21 @@ See also `docs/` (authoritative project memory) and the public Help Center at `/
 - **Org Memory** + **BYOK API Keys vault** (encrypted) — surfaced in the sidebar / Preview Rail.
 - **Org / roles**, cost tracking & budgets.
 
+## Persona + agent library (2026-06-16)
+- **Analytikul system-instruction default** — `librechat.yaml` modelSpec
+  ("Analytikul", soft default) carries the persona via `promptPrefix`. New chats
+  pre-select it; user-built custom models still override. Deployed via
+  `docker cp` + restart; the committed copy lives at
+  `docs/librechat.yaml.analytikul` (root yaml is .gitignored).
+- **17 curated Agency Agents** seeded into the platform via
+  `scripts/seed-agency-agents.cjs` (in-container Mongoose seed). Prefixed `[A] `:
+  Business Strategist, Financial Analyst, Pricing Analyst, Product Manager,
+  Brand Guardian, Backend Architect, Frontend Developer, DevOps Automator,
+  Security Architect, Data Engineer, Analytics Reporter, Trend Researcher,
+  Content Creator, SEO Specialist, Email Marketing Strategist, Project Shepherd,
+  Workflow Optimizer. Owner = lacy@analytikul.ai, ACLs granted (AGENT_OWNER +
+  REMOTE_AGENT_OWNER), pinned to `claude-sonnet-4-6`.
+
 ## Billing model — hybrid (resolved 2026-06-14)
 - **Free tier:** platform-paid but **capped** — `CHECK_BALANCE=true` + `START_BALANCE` free grant
   (set by `gen-prod-env.sh`). No more uncapped chat.
