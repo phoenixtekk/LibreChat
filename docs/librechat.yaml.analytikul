@@ -2,11 +2,15 @@ version: 1.3.12
 cache: true
 
 # Analytikul: soft default modelSpec. New chats pre-select the Analytikul
-# persona; user-built custom models still take precedence. `enforce: false`
-# keeps everything else fully usable.
+# persona; user-built custom models still take precedence.
+# - enforce: false      → other models remain selectable
+# - prioritize: false   → keep the full endpoints/models picker visible; the
+#                          spec appears in the menu alongside, not in place of,
+#                          the model list.
+# - softDefault on the spec is what pre-selects Analytikul on new chats.
 modelSpecs:
   enforce: false
-  prioritize: true
+  prioritize: false
   list:
     - name: analytikul-default
       label: Analytikul

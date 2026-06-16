@@ -236,7 +236,7 @@ function AnalytikulSidebar() {
       <div className="mt-2 min-h-0 flex-1 overflow-hidden">
         <SidebarChatProvider>
           <ActivePanelProvider>
-            <ConversationsSection />
+            <ConversationsSection hideSearch />
           </ActivePanelProvider>
         </SidebarChatProvider>
       </div>

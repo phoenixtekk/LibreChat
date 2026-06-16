@@ -21,7 +21,7 @@ import store from '~/store';
 
 const BookmarkNav = lazy(() => import('~/components/Nav/Bookmarks/BookmarkNav'));
 
-const ConversationsSection = memo(() => {
+const ConversationsSection = memo(({ hideSearch = false }: { hideSearch?: boolean }) => {
   const localize = useLocalize();
   const isSmallScreen = useMediaQuery('(max-width: 768px)');
   const setSidebarExpanded = useSetRecoilState(store.sidebarExpanded);
@@ -116,7 +116,7 @@ const ConversationsSection = memo(() => {
             <BookmarkNav tags={tags} setTags={setTags} />
           </Suspense>
         )}
-        {search.enabled && <SearchBar isSmallScreen={isSmallScreen} />}
+        {!hideSearch && search.enabled && <SearchBar isSmallScreen={isSmallScreen} />}
       </div>
       {!search.query && (
         <div className="px-3">
