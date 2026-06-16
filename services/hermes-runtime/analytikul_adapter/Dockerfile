@@ -9,6 +9,11 @@ FROM python:3.11-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git ripgrep curl ca-certificates \
+    # docker CLI: needed when TERMINAL_ENV=docker so the adapter can spawn
+    # per-task sandboxed containers (gVisor runtime, on prod) via a
+    # docker-socket proxy. Does NOT include the daemon — talks to the proxy
+    # over TCP (DOCKER_HOST=tcp://docker-socket-proxy:2375).
+    docker.io \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip install --no-cache-dir uv
