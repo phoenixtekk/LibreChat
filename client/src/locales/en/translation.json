@@ -1805,6 +1805,7 @@
   "com_atk_preview": "Preview",
   "com_atk_files": "Files",
   "com_atk_close_rail": "Close Preview Rail",
+  "com_atk_resize_rail": "Resize Preview Rail",
   "com_atk_preview_rail": "Preview Rail",
   "com_atk_preview_empty": "Live agent output — web pages, screenshots, files, and terminal output — renders here as your agent works. Arrives with the agent engine (M2).",
   "com_atk_preview_hint": "Toggle anytime with Ctrl+K → \"Toggle Preview Rail\".",
