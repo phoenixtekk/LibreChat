@@ -110,10 +110,13 @@ const ConversationsSection = memo(({ hideSearch = false }: { hideSearch?: boolea
       role="region"
       aria-label={localize('com_ui_chat_history')}
     >
-      <div className="flex items-center gap-0.5 px-3">
+      <div className="flex items-center gap-2 px-3">
         {hasAccessToBookmarks && (
           <Suspense fallback={null}>
-            <BookmarkNav tags={tags} setTags={setTags} />
+            <span className="flex items-center gap-2">
+              <BookmarkNav tags={tags} setTags={setTags} />
+              <span className="text-sm text-text-primary">{localize('com_ui_bookmarks')}</span>
+            </span>
           </Suspense>
         )}
         {!hideSearch && search.enabled && <SearchBar isSmallScreen={isSmallScreen} />}
