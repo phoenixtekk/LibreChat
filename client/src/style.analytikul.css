@@ -375,46 +375,55 @@ mark.atk-annotation.pulse {
   animation: atkAnnotationPulse 2s ease-out;
 }
 
-/* Second-column panel that slides out from the right edge of the left sidebar.
- * Width is slightly larger than the sidebar (264px → 320px). */
+/* Second-column panel — a flex sibling between the left sidebar and the
+ * main content (sits in normal flow, so the chat shifts right when open
+ * instead of being covered). Width animates 0 → 320px. */
 .atk-annotations-panel {
-  position: fixed;
-  left: 264px;
-  top: 0;
-  bottom: 0;
-  width: 320px;
-  z-index: 100;
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
+  width: 0;
   background: var(--surface-primary-alt);
   color: var(--text-primary);
-  border-right: 1px solid var(--border-medium);
-  box-shadow: 8px 0 24px rgb(0 0 0 / 0.18);
-  transform: translateX(-110%);
-  transition: transform 280ms cubic-bezier(0.2, 0, 0, 1);
+  border-right: 1px solid transparent;
+  transition: width 280ms cubic-bezier(0.2, 0, 0, 1),
+              border-color 280ms cubic-bezier(0.2, 0, 0, 1);
 }
 .atk-annotations-panel[data-open='true'] {
-  transform: translateX(0);
+  width: 320px;
+  border-right-color: var(--border-medium);
 }
-.atk-annotations-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 90;
-  background: transparent;
+.atk-annotations-panel-inner {
+  display: flex;
+  flex-direction: column;
+  width: 320px;
+  height: 100%;
 }
 
 @media (max-width: 768px) {
+  /* On mobile: fixed bottom sheet that doesn't push the layout. */
   .atk-annotations-panel {
+    position: fixed;
     left: 0;
+    right: 0;
     top: auto;
     bottom: 0;
-    width: 100vw;
+    width: 100vw !important;
     height: 60dvh;
+    z-index: 100;
     transform: translateY(100%);
+    transition: transform 280ms cubic-bezier(0.2, 0, 0, 1);
     border-right: 0;
     border-top: 1px solid var(--border-medium);
   }
   .atk-annotations-panel[data-open='true'] {
     transform: translateY(0);
+    border-right: 0;
+  }
+  .atk-annotations-panel-inner {
+    width: 100%;
   }
 }

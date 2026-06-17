@@ -115,21 +115,13 @@ export default function AnnotationsPanel() {
   );
 
   return (
-    <>
-      {panel.open && (
-        <div
-          className="atk-annotations-backdrop"
-          role="presentation"
-          onClick={close}
-          aria-hidden="true"
-        />
-      )}
-      <aside
-        className="atk-annotations-panel"
-        data-open={panel.open ? 'true' : 'false'}
-        aria-hidden={!panel.open}
-        aria-label={localize('com_atk_annotations_panel_aria', { title: conversationTitle })}
-      >
+    <aside
+      className="atk-annotations-panel"
+      data-open={panel.open ? 'true' : 'false'}
+      aria-hidden={!panel.open}
+      aria-label={localize('com_atk_annotations_panel_aria', { title: conversationTitle })}
+    >
+      <div className="atk-annotations-panel-inner">
         <div className="flex items-center justify-between border-b border-border-light px-3 py-2">
           <div className="min-w-0">
             <div className="text-xs uppercase tracking-wide text-text-tertiary">
@@ -194,7 +186,7 @@ export default function AnnotationsPanel() {
             </ul>
           )}
         </div>
-      </aside>
-    </>
+      </div>
+    </aside>
   );
 }
