@@ -181,9 +181,6 @@ type TParagraphProps = {
 };
 
 export const p: React.ElementType = memo(function MarkdownParagraph({ children }: TParagraphProps) {
-  // Annotation highlight injection happens at the message level
-  // (see AnnotationHighlighter mounted in MessageRender), so all text
-  // containers (p, li, blockquote, etc.) are covered uniformly.
   return <p className="mb-2 whitespace-pre-wrap">{children}</p>;
 });
 p.displayName = 'MarkdownParagraph';

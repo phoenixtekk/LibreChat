@@ -5,7 +5,6 @@ import type { TMessage } from 'librechat-data-provider';
 import type { TMessageProps, TMessageIcon, TMessageChatContext } from '~/common';
 import { cn, getHeaderPrefixForScreenReader, getMessageAriaLabel } from '~/utils';
 import MessageContent from '~/components/Chat/Messages/Content/MessageContent';
-import AnnotationHighlighter from '~/components/analytikul/annotations/AnnotationHighlighter';
 import { useLocalize, useMessageActions, useContentMetadata } from '~/hooks';
 import PlaceholderRow from '~/components/Chat/Messages/ui/PlaceholderRow';
 import SiblingSwitch from '~/components/Chat/Messages/SiblingSwitch';
@@ -187,7 +186,6 @@ const MessageRender = memo(function MessageRender({
     <div
       id={msg.messageId}
       aria-label={getMessageAriaLabel(msg, localize)}
-      data-streaming={isSubmitting && isLatestMessage ? 'true' : undefined}
       className={cn(
         baseClasses.common,
         baseClasses.chat,
@@ -195,12 +193,6 @@ const MessageRender = memo(function MessageRender({
         'message-render',
       )}
     >
-      {/* Analytikul: re-applies saved highlights into the message DOM whenever
-       *  the annotations list for this message changes. Idempotent. No-op on
-       *  user messages and during streaming (covered inside the component). */}
-      {!msg.isCreatedByUser && !(isSubmitting && isLatestMessage) && (
-        <AnnotationHighlighter messageId={msg.messageId} />
-      )}
       {!hasParallelContent && (
         <div className="relative flex flex-shrink-0 flex-col items-center">
           <div className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-full">

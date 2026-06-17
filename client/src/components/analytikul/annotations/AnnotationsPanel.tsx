@@ -7,6 +7,7 @@ import { useAuthContext, useLocalize } from '~/hooks';
 import store from '~/store';
 import { cn } from '~/utils';
 import { listAnnotations, deleteAnnotation, type Annotation } from './api';
+import { playTransientHighlight } from './transientHighlight';
 
 function useConversationTitle(conversationId: string | null): string {
   const { data } = useGetConvoIdQuery(conversationId ?? '', { enabled: !!conversationId });
@@ -19,7 +20,6 @@ export default function AnnotationsPanel() {
   const [panel, setPanel] = useRecoilState(store.annotationsPanel);
   const changedAt = useRecoilValue(store.annotationsChangedAt);
   const bumpChangedAt = useSetRecoilState(store.annotationsChangedAt);
-  const setScrollTarget = useSetRecoilState(store.annotationScrollTarget);
   const params = useParams<{ conversationId: string }>();
   const navigate = useNavigate();
   const [items, setItems] = useState<Annotation[]>([]);
@@ -49,21 +49,20 @@ export default function AnnotationsPanel() {
 
   const goTo = useCallback(
     (a: Annotation) => {
-      // Navigate to the conversation if we're not already there.
-      if (params.conversationId !== a.conversationId) {
+      const sameConversation = params.conversationId === a.conversationId;
+      if (!sameConversation) {
         navigate(`/c/${a.conversationId}`);
       }
-      // After messages mount, scroll to the message and pulse the mark.
+      const delay = sameConversation ? 60 : 350;
       setTimeout(() => {
         const el = document.getElementById(a.messageId);
         if (el) {
           el.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
-        setScrollTarget(a._id);
-        setTimeout(() => setScrollTarget(null), 2200);
-      }, 300);
+        setTimeout(() => playTransientHighlight(a.messageId, a), 320);
+      }, delay);
     },
-    [navigate, params.conversationId, setScrollTarget],
+    [navigate, params.conversationId],
   );
 
   const onDelete = useCallback(

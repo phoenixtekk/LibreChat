@@ -86,29 +86,6 @@ const annotationsChangedAt = atom<number>({
   default: 0,
 });
 
-/** Recently scrolled-to annotation id — used to pulse the matching <mark>
- *  briefly after navigation; reset by the chat view after the animation. */
-const annotationScrollTarget = atom<string | null>({
-  key: 'analytikulAnnotationScrollTarget',
-  default: null,
-});
-
-/** Annotations for the active conversation, indexed by messageId, populated by
- *  the AnnotationsLoader (mounted in ChatView) and read by the paragraph
- *  renderer to inject persistent <mark> spans. */
-export type AnnotationLite = {
-  _id: string;
-  messageId: string;
-  highlightedText: string;
-  contextBefore: string;
-  contextAfter: string;
-  note?: string;
-};
-const annotationsByMessageId = atom<Record<string, AnnotationLite[]>>({
-  key: 'analytikulAnnotationsByMessageId',
-  default: {},
-});
-
 export default {
   hideBannerHint,
   messageAttachmentsMap,
@@ -119,6 +96,4 @@ export default {
   previewRail,
   annotationsPanel,
   annotationsChangedAt,
-  annotationScrollTarget,
-  annotationsByMessageId,
 };
