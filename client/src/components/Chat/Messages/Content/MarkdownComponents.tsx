@@ -6,7 +6,7 @@ import Mermaid, { MermaidErrorBoundary } from '~/components/Messages/Content/Mer
 import CodeBlock from '~/components/Messages/Content/CodeBlock';
 import useHasAccess from '~/hooks/Roles/useHasAccess';
 import { useFileDownload } from '~/data-provider';
-import { useCodeBlockContext, useMessageContext } from '~/Providers';
+import { useCodeBlockContext } from '~/Providers';
 import { handleDoubleClick, triggerDownload } from '~/utils';
 import { useLocalize } from '~/hooks';
 import store from '~/store';
@@ -180,177 +180,11 @@ type TParagraphProps = {
   children: React.ReactNode;
 };
 
-/** Find candidate text nodes inside an element, in document order. */
-function collectTextNodes(root: HTMLElement): Text[] {
-  const out: Text[] = [];
-  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
-    acceptNode: (n) => {
-      // Skip text already inside an existing annotation, a code block, or a link.
-      let el: HTMLElement | null = n.parentElement;
-      while (el && el !== root) {
-        const tag = el.tagName;
-        if (
-          tag === 'MARK' ||
-          tag === 'PRE' ||
-          tag === 'CODE' ||
-          tag === 'A' ||
-          el.classList?.contains('hljs')
-        ) {
-          return NodeFilter.FILTER_REJECT;
-        }
-        el = el.parentElement;
-      }
-      return NodeFilter.FILTER_ACCEPT;
-    },
-  });
-  let n = w.nextNode();
-  while (n) {
-    out.push(n as Text);
-    n = w.nextNode();
-  }
-  return out;
-}
-
-/** Wrap the first occurrence of `needle` inside `nodes` (a sequence of text
- *  nodes from `collectTextNodes`) in a <mark> with the given attributes.
- *  Returns true if a wrap happened. The match must lie within one text node;
- *  cross-node matches are skipped (rare for short highlight strings). */
-function wrapFirstMatch(nodes: Text[], needle: string, attrs: Record<string, string>): boolean {
-  if (!needle) {
-    return false;
-  }
-  for (const node of nodes) {
-    const text = node.data;
-    const idx = text.indexOf(needle);
-    if (idx < 0) {
-      continue;
-    }
-    const before = text.slice(0, idx);
-    const match = text.slice(idx, idx + needle.length);
-    const after = text.slice(idx + needle.length);
-    const parent = node.parentNode;
-    if (!parent) {
-      return false;
-    }
-    const beforeNode = before ? document.createTextNode(before) : null;
-    const mark = document.createElement('mark');
-    for (const [k, v] of Object.entries(attrs)) {
-      mark.setAttribute(k, v);
-    }
-    mark.textContent = match;
-    const afterNode = after ? document.createTextNode(after) : null;
-    if (beforeNode) {
-      parent.insertBefore(beforeNode, node);
-    }
-    parent.insertBefore(mark, node);
-    if (afterNode) {
-      parent.insertBefore(afterNode, node);
-    }
-    parent.removeChild(node);
-    return true;
-  }
-  return false;
-}
-
 export const p: React.ElementType = memo(function MarkdownParagraph({ children }: TParagraphProps) {
-  const ref = useRef<HTMLParagraphElement | null>(null);
-  const { messageId } = useMessageContext();
-  const byMessage = useRecoilValue(store.annotationsByMessageId);
-  const scrollTarget = useRecoilValue(store.annotationScrollTarget);
-  const annotations = (messageId && byMessage[messageId]) || [];
-
-  // Re-apply highlights whenever the paragraph (re-)renders or the annotation
-  // list changes for this message. We wipe & re-wrap to stay idempotent —
-  // unwrap any prior <mark> we added, then re-inject based on current state.
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) {
-      return;
-    }
-    // Unwrap our previous marks so re-rendered content doesn't accumulate.
-    el.querySelectorAll('mark.atk-annotation').forEach((m) => {
-      const parent = m.parentNode;
-      if (!parent) {
-        return;
-      }
-      while (m.firstChild) {
-        parent.insertBefore(m.firstChild, m);
-      }
-      parent.removeChild(m);
-    });
-    if (!annotations.length) {
-      return;
-    }
-    for (const a of annotations) {
-      // Prefer context-anchored match; fall back to bare text on failure.
-      const anchored = `${a.contextBefore}${a.highlightedText}${a.contextAfter}`;
-      const nodes = collectTextNodes(el);
-      let wrapped = false;
-      if (anchored !== a.highlightedText) {
-        // Try anchored first by wrapping only the highlightedText slice.
-        for (const node of nodes) {
-          const text = node.data;
-          const idx = text.indexOf(anchored);
-          if (idx < 0) {
-            continue;
-          }
-          const matchStart = idx + a.contextBefore.length;
-          const before = text.slice(0, matchStart);
-          const match = text.slice(matchStart, matchStart + a.highlightedText.length);
-          const after = text.slice(matchStart + a.highlightedText.length);
-          const parent = node.parentNode;
-          if (!parent) {
-            break;
-          }
-          if (before) {
-            parent.insertBefore(document.createTextNode(before), node);
-          }
-          const mark = document.createElement('mark');
-          mark.className = 'atk-annotation';
-          mark.setAttribute('data-annotation-id', a._id);
-          if (a.note) {
-            mark.title = a.note;
-          }
-          mark.textContent = match;
-          parent.insertBefore(mark, node);
-          if (after) {
-            parent.insertBefore(document.createTextNode(after), node);
-          }
-          parent.removeChild(node);
-          wrapped = true;
-          break;
-        }
-      }
-      if (!wrapped) {
-        wrapFirstMatch(collectTextNodes(el), a.highlightedText, {
-          class: 'atk-annotation',
-          'data-annotation-id': a._id,
-          ...(a.note ? { title: a.note } : {}),
-        });
-      }
-    }
-  }, [annotations, children]);
-
-  // Pulse the scroll target after navigation.
-  useEffect(() => {
-    if (!scrollTarget || !ref.current) {
-      return;
-    }
-    const match = ref.current.querySelector(
-      `mark.atk-annotation[data-annotation-id="${scrollTarget}"]`,
-    );
-    if (match) {
-      match.classList.add('pulse');
-      const timer = setTimeout(() => match.classList.remove('pulse'), 2000);
-      return () => clearTimeout(timer);
-    }
-  }, [scrollTarget, annotations]);
-
-  return (
-    <p ref={ref} className="mb-2 whitespace-pre-wrap">
-      {children}
-    </p>
-  );
+  // Annotation highlight injection happens at the message level
+  // (see AnnotationHighlighter mounted in MessageRender), so all text
+  // containers (p, li, blockquote, etc.) are covered uniformly.
+  return <p className="mb-2 whitespace-pre-wrap">{children}</p>;
 });
 p.displayName = 'MarkdownParagraph';
 
