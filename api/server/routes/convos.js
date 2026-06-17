@@ -22,6 +22,8 @@ const requireJwtAuth = require('~/server/middleware/requireJwtAuth');
 const { importConversations } = require('~/server/utils/import');
 const getLogStores = require('~/cache/getLogStores');
 const db = require('~/models');
+// Analytikul: cascade annotations on conversation delete.
+const { Annotation } = require('~/db/models');
 
 const assistantClients = {
   [EModelEndpoint.azureAssistants]: require('~/server/services/Endpoints/azureAssistants'),
@@ -147,6 +149,10 @@ router.delete('/', async (req, res) => {
     if (filter.conversationId) {
       await db.deleteToolCalls(req.user.id, filter.conversationId);
       await deleteConvoSharedLinksWithCleanup(req.user.id, filter.conversationId);
+      // Analytikul cascade: wipe annotations bound to this conversation.
+      Annotation.deleteMany({ user: req.user.id, conversationId: filter.conversationId }).catch(
+        (err) => logger.error('[analytikul] cascade annotation delete failed', err),
+      );
     }
     res.status(201).json(dbResponse);
   } catch (error) {
@@ -160,6 +166,10 @@ router.delete('/all', async (req, res) => {
     const dbResponse = await db.deleteConvos(req.user.id, {});
     await db.deleteToolCalls(req.user.id);
     await deleteAllSharedLinksWithCleanup(req.user.id);
+    // Analytikul cascade: wipe all of this user's annotations.
+    Annotation.deleteMany({ user: req.user.id }).catch((err) =>
+      logger.error('[analytikul] cascade annotation deleteAll failed', err),
+    );
     res.status(201).json(dbResponse);
   } catch (error) {
     logger.error('Error clearing conversations', error);
