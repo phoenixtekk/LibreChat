@@ -171,7 +171,7 @@ function AnalytikulSidebar() {
             aria-hidden="true"
           />
           {/* eslint-disable-next-line i18next/no-literal-string -- brand name, not translated */}
-          <span className="text-sm font-semibold">Analytikul</span>
+          <span className="atk-brand-wordmark text-sm font-semibold">Analytikul</span>
         </button>
         <button
           type="button"

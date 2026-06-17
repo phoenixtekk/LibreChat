@@ -481,3 +481,106 @@ mark.atk-annotation.atk-transient {
     width: 100%;
   }
 }
+
+/* ============================================================================
+   Brand identity — Tier 1: surface the analytikul.ai landing brand into the
+   workspace shell on key high-signal moments. Reading surfaces stay clean.
+   ============================================================================ */
+
+:root {
+  --atk-brand-cyan: #18a8da;
+  --atk-brand-cyan-bright: #38d2ef;
+  --atk-brand-violet: #6a32c0;
+  --atk-brand-glow: rgba(56, 210, 239, 0.45);
+}
+
+/* Wordmark gradient — used on the sidebar "Analytikul" label and the
+ * empty-state landing greeting. Same gradient + shimmer as the landing page. */
+.atk-brand-wordmark,
+.atk-landing-greeting {
+  background: linear-gradient(
+    110deg,
+    var(--atk-brand-cyan-bright),
+    #d6ecff 28%,
+    var(--atk-brand-violet) 52%,
+    var(--atk-brand-cyan) 76%,
+    var(--atk-brand-cyan-bright)
+  );
+  background-size: 220% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: atkBrandShimmer 12s linear infinite;
+}
+.atk-landing-greeting {
+  text-shadow: 0 0 38px var(--atk-brand-glow);
+}
+@keyframes atkBrandShimmer {
+  to { background-position: 220% center; }
+}
+
+/* Chat header — subtle deep-space gradient backdrop. Sits ON TOP of the
+ * existing Tailwind from-presentation overlay so the brand glow shows on
+ * every breakpoint; controls are pushed above via z-index. */
+.atk-app-header { position: relative; isolation: isolate; }
+.atk-app-header::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(40% 220% at 18% 50%, rgba(24, 108, 170, 0.22), transparent 70%),
+    radial-gradient(42% 220% at 82% 50%, rgba(106, 50, 192, 0.18), transparent 70%);
+  mix-blend-mode: screen;
+}
+.atk-app-header > * { position: relative; z-index: 1; }
+html:not(.dark) .atk-app-header::before {
+  background:
+    radial-gradient(40% 220% at 18% 50%, rgba(24, 168, 218, 0.10), transparent 70%),
+    radial-gradient(42% 220% at 82% 50%, rgba(106, 50, 192, 0.08), transparent 70%);
+  mix-blend-mode: multiply;
+}
+
+/* Empty-state landing — soft cosmic backdrop on the "/c/new" greeting view.
+ * Radial-gradient mask keeps the bloom contained so it doesn't bleed into the
+ * input row. */
+.atk-cosmic-landing { position: relative; }
+.atk-cosmic-landing::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(36vw 36vw at 22% 28%, rgba(24, 108, 170, 0.12), transparent 70%),
+    radial-gradient(42vw 42vw at 78% 32%, rgba(106, 50, 192, 0.12), transparent 70%),
+    radial-gradient(50vw 32vw at 50% 80%, rgba(24, 168, 218, 0.07), transparent 72%);
+  -webkit-mask-image: radial-gradient(ellipse 78% 70% at 50% 50%, #000 30%, transparent 85%);
+  mask-image: radial-gradient(ellipse 78% 70% at 50% 50%, #000 30%, transparent 85%);
+}
+html:not(.dark) .atk-cosmic-landing::before {
+  background:
+    radial-gradient(36vw 36vw at 22% 28%, rgba(24, 168, 218, 0.07), transparent 70%),
+    radial-gradient(42vw 42vw at 78% 32%, rgba(106, 50, 192, 0.06), transparent 70%),
+    radial-gradient(50vw 32vw at 50% 80%, rgba(24, 168, 218, 0.04), transparent 72%);
+}
+.atk-cosmic-landing > * { position: relative; z-index: 1; }
+
+/* Send button — cyan→deep gradient with glow on hover/focus when enabled.
+ * Matches the landing's "Enter Analytikul" CTA. Falls back to the
+ * default-disabled style untouched. */
+#send-button:not(:disabled) {
+  background: linear-gradient(180deg, var(--atk-brand-cyan-bright), var(--atk-brand-cyan));
+  color: #021019;
+  box-shadow: 0 0 0 0 var(--atk-brand-glow);
+  transition: box-shadow 220ms ease, transform 160ms ease;
+}
+#send-button:not(:disabled):hover,
+#send-button:not(:disabled):focus-visible {
+  box-shadow: 0 0 20px var(--atk-brand-glow);
+  transform: translateY(-1px);
+}
+#send-button:not(:disabled) svg { color: #021019; }
+
