@@ -114,16 +114,24 @@ html[data-accent='violet'] {
   --accent-700: #6d28d9;
 }
 
-/* Map accent onto LibreChat semantic variables (light + dark) */
+/* Analytikul brand blue (from the logo / Alogo2.png). Pinned unconditionally
+ * so the Continue / submit buttons stay on-brand instead of flipping between
+ * LibreChat's green and whatever data-accent palette was last applied. */
+:root,
+html,
 html[data-accent] {
-  --brand-purple: var(--accent-500);
-  --surface-submit: var(--accent-600);
-  --surface-submit-hover: var(--accent-700);
-  --ring-primary: var(--accent-500);
+  --brand-blue: #18a8da;
+  --brand-blue-bright: #38d2ef;
+  --brand-blue-deep: #0c5996;
+  --brand-purple: var(--brand-blue-bright);
+  --surface-submit: var(--brand-blue);
+  --surface-submit-hover: var(--brand-blue-deep);
+  --ring-primary: var(--brand-blue-bright);
 }
+html.dark,
 html[data-accent].dark {
-  --surface-submit: var(--accent-600);
-  --surface-submit-hover: var(--accent-500);
+  --surface-submit: var(--brand-blue);
+  --surface-submit-hover: var(--brand-blue-bright);
 }
 
 /* ============================================================================
