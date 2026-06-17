@@ -131,7 +131,8 @@ function unwrapExisting(root: HTMLElement): void {
 }
 
 /** Mount once per message. Re-applies highlights whenever the annotations for
- *  this message change. Covers every text container (p, li, blockquote, td…)
+ *  this message change OR the message DOM changes (markdown re-renders, React
+ *  reconciles, etc.). Covers every text container (p, li, blockquote, td…)
  *  because it walks the entire message root. */
 export default function AnnotationHighlighter({ messageId }: { messageId: string }) {
   const byMessage = useRecoilValue(store.annotationsByMessageId);
@@ -139,19 +140,56 @@ export default function AnnotationHighlighter({ messageId }: { messageId: string
   const annotations = byMessage[messageId] ?? [];
 
   useEffect(() => {
-    const root = document.getElementById(messageId);
-    if (!root) {
-      return;
-    }
-    unwrapExisting(root);
     if (!annotations.length) {
+      // No annotations: still try to clean up any marks left behind.
+      const root = document.getElementById(messageId);
+      if (root) {
+        unwrapExisting(root);
+      }
       return;
     }
-    for (const a of annotations) {
-      injectOne(root, a);
+
+    let applying = false;
+    function apply() {
+      const root = document.getElementById(messageId);
+      if (!root) {
+        return;
+      }
+      // Guard against our own mutations re-triggering the observer.
+      applying = true;
+      unwrapExisting(root);
+      for (const a of annotations) {
+        injectOne(root, a);
+      }
+      // Defer turning the guard off so the observer's microtask sees applying=true.
+      Promise.resolve().then(() => {
+        applying = false;
+      });
     }
+
+    apply();
+
+    // Retry shortly in case the markdown wasn't in the DOM yet on first run.
+    const t = setTimeout(apply, 150);
+
+    // Re-apply if the message content changes (streaming finishes, React
+    // reconciles, etc.).
+    const root = document.getElementById(messageId);
+    let observer: MutationObserver | null = null;
+    if (root && typeof MutationObserver !== 'undefined') {
+      observer = new MutationObserver(() => {
+        if (applying) {
+          return;
+        }
+        // Coalesce frequent mutations.
+        requestAnimationFrame(apply);
+      });
+      observer.observe(root, { childList: true, subtree: true, characterData: true });
+    }
+
     return () => {
-      // Best-effort cleanup if the message unmounts.
+      clearTimeout(t);
+      observer?.disconnect();
       const node = document.getElementById(messageId);
       if (node) {
         unwrapExisting(node);
