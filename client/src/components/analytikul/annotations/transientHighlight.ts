@@ -143,13 +143,15 @@ const DURATION_MS = 3000;
 
 export function playTransientHighlight(messageId: string, a: Anchored): void {
   const root = document.getElementById(messageId);
+  console.warn('[annotations] play:', { messageId, hasRoot: !!root, text: a.highlightedText?.slice(0, 30) });
   if (!root) {
     return;
   }
   const mark = injectMark(root, a);
-  const anchorEl: Element | null = mark ?? root;
-  const block = mark ? findContainingBlock(mark) : null;
-  block?.classList.add('atk-paragraph-pulse');
+  const anchorEl: Element = mark ?? root;
+  const block: HTMLElement = mark ? (findContainingBlock(mark) ?? root) : root;
+  block.classList.add('atk-paragraph-pulse');
+  console.warn('[annotations] mark injected:', !!mark, 'block:', block.tagName);
 
   const chip = buildChip(a);
   document.body.appendChild(chip);
@@ -159,7 +161,7 @@ export function playTransientHighlight(messageId: string, a: Anchored): void {
     if (mark && mark.isConnected) {
       unwrap(mark);
     }
-    block?.classList.remove('atk-paragraph-pulse');
+    block.classList.remove('atk-paragraph-pulse');
     chip.remove();
   }, DURATION_MS);
 }

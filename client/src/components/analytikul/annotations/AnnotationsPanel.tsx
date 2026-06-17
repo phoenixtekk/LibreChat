@@ -49,18 +49,24 @@ export default function AnnotationsPanel() {
 
   const goTo = useCallback(
     (a: Annotation) => {
-      const sameConversation = params.conversationId === a.conversationId;
-      if (!sameConversation) {
+      if (params.conversationId !== a.conversationId) {
         navigate(`/c/${a.conversationId}`);
       }
-      const delay = sameConversation ? 60 : 350;
-      setTimeout(() => {
+      const start = performance.now();
+      const run = () => {
         const el = document.getElementById(a.messageId);
-        if (el) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (!el) {
+          if (performance.now() - start < 4000) {
+            requestAnimationFrame(run);
+          } else {
+            console.warn('[annotations] message element not found:', a.messageId);
+          }
+          return;
         }
-        setTimeout(() => playTransientHighlight(a.messageId, a), 320);
-      }, delay);
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(() => playTransientHighlight(a.messageId, a), 400);
+      };
+      run();
     },
     [navigate, params.conversationId],
   );
