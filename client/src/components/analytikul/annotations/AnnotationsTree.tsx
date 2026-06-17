@@ -1,53 +1,19 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useRecoilValue, useSetRecoilState } from 'recoil';
-import { useQueryClient } from '@tanstack/react-query';
-import { QueryKeys } from 'librechat-data-provider';
-import type { TConversation } from 'librechat-data-provider';
 import { ChevronDown, Highlighter } from 'lucide-react';
+import { useGetConvoIdQuery } from '~/data-provider';
 import { useAuthContext, useLocalize } from '~/hooks';
 import store from '~/store';
 import { cn } from '~/utils';
 import { listAnnotationConversations, type AnnotationConversation } from './api';
 
-/** Read a conversation's current title from the React Query cache (filled by
- *  the sidebar's existing ConversationsSection / Convo components). Returns
- *  the id as a fallback while the cache loads. */
+/** Read a conversation's current title via the existing React Query hook
+ *  (auto-subscribes, propagates renames live). Falls back to the id while
+ *  loading. */
 function useConversationTitle(conversationId: string): string {
-  const qc = useQueryClient();
-  const [title, setTitle] = useState<string>(conversationId);
-
-  useEffect(() => {
-    function read() {
-      const cached = qc.getQueryData<TConversation>([QueryKeys.conversation, conversationId]);
-      if (cached?.title) {
-        setTitle(cached.title);
-        return;
-      }
-      // Fall back to scanning the infinite conversations list cache.
-      const lists = qc.getQueriesData<{ pages: { conversations: TConversation[] }[] }>({
-        queryKey: [QueryKeys.allConversations],
-      });
-      for (const [, data] of lists) {
-        if (!data?.pages) {
-          continue;
-        }
-        for (const page of data.pages) {
-          const match = page?.conversations?.find((c) => c.conversationId === conversationId);
-          if (match?.title) {
-            setTitle(match.title);
-            return;
-          }
-        }
-      }
-    }
-    read();
-    // Subscribe to cache events.
-    const unsub = qc.getQueryCache().subscribe(read);
-    return () => unsub();
-  }, [conversationId, qc]);
-
-  return title;
+  const { data } = useGetConvoIdQuery(conversationId, { enabled: !!conversationId });
+  return data?.title ?? conversationId;
 }
 
 function AnnotationConversationRow({

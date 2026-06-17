@@ -1,51 +1,16 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useRecoilState, useRecoilValue, useSetRecoilState } from 'recoil';
-import { useQueryClient } from '@tanstack/react-query';
-import { QueryKeys } from 'librechat-data-provider';
-import type { TConversation } from 'librechat-data-provider';
 import { Trash2, X } from 'lucide-react';
+import { useGetConvoIdQuery } from '~/data-provider';
 import { useAuthContext, useLocalize } from '~/hooks';
 import store from '~/store';
 import { cn } from '~/utils';
 import { listAnnotations, deleteAnnotation, type Annotation } from './api';
 
 function useConversationTitle(conversationId: string | null): string {
-  const qc = useQueryClient();
-  const [title, setTitle] = useState<string>(conversationId ?? '');
-  useEffect(() => {
-    if (!conversationId) {
-      setTitle('');
-      return;
-    }
-    function read() {
-      const cached = qc.getQueryData<TConversation>([QueryKeys.conversation, conversationId]);
-      if (cached?.title) {
-        setTitle(cached.title);
-        return;
-      }
-      const lists = qc.getQueriesData<{ pages: { conversations: TConversation[] }[] }>({
-        queryKey: [QueryKeys.allConversations],
-      });
-      for (const [, data] of lists) {
-        if (!data?.pages) {
-          continue;
-        }
-        for (const page of data.pages) {
-          const match = page?.conversations?.find((c) => c.conversationId === conversationId);
-          if (match?.title) {
-            setTitle(match.title);
-            return;
-          }
-        }
-      }
-      setTitle(conversationId);
-    }
-    read();
-    const unsub = qc.getQueryCache().subscribe(read);
-    return () => unsub();
-  }, [conversationId, qc]);
-  return title;
+  const { data } = useGetConvoIdQuery(conversationId ?? '', { enabled: !!conversationId });
+  return data?.title ?? conversationId ?? '';
 }
 
 export default function AnnotationsPanel() {

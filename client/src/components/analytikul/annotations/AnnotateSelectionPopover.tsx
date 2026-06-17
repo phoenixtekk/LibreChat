@@ -121,16 +121,13 @@ export default function AnnotateSelectionPopover({ conversationId }: { conversat
   }, [conversationId, popoverStore]);
 
   // Hide when the popover dismisses (user clicked outside / pressed Esc).
+  // Ariakit v0.4 uses hook-based state — Store has no `.subscribe()`.
+  const popoverOpen = Ariakit.useStoreState(popoverStore, 'open');
   useEffect(() => {
-    return popoverStore.subscribe(
-      (state) => {
-        if (!state.open) {
-          setCapture(null);
-        }
-      },
-      ['open'],
-    );
-  }, [popoverStore]);
+    if (!popoverOpen) {
+      setCapture(null);
+    }
+  }, [popoverOpen]);
 
   // Anchor positioning: invisible div placed at the end of the selection rect.
   const anchorStyle: React.CSSProperties = capture
