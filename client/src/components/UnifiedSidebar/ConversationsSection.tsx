@@ -113,9 +113,16 @@ const ConversationsSection = memo(({ hideSearch = false }: { hideSearch?: boolea
       <div className="flex items-center gap-2 px-3">
         {hasAccessToBookmarks && (
           <Suspense fallback={null}>
-            <span className="flex items-center gap-2">
+            <span className="flex items-center gap-1">
               <BookmarkNav tags={tags} setTags={setTags} />
-              <span className="text-sm text-text-primary">{localize('com_ui_bookmarks')}</span>
+              <button
+                type="button"
+                className="rounded-lg px-1.5 py-1 text-sm text-text-primary transition hover:bg-surface-hover"
+                onClick={() => document.getElementById('bookmark-nav-menu-button')?.click()}
+                aria-label={localize('com_ui_bookmarks')}
+              >
+                {localize('com_ui_bookmarks')}
+              </button>
             </span>
           </Suspense>
         )}
