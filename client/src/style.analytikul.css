@@ -566,6 +566,37 @@ html:not(.dark) .atk-cosmic-landing::before {
     radial-gradient(42vw 42vw at 78% 32%, rgba(106, 50, 192, 0.06), transparent 70%),
     radial-gradient(50vw 32vw at 50% 80%, rgba(24, 168, 218, 0.04), transparent 72%);
 }
+
+/* Faint Analytikul logo centered behind the greeting — same look as the
+ * landing page's .hero-logo: ~12% opacity, cyan drop-shadow, slow breath. */
+.atk-cosmic-landing::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(392px, 59vw);
+  aspect-ratio: 1;
+  background: url('/assets/Alogo2.png') no-repeat center / contain;
+  pointer-events: none;
+  z-index: 0;
+  filter: drop-shadow(0 0 60px rgba(24, 168, 218, 0.30));
+  animation: atkLogoBreath 11s ease-in-out infinite;
+}
+html:not(.dark) .atk-cosmic-landing::after {
+  filter: drop-shadow(0 0 40px rgba(24, 168, 218, 0.22));
+}
+@keyframes atkLogoBreath {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.12; }
+  50%      { transform: translate(-50%, -52%) scale(1.03); opacity: 0.18; }
+}
+html:not(.dark) .atk-cosmic-landing::after { animation-name: atkLogoBreathLight; }
+@keyframes atkLogoBreathLight {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.08; }
+  50%      { transform: translate(-50%, -52%) scale(1.03); opacity: 0.13; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .atk-cosmic-landing::after { animation: none; transform: translate(-50%, -50%); opacity: 0.12; }
+}
 .atk-cosmic-landing > * { position: relative; z-index: 1; }
 
 /* Send button — cyan→deep gradient with glow on hover/focus when enabled.
