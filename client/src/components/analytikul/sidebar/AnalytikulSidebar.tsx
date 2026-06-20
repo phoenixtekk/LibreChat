@@ -18,6 +18,7 @@ import {
   KeyRound,
   Boxes,
   Highlighter,
+  Compass,
 } from 'lucide-react';
 import type { PreviewRailTab } from '~/store/misc';
 import type { ChatFormValues } from '~/common';
@@ -88,7 +89,19 @@ function AnalytikulSidebar() {
     [setPreviewRail, closeOnMobile],
   );
 
+  const setCatalog = useSetRecoilState(store.catalogPanel);
+
   const items = [
+    {
+      id: 'discover',
+      label: localize('com_atk_discover'),
+      icon: Compass,
+      onClick: () => {
+        setCatalog({ open: true });
+        closeOnMobile();
+      },
+      active: false,
+    },
     {
       id: 'new-chat',
       label: localize('com_atk_new_chat'),

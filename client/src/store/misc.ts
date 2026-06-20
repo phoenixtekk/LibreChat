@@ -86,6 +86,12 @@ const annotationsChangedAt = atom<number>({
   default: 0,
 });
 
+/** Feature Catalog (Discover) panel — slide-out from the right. */
+const catalogPanel = atom<{ open: boolean }>({
+  key: 'analytikulCatalogPanel',
+  default: { open: false },
+});
+
 export default {
   hideBannerHint,
   messageAttachmentsMap,
@@ -96,4 +102,5 @@ export default {
   previewRail,
   annotationsPanel,
   annotationsChangedAt,
+  catalogPanel,
 };

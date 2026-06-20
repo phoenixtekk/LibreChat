@@ -615,3 +615,168 @@ html:not(.dark) .atk-cosmic-landing::after { animation-name: atkLogoBreathLight;
 }
 #send-button:not(:disabled) svg { color: #021019; }
 
+/* ============================================================================
+   Feature Catalog (Discover) panel — slide-out from the right. Opened via the
+   sidebar "Discover" item or Ctrl/Cmd+K. Backdrop on mobile only; desktop is a
+   floating overlay so the chat stays visible behind it.
+   ========================================================================== */
+
+.atk-catalog-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 6, 12, 0.18);
+  z-index: 140;
+  animation: atkCatalogFade 160ms ease-out;
+}
+html:not(.dark) .atk-catalog-backdrop {
+  background: rgba(4, 6, 12, 0.08);
+}
+@keyframes atkCatalogFade { from { opacity: 0; } to { opacity: 1; } }
+
+.atk-catalog-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100vh;
+  width: 420px;
+  max-width: 92vw;
+  z-index: 141;
+  background: var(--surface-primary-alt);
+  color: var(--text-primary);
+  border-left: 1px solid var(--border-light, rgba(255, 255, 255, 0.08));
+  box-shadow: -8px 0 28px rgba(0, 0, 0, 0.18);
+  transform: translateX(100%);
+  transition: transform 200ms ease-out;
+  display: flex;
+  flex-direction: column;
+}
+.atk-catalog-panel[data-open='true'] { transform: translateX(0); }
+
+.atk-catalog-inner {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.atk-catalog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 14px 10px 14px;
+  border-bottom: 1px solid var(--border-light, rgba(255, 255, 255, 0.06));
+}
+
+.atk-catalog-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 12px 0 12px;
+  padding: 6px 10px;
+  border: 1px solid var(--border-medium, rgba(255, 255, 255, 0.12));
+  border-radius: 8px;
+  background: var(--surface-secondary, rgba(255, 255, 255, 0.02));
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+.atk-catalog-search:focus-within {
+  border-color: var(--atk-brand-cyan);
+  box-shadow: 0 0 0 3px rgba(56, 210, 239, 0.18);
+}
+.atk-catalog-search-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-size: 13px;
+}
+.atk-catalog-search-input::placeholder { color: var(--text-tertiary); }
+
+.atk-catalog-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px 6px 14px;
+}
+.atk-catalog-checkbox {
+  accent-color: var(--atk-brand-cyan);
+  cursor: pointer;
+}
+
+.atk-catalog-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 6px 16px 6px;
+}
+
+.atk-catalog-whatsnew {
+  margin: 4px 8px 12px 8px;
+  padding: 10px 10px 8px 10px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(24, 168, 218, 0.06), rgba(106, 50, 192, 0.05));
+  border: 1px solid rgba(56, 210, 239, 0.18);
+}
+
+.atk-catalog-section { padding: 6px 0 4px 0; }
+.atk-catalog-section-header {
+  padding: 8px 12px 4px 12px;
+}
+
+.atk-catalog-entry {
+  padding: 10px 12px;
+  margin: 1px 6px;
+  border-radius: 8px;
+  outline: none;
+  transition: background-color 140ms ease;
+}
+.atk-catalog-entry-clickable { cursor: pointer; }
+.atk-catalog-entry-clickable:hover,
+.atk-catalog-entry-clickable:focus-visible {
+  background: var(--surface-hover);
+}
+.atk-catalog-entry-clickable:focus-visible {
+  box-shadow: 0 0 0 2px rgba(56, 210, 239, 0.5);
+}
+
+.atk-catalog-pill {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+}
+.atk-catalog-pill-live {
+  color: #0d8b4f;
+  background: rgba(13, 139, 79, 0.10);
+  border-color: rgba(13, 139, 79, 0.30);
+}
+.atk-catalog-pill-beta {
+  color: #18a8da;
+  background: rgba(24, 168, 218, 0.10);
+  border-color: rgba(24, 168, 218, 0.32);
+}
+.atk-catalog-pill-gated {
+  color: #a05a00;
+  background: rgba(160, 90, 0, 0.10);
+  border-color: rgba(160, 90, 0, 0.32);
+}
+.atk-catalog-pill-soon {
+  color: #6a32c0;
+  background: rgba(106, 50, 192, 0.10);
+  border-color: rgba(106, 50, 192, 0.32);
+}
+html.dark .atk-catalog-pill-live   { color: #4ade80; }
+html.dark .atk-catalog-pill-beta   { color: #38d2ef; }
+html.dark .atk-catalog-pill-gated  { color: #f5b969; }
+html.dark .atk-catalog-pill-soon   { color: #b794f4; }
+
+@media (max-width: 640px) {
+  .atk-catalog-panel { width: 100vw; max-width: 100vw; }
+}
+
+

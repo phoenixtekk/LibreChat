@@ -1,7 +1,7 @@
 import { useEffect, useCallback } from 'react';
-import { useRecoilState } from 'recoil';
+import { useRecoilState, useSetRecoilState } from 'recoil';
 import type { RailTab } from './PreviewRail';
-import CommandPalette from './CommandPalette';
+import { CatalogPanel } from './catalog';
 import PreviewRail from './PreviewRail';
 import useAgentStream from './useAgentStream';
 import useComposerHistory from './useComposerHistory';
@@ -16,6 +16,7 @@ import store from '~/store';
  */
 export default function AnalytikulProvider() {
   const [rail, setRail] = useRecoilState(store.previewRail);
+  const setCatalog = useSetRecoilState(store.catalogPanel);
   const stream = useAgentStream();
 
   useEffect(() => {
@@ -30,8 +31,28 @@ export default function AnalytikulProvider() {
     }
   }, [stream.state, setRail]);
 
-  const toggleRail = useCallback(() => setRail((prev) => ({ ...prev, open: !prev.open })), [setRail]);
-  const openCosts = useCallback(() => setRail({ tab: 'costs', open: true }), [setRail]);
+  // Global Ctrl/Cmd+K opens the Discover catalog. Replaces the old
+  // hand-rolled CommandPalette (the catalog supersedes its commands).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'k' && (e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey) {
+        const target = e.target as HTMLElement | null;
+        const tag = target?.tagName;
+        const isEditable =
+          tag === 'INPUT' ||
+          tag === 'TEXTAREA' ||
+          target?.isContentEditable === true;
+        if (isEditable) {
+          return;
+        }
+        e.preventDefault();
+        setCatalog((prev) => ({ open: !prev.open }));
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [setCatalog]);
+
   const setTab = useCallback(
     (tab: RailTab) => setRail((prev) => ({ ...prev, tab })),
     [setRail],
@@ -39,7 +60,7 @@ export default function AnalytikulProvider() {
 
   return (
     <>
-      <CommandPalette onTogglePreviewRail={toggleRail} onOpenCosts={openCosts} />
+      <CatalogPanel />
       <PreviewRail
         open={rail.open}
         onClose={() => setRail((prev) => ({ ...prev, open: false }))}
