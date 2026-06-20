@@ -33,14 +33,15 @@ IDLE_TTL_S = int(os.environ.get("AGENT_IDLE_TTL_S", "600"))
 MAX_CONCURRENT_TASKS = int(os.environ.get("AGENT_MAX_CONCURRENT", "8"))
 MAX_TASKS_PER_USER = int(os.environ.get("AGENT_MAX_PER_USER", "2"))
 
-# SECURITY: non-overridable runtime floor. These toolsets can run host commands,
-# read/write the filesystem, or pivot to internal services and are NOT sandboxed
-# (TERMINAL_ENV=local). The Node route also blocks them, but the runtime must
-# enforce its own floor so a caller that reaches this service directly cannot
-# re-enable them. Defense in depth — must mirror FORBIDDEN_TOOLSETS in
-# api/server/routes/analytikul.js.
+# SECURITY: non-overridable runtime floor. With gVisor installed at the docker
+# daemon (2026-06-20), code_execution and file are now unblocked — the runtime
+# sandbox catches kernel-level escape attempts. The remaining entries stay
+# floored because they can directly run host commands or pivot to internal
+# services, neither of which gVisor mitigates on its own. Per-task ephemeral
+# containers (Phase 2) will unblock 'terminal'. Must mirror FORBIDDEN_TOOLSETS
+# in api/server/routes/analytikul.js for defense in depth.
 FORBIDDEN_TOOLSETS = frozenset(
-    {"terminal", "code_execution", "file", "computer_use", "messaging", "homeassistant"}
+    {"terminal", "computer_use", "messaging", "homeassistant"}
 )
 
 _executor = ThreadPoolExecutor(max_workers=MAX_CONCURRENT_TASKS, thread_name_prefix="agent")

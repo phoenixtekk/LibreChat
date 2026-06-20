@@ -80,14 +80,14 @@ router.post('/agent/run', agentRunLimiter, async (req, res) => {
     if (!message || !conversationId) {
       return res.status(400).json({ message: 'message and conversationId are required' });
     }
-    // SECURITY: server-enforced toolset floor. These can run host commands / read
-    // the filesystem / pivot to internal services, and are NOT safely sandboxed
-    // yet (TERMINAL_ENV=local). They are force-disabled regardless of client input
-    // and can only be re-enabled once the runtime is sandboxed (gVisor/ephemeral).
+    // SECURITY: server-enforced toolset floor. With gVisor installed at the
+    // docker daemon (2026-06-20), code_execution and file are now unblocked —
+    // the runtime sandbox catches kernel-level escape attempts. The remaining
+    // entries stay floored because they can directly run host commands or
+    // pivot to internal services, neither of which gVisor mitigates on its
+    // own. Per-task ephemeral containers (Phase 2) will unblock 'terminal'.
     const FORBIDDEN_TOOLSETS = [
       'terminal',
-      'code_execution',
-      'file',
       'computer_use',
       'messaging',
       'homeassistant',
