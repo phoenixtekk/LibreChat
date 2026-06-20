@@ -5,6 +5,7 @@ import { getConfigDefaults, PermissionTypes, Permissions } from 'librechat-data-
 import ModelSelector from './Menus/Endpoints/ModelSelector';
 import ControlsButton from '~/components/analytikul/ControlsButton';
 import RailTabRow from '~/components/analytikul/RailTabRow';
+import MoreToolsMenu from '~/components/analytikul/MoreToolsMenu';
 import { useGetStartupConfig } from '~/data-provider';
 import ExportAndShareMenu from './ExportAndShareMenu';
 import { OpenSidebar, PresetsMenu } from './Menus';
@@ -75,6 +76,7 @@ function Header() {
         {!isSmallScreen && (
           <div className="flex items-center gap-2">
             <RailTabRow />
+            <MoreToolsMenu />
             <ExportAndShareMenu
               isSharedButtonEnabled={startupConfig?.sharedLinksEnabled ?? false}
             />
