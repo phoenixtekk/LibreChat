@@ -21,6 +21,7 @@ import ShareRoute from './ShareRoute';
 import ChatRoute from './ChatRoute';
 import Search from './Search';
 import Bookmarks from './Bookmarks';
+import McpServers from './McpServers';
 import NotesList from '~/components/analytikul/notes/NotesList';
 import NoteEditor from '~/components/analytikul/notes/NoteEditor';
 import ModelsWorkspace from '~/components/analytikul/models/ModelsWorkspace';
@@ -145,6 +146,10 @@ export const router = createBrowserRouter(
             {
               path: 'bookmarks',
               element: <Bookmarks />,
+            },
+            {
+              path: 'mcp',
+              element: <McpServers />,
             },
             {
               path: 'notes',

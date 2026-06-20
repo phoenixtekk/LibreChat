@@ -315,6 +315,15 @@ export const CATALOG: CatalogEntry[] = [
     action: { kind: 'navigate', path: '/prompts/new', label: 'New prompt' },
   },
   {
+    id: 'ws.mcp',
+    title: 'Browse MCP Servers',
+    category: 'workspace',
+    summary: 'Model Context Protocol servers your team configured. Open one in a chat to set credentials and use its tools.',
+    tags: ['mcp', 'tools', 'servers', 'protocol'],
+    state: 'live',
+    action: { kind: 'navigate', path: '/mcp', label: 'Open MCP Servers' },
+  },
+  {
     id: 'ws.files',
     title: 'Attach files to a conversation',
     category: 'workspace',
