@@ -20,6 +20,7 @@ import dashboardRoutes from './Dashboard';
 import ShareRoute from './ShareRoute';
 import ChatRoute from './ChatRoute';
 import Search from './Search';
+import Bookmarks from './Bookmarks';
 import NotesList from '~/components/analytikul/notes/NotesList';
 import NoteEditor from '~/components/analytikul/notes/NoteEditor';
 import ModelsWorkspace from '~/components/analytikul/models/ModelsWorkspace';
@@ -140,6 +141,10 @@ export const router = createBrowserRouter(
             {
               path: 'search',
               element: <Search />,
+            },
+            {
+              path: 'bookmarks',
+              element: <Bookmarks />,
             },
             {
               path: 'notes',

@@ -248,10 +248,10 @@ export const CATALOG: CatalogEntry[] = [
     id: 'auto.bookmark',
     title: 'Tag and bookmark conversations',
     category: 'automation',
-    summary: 'Tag a chat with a topic, then filter the sidebar by tag. Useful when you live in 50 threads at once.',
+    summary: 'Tag a chat with a topic, then jump back to any tagged thread from the Bookmarks page.',
     tags: ['bookmark', 'tag', 'organize'],
     state: 'live',
-    action: { kind: 'none' },
+    action: { kind: 'navigate', path: '/bookmarks', label: 'Open Bookmarks' },
   },
 
   /* -------- Channels -------- */
