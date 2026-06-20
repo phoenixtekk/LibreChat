@@ -621,6 +621,31 @@ html:not(.dark) .atk-cosmic-landing::after { animation-name: atkLogoBreathLight;
    floating overlay so the chat stays visible behind it.
    ========================================================================== */
 
+/* "Powered by Hermes runtime" pill — sits at the top of the Agent Panel so
+ * the user knows which engine runs the task (vs. the main chat path). Small,
+ * cyan-tinted, non-interactive. */
+.atk-hermes-pill {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--atk-brand-cyan-bright);
+  background: rgba(56, 210, 239, 0.10);
+  border: 1px solid rgba(56, 210, 239, 0.30);
+  border-radius: 999px;
+  cursor: help;
+}
+html:not(.dark) .atk-hermes-pill {
+  color: #0c5996;
+  background: rgba(24, 168, 218, 0.10);
+  border-color: rgba(24, 168, 218, 0.35);
+}
+
 /* Annotation "Save highlight" chip — small floating button that appears near
  * a text selection. Does NOT steal focus (mousedown.preventDefault in JS), so
  * native selection + Ctrl+C keep working. User clicks the chip explicitly to

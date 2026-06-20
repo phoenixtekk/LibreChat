@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, Zap } from 'lucide-react';
 import { useGetModelsQuery } from 'librechat-data-provider/react-query';
 import { useLocalize } from '~/hooks';
 import { cn } from '~/utils';
@@ -100,6 +100,14 @@ export default function AgentPanel({ stream }: { stream: AgentStreamApi }) {
 
   return (
     <div className="flex h-full flex-col gap-2">
+      <div
+        className="atk-hermes-pill"
+        title={localize('com_atk_hermes_pill_tooltip')}
+        aria-label={localize('com_atk_hermes_pill_tooltip')}
+      >
+        <Zap size={11} aria-hidden="true" />
+        <span>{localize('com_atk_hermes_pill')}</span>
+      </div>
       <textarea
         value={message}
         rows={3}

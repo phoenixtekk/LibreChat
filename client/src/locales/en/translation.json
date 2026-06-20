@@ -1791,6 +1791,8 @@
   "com_user_message": "You",
   "com_atk_new_chat": "New chat",
   "com_atk_more_tools": "More tools",
+  "com_atk_hermes_pill": "Powered by Hermes runtime",
+  "com_atk_hermes_pill_tooltip": "This tab runs your task on the Hermes agent engine — multi-step tools, live trace, real-time cost. Different from the main chat below.",
   "com_atk_bookmarks_subtitle": "Every conversation you've tagged. Filter by tag, click to jump back.",
   "com_atk_bookmarks_all": "All ({{0}})",
   "com_atk_bookmarks_empty_for_filter": "No conversations match the selected tags.",
