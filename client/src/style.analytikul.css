@@ -621,6 +621,36 @@ html:not(.dark) .atk-cosmic-landing::after { animation-name: atkLogoBreathLight;
    floating overlay so the chat stays visible behind it.
    ========================================================================== */
 
+/* Annotation "Save highlight" chip — small floating button that appears near
+ * a text selection. Does NOT steal focus (mousedown.preventDefault in JS), so
+ * native selection + Ctrl+C keep working. User clicks the chip explicitly to
+ * open the comment popover. */
+.atk-annotate-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--atk-brand-cyan-bright), var(--atk-brand-cyan));
+  color: #021019;
+  border: 1px solid rgba(120, 80, 0, 0.10);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25), 0 0 0 0 var(--atk-brand-glow);
+  cursor: pointer;
+  user-select: none;
+  transition: box-shadow 180ms ease, transform 120ms ease;
+  animation: atkAnnotateChipIn 140ms ease-out;
+}
+.atk-annotate-chip:hover {
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28), 0 0 16px var(--atk-brand-glow);
+  transform: translateY(-1px);
+}
+@keyframes atkAnnotateChipIn {
+  from { opacity: 0; transform: translateY(4px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
 .atk-catalog-backdrop {
   position: fixed;
   inset: 0;

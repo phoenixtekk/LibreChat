@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import * as Ariakit from '@ariakit/react';
 import { useSetRecoilState } from 'recoil';
+import { Highlighter } from 'lucide-react';
 import { useAuthContext, useLocalize } from '~/hooks';
 import store from '~/store';
 import { createAnnotation } from './api';
@@ -41,25 +42,33 @@ function isInsideCodeBlock(node: Node | null): boolean {
   return false;
 }
 
-/** Mount once near the chat root. Watches for text selections inside finalized
- *  assistant messages and opens a popover at the selection end with a Save
- *  action (+ optional comment). */
+/** Mount once near the chat root. Two-stage selection flow:
+ *  1. On mouseup with a valid selection inside an assistant message, show a
+ *     small "Save highlight" CHIP near the selection. The chip does NOT steal
+ *     focus — native select/copy keeps working.
+ *  2. Only when the user explicitly CLICKS the chip do we open the comment
+ *     popover (textarea grabs focus then, which clears the selection — fine,
+ *     the user committed to annotating). */
 export default function AnnotateSelectionPopover({ conversationId }: { conversationId: string }) {
   const localize = useLocalize();
   const { token } = useAuthContext();
   const bumpChangedAt = useSetRecoilState(store.annotationsChangedAt);
   const popoverStore = Ariakit.usePopoverStore({ placement: 'bottom-start' });
   const [capture, setCapture] = useState<CaptureState | null>(null);
+  const [chipVisible, setChipVisible] = useState(false);
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const anchorRef = useRef<HTMLDivElement | null>(null);
+  const popoverOpenRef = useRef(false);
 
-  // Hide if click outside the popover (the store handles its own dismissal).
   useEffect(() => {
     function onMouseUp() {
-      // Defer so the selection is final.
       setTimeout(() => {
+        // Don't replace the capture if the comment popover is already open.
+        if (popoverOpenRef.current) {
+          return;
+        }
         const sel = window.getSelection();
         if (!sel || sel.isCollapsed || sel.rangeCount === 0) {
           return;
@@ -72,7 +81,6 @@ export default function AnnotateSelectionPopover({ conversationId }: { conversat
         const startEl = findMessageAncestor(range.startContainer);
         const endEl = findMessageAncestor(range.endContainer);
         if (!startEl || startEl !== endEl) {
-          // Cross-message selections aren't annotated.
           return;
         }
         if (isInsideCodeBlock(range.commonAncestorContainer)) {
@@ -81,7 +89,6 @@ export default function AnnotateSelectionPopover({ conversationId }: { conversat
         if (startEl.getAttribute('data-streaming') === 'true') {
           return;
         }
-        // Containing paragraph: nearest <p> inside the message ancestor.
         let pNode: HTMLElement | null = range.startContainer instanceof Element
           ? (range.startContainer as HTMLElement)
           : range.startContainer.parentElement;
@@ -89,7 +96,6 @@ export default function AnnotateSelectionPopover({ conversationId }: { conversat
           pNode = pNode.parentElement;
         }
         const paragraphText = (pNode?.textContent ?? '').trim().slice(0, 16000);
-        // Compute simple before/after context out of the paragraph text.
         let contextBefore = '';
         let contextAfter = '';
         const cleanText = text.trim();
@@ -113,21 +119,60 @@ export default function AnnotateSelectionPopover({ conversationId }: { conversat
         });
         setNote('');
         setError(null);
-        popoverStore.show();
+        setChipVisible(true);
       }, 0);
     }
     document.addEventListener('mouseup', onMouseUp);
     return () => document.removeEventListener('mouseup', onMouseUp);
-  }, [conversationId, popoverStore]);
+  }, [conversationId]);
 
-  // Hide when the popover dismisses (user clicked outside / pressed Esc).
-  // Ariakit v0.4 uses hook-based state — Store has no `.subscribe()`.
+  // Dismiss the chip when: selection clears, Escape, OR Ctrl/Cmd+C (user is
+  // copying, not annotating). The comment popover, once open, handles its own
+  // dismissal via Ariakit.
+  useEffect(() => {
+    function onSelectionChange() {
+      if (popoverOpenRef.current) {
+        return;
+      }
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed) {
+        setChipVisible(false);
+      }
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        setChipVisible(false);
+        popoverStore.hide();
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C')) {
+        setChipVisible(false);
+      }
+    }
+    document.addEventListener('selectionchange', onSelectionChange);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('selectionchange', onSelectionChange);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [popoverStore]);
+
+  // Track popover open state so the selection-change listener doesn't wipe
+  // the chip while the comment popover is the active surface.
   const popoverOpen = Ariakit.useStoreState(popoverStore, 'open');
   useEffect(() => {
+    popoverOpenRef.current = !!popoverOpen;
     if (!popoverOpen) {
       setCapture(null);
     }
   }, [popoverOpen]);
+
+  // Chip click — preserve focus via onMouseDown.preventDefault so the
+  // selection survives the click handoff to the popover.
+  const openCommentPopover = useCallback(() => {
+    setChipVisible(false);
+    popoverStore.show();
+  }, [popoverStore]);
 
   // Anchor positioning: invisible div placed at the end of the selection rect.
   const anchorStyle: React.CSSProperties = capture
@@ -169,8 +214,31 @@ export default function AnnotateSelectionPopover({ conversationId }: { conversat
     }
   }, [bumpChangedAt, capture, note, popoverStore, token]);
 
+  const chipStyle: React.CSSProperties = capture && chipVisible
+    ? {
+        position: 'fixed',
+        top: Math.max(8, capture.anchorRect.bottom + 6),
+        left: Math.min(window.innerWidth - 160, Math.max(8, capture.anchorRect.left + capture.anchorRect.width / 2 - 70)),
+        zIndex: 1100,
+      }
+    : { display: 'none' };
+
   return (
     <>
+      {chipVisible && capture && (
+        <button
+          type="button"
+          style={chipStyle}
+          // preventDefault on mousedown so the chip doesn't steal selection focus
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={openCommentPopover}
+          className="atk-annotate-chip"
+          aria-label={localize('com_atk_annotate_save')}
+        >
+          <Highlighter size={12} aria-hidden="true" />
+          <span>{localize('com_atk_annotate_save')}</span>
+        </button>
+      )}
       <div ref={anchorRef} style={anchorStyle} aria-hidden="true" />
       <Ariakit.PopoverAnchor store={popoverStore} render={<div ref={anchorRef} style={anchorStyle} />} />
       <Ariakit.Popover
