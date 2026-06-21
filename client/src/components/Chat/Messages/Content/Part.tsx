@@ -32,6 +32,7 @@ import WebSearch from './WebSearch';
 import ToolCall from './ToolCall';
 import Image from './Image';
 import { isBashProgrammaticToolCall } from './routing';
+import ViaHermesPill from '~/components/analytikul/ViaHermesPill';
 
 type PartProps = {
   part?: TMessageContentParts;
@@ -138,16 +139,19 @@ const Part = memo(function Part({
       'args' in toolCall && (!toolCall.type || toolCall.type === ToolCallTypes.TOOL_CALL);
     if (isToolCall && isBashProgrammaticToolCall(toolCall.name, toolCall.args)) {
       return (
-        <BashCall
-          args={toolCall.args}
-          output={toolCall.output ?? ''}
-          initialProgress={toolCall.progress ?? 0.1}
-          isSubmitting={isSubmitting}
-          attachments={attachments}
-          commandField="code"
-          hideAttachments={hideAttachments}
-          onExpand={onToolExpand}
-        />
+        <>
+          <BashCall
+            args={toolCall.args}
+            output={toolCall.output ?? ''}
+            initialProgress={toolCall.progress ?? 0.1}
+            isSubmitting={isSubmitting}
+            attachments={attachments}
+            commandField="code"
+            hideAttachments={hideAttachments}
+            onExpand={onToolExpand}
+          />
+          <ViaHermesPill />
+        </>
       );
     } else if (
       isToolCall &&
@@ -156,15 +160,18 @@ const Part = memo(function Part({
         toolCall.name === Constants.BASH_PROGRAMMATIC_TOOL_CALLING)
     ) {
       return (
-        <ExecuteCode
-          attachments={attachments}
-          isSubmitting={isSubmitting}
-          output={toolCall.output ?? ''}
-          initialProgress={toolCall.progress ?? 0.1}
-          args={toolCall.args}
-          hideAttachments={hideAttachments}
-          onExpand={onToolExpand}
-        />
+        <>
+          <ExecuteCode
+            attachments={attachments}
+            isSubmitting={isSubmitting}
+            output={toolCall.output ?? ''}
+            initialProgress={toolCall.progress ?? 0.1}
+            args={toolCall.args}
+            hideAttachments={hideAttachments}
+            onExpand={onToolExpand}
+          />
+          <ViaHermesPill />
+        </>
       );
     } else if (
       isToolCall &&

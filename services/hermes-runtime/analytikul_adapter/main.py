@@ -201,3 +201,76 @@ def code_run(body: dict):
     from analytikul_adapter.code_exec import run_code
 
     return run_code(body)
+
+
+# Map @librechat/agents short language codes -> our run_code language names.
+_LC_LANG_MAP = {"py": "python", "python": "python", "sh": "bash", "bash": "bash"}
+
+
+@app.post("/exec", dependencies=PROTECTED)
+def code_exec_proxy(body: dict):
+    """LibreChat-compatible code exec endpoint. Translates @librechat/agents'
+    POST /exec request shape into the Hermes-internal shape understood by
+    run_code(), then maps the response back. This is what gets pointed at
+    by LIBRECHAT_CODE_BASEURL so the main chat's bash_tool / execute_code
+    transparently runs on Hermes.
+
+    Unsupported languages (anything other than py/python/sh/bash on this
+    node) are rejected with a clear stderr message so the LLM gets a
+    coherent failure instead of a 500."""
+    import uuid as _uuid
+    from analytikul_adapter.code_exec import run_code
+
+    raw_lang = (body.get("lang") or "").lower()
+    internal_lang = _LC_LANG_MAP.get(raw_lang)
+    if internal_lang is None:
+        return {
+            "stdout": "",
+            "stderr": (
+                f"Language {raw_lang!r} is not available on this Hermes node. "
+                f"Supported: {', '.join(sorted(set(_LC_LANG_MAP.values())))}. "
+                "Use one of those, or ask an admin to add the runtime."
+            ),
+            "files": [],
+            "session_id": body.get("session_id") or _uuid.uuid4().hex,
+            "exit_code": 1,
+        }
+
+    args = body.get("args") or []
+    code = body.get("code") or ""
+    if isinstance(args, list) and args:
+        if internal_lang == "bash":
+            code = f"{code}\n" + " ".join(args)
+        else:
+            code = code + "\n" + "\n".join(f"# arg: {a}" for a in args)
+
+    internal_body = {
+        "language": internal_lang,
+        "code": code,
+        "timeout_ms": body.get("timeout_ms", 30_000),
+        "memory_mb": body.get("memory_mb", 512),
+        "stdin": body.get("stdin") or "",
+        "files": [],  # LibreChat file-ref handoff TODO — needs /files bridge
+        "user_id": body.get("user_id"),
+        "conversation_id": body.get("conversation_id") or body.get("session_id"),
+    }
+    result = run_code(internal_body)
+
+    files_out = []
+    for art in result.get("artifacts") or []:
+        files_out.append(
+            {
+                "name": art.get("path"),
+                "path": art.get("path"),
+                "content_b64": art.get("content_b64") or "",
+                "size": art.get("size", 0),
+            }
+        )
+
+    return {
+        "stdout": result.get("stdout", ""),
+        "stderr": result.get("stderr", ""),
+        "files": files_out,
+        "session_id": body.get("session_id") or _uuid.uuid4().hex,
+        "exit_code": result.get("exit_code", 1),
+    }

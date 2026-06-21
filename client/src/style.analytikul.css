@@ -693,6 +693,35 @@ html:not(.dark) .atk-hermes-pill {
  * a text selection. Does NOT steal focus (mousedown.preventDefault in JS), so
  * native selection + Ctrl+C keep working. User clicks the chip explicitly to
  * open the comment popover. */
+/* "via Hermes" pill — renders under bash_tool / execute_code tool-call
+ * results in the main chat to show the user the code ran on Hermes (gVisor),
+ * not the LibreChat paid Code API. Same cyan brand as the Agent Panel pill,
+ * smaller and more subdued. */
+.atk-via-hermes-row {
+  display: flex;
+  justify-content: flex-start;
+  margin: 4px 0 0 4px;
+}
+.atk-via-hermes-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--atk-brand-cyan-bright);
+  background: rgba(56, 210, 239, 0.08);
+  border: 1px solid rgba(56, 210, 239, 0.20);
+  border-radius: 999px;
+  cursor: help;
+}
+html:not(.dark) .atk-via-hermes-pill {
+  color: #0c5996;
+  background: rgba(24, 168, 218, 0.07);
+  border-color: rgba(24, 168, 218, 0.28);
+}
+
 .atk-annotate-chip {
   display: inline-flex;
   align-items: center;

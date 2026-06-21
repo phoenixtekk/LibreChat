@@ -1,3 +1,18 @@
+// Analytikul: point LibreChat's bundled code-exec tool at our Hermes adapter
+// so the main chat's bash_tool / execute_code runs on our gVisor-sandboxed
+// runtime instead of the LibreChat paid Code API. Must be set BEFORE any
+// require of @librechat/agents — getCodeBaseURL() reads the env at module
+// load. Set only when unset, so a real docker-compose env still wins.
+if (!process.env.LIBRECHAT_CODE_BASEURL) {
+  process.env.LIBRECHAT_CODE_BASEURL = 'http://analytikul-hermes-adapter:8001';
+}
+if (!process.env.LIBRECHAT_CODE_API_KEY) {
+  // Some code paths require a non-empty key even though our /exec proxy
+  // ignores it (network isolation handles auth). Stub it so the auth-header
+  // resolver doesn't no-op the call.
+  process.env.LIBRECHAT_CODE_API_KEY = 'hermes-internal';
+}
+
 const telemetry = require('./telemetry');
 const fs = require('fs');
 const path = require('path');
