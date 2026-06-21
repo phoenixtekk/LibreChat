@@ -39,7 +39,7 @@ export default function ConversationStarters() {
   };
 
   return (
-    <div className="mx-auto mt-6 grid w-full max-w-2xl grid-cols-1 gap-2 px-3 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="mx-auto mb-44 mt-4 grid w-full max-w-2xl grid-cols-1 gap-2 px-3 sm:grid-cols-2 lg:grid-cols-3">
       {STARTERS.map(({ id, titleKey, icon: Icon }) => (
         <button
           key={id}
