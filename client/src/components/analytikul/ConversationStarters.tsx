@@ -1,6 +1,7 @@
 import { FileText, Mail, BookOpen, BarChart3, Lightbulb, PenSquare } from 'lucide-react';
 import { useChatFormContext } from '~/Providers';
 import { useLocalize } from '~/hooks';
+import { GhostHint } from './hints';
 
 type StarterChip = {
   id: string;
@@ -39,18 +40,27 @@ export default function ConversationStarters() {
   };
 
   return (
-    <div className="mx-auto mb-44 mt-4 grid w-full max-w-2xl grid-cols-1 gap-2 px-3 sm:grid-cols-2 lg:grid-cols-3">
-      {STARTERS.map(({ id, titleKey, icon: Icon }) => (
-        <button
-          key={id}
-          type="button"
-          onClick={() => handleClick(STARTERS.find((s) => s.id === id)!.promptKey)}
-          className="atk-starter-chip"
-        >
-          <Icon size={16} className="text-text-secondary" aria-hidden="true" />
-          <span className="text-left text-sm text-text-primary">{localize(titleKey)}</span>
-        </button>
-      ))}
-    </div>
+    <>
+      <div className="mx-auto mt-4 grid w-full max-w-2xl grid-cols-1 gap-2 px-3 sm:grid-cols-2 lg:grid-cols-3">
+        {STARTERS.map(({ id, titleKey, icon: Icon }) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => handleClick(STARTERS.find((s) => s.id === id)!.promptKey)}
+            className="atk-starter-chip"
+          >
+            <Icon size={16} className="text-text-secondary" aria-hidden="true" />
+            <span className="text-left text-sm text-text-primary">{localize(titleKey)}</span>
+          </button>
+        ))}
+      </div>
+      <div className="mx-auto mb-44 mt-3 flex w-full max-w-2xl justify-center px-3">
+        <GhostHint
+          id="discover-shortcut"
+          when={true}
+          labelKey="com_atk_hint_discover_shortcut"
+        />
+      </div>
+    </>
   );
 }

@@ -693,6 +693,89 @@ html:not(.dark) .atk-hermes-pill {
  * a text selection. Does NOT steal focus (mousedown.preventDefault in JS), so
  * native selection + Ctrl+C keep working. User clicks the chip explicitly to
  * open the comment popover. */
+/* Ghost hint — one-shot per user, dismissable. Subtle, non-blocking;
+ * appears at the moment of relevance, then never again. */
+.atk-ghost-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px 5px 12px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: rgba(56, 210, 239, 0.06);
+  border: 1px dashed rgba(56, 210, 239, 0.32);
+  border-radius: 6px;
+  animation: atkGhostIn 280ms ease-out;
+  max-width: 100%;
+}
+.atk-ghost-hint-body { flex: 1; min-width: 0; }
+.atk-ghost-hint-dismiss {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border-radius: 4px;
+  border: 0;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+.atk-ghost-hint-dismiss:hover {
+  background: rgba(56, 210, 239, 0.10);
+  color: var(--atk-brand-cyan-bright);
+}
+html:not(.dark) .atk-ghost-hint {
+  background: rgba(24, 168, 218, 0.05);
+  border-color: rgba(24, 168, 218, 0.28);
+}
+@keyframes atkGhostIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Response-adjust chips — one-tap "Shorter / More formal / Different angle"
+ * row that renders under the latest assistant message. Click sends a fresh
+ * user message asking for the adjustment, so newcomers don't have to
+ * articulate what they want changed. Subtle, no decoration. */
+.atk-response-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0 4px 4px;
+}
+.atk-response-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid var(--border-light, rgba(255, 255, 255, 0.10));
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+.atk-response-chip:hover {
+  background: rgba(56, 210, 239, 0.08);
+  border-color: rgba(56, 210, 239, 0.35);
+  color: var(--atk-brand-cyan-bright);
+}
+.atk-response-chip:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(56, 210, 239, 0.50);
+}
+html:not(.dark) .atk-response-chip:hover {
+  background: rgba(24, 168, 218, 0.07);
+  border-color: rgba(24, 168, 218, 0.28);
+  color: #0c5996;
+}
+
 /* "via Hermes" pill — renders under bash_tool / execute_code tool-call
  * results in the main chat to show the user the code ran on Hermes (gVisor),
  * not the LibreChat paid Code API. Same cyan brand as the Agent Panel pill,
