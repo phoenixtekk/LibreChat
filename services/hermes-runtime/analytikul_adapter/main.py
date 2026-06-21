@@ -191,3 +191,13 @@ def cancel(task_id: str):
     if not pool.cancel(task_id):
         raise HTTPException(status_code=404, detail="no running task with that id")
     return {"cancelled": True, "task_id": task_id}
+
+
+@app.post("/v1/code/run", dependencies=PROTECTED)
+def code_run(body: dict):
+    """One-shot code execution. Body shape mirrors
+    packages/api/src/tools/codeExec/hermesProvider.ts. See code_exec.py for
+    isolation model, resource caps, and language support."""
+    from analytikul_adapter.code_exec import run_code
+
+    return run_code(body)

@@ -19,7 +19,7 @@ import type {
  *  stays the same. */
 
 const DEFAULT_BASE_URL =
-  process.env.HERMES_RUNTIME_URL ?? 'http://analytikul-hermes-adapter:8080';
+  process.env.HERMES_RUNTIME_URL ?? 'http://analytikul-hermes-adapter:8001';
 const DEFAULT_TIMEOUT_MS = 30_000;
 const DEFAULT_MEMORY_MB = 512;
 const MAX_TIMEOUT_MS = 120_000;
