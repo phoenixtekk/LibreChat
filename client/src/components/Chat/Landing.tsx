@@ -13,6 +13,7 @@ import {
 import { useChatContext, useAgentsMapContext, useAssistantsMapContext } from '~/Providers';
 import { useGetEndpointsQuery, useGetStartupConfig } from '~/data-provider';
 import ConvoIcon from '~/components/Endpoints/ConvoIcon';
+import ConversationStarters from '~/components/analytikul/ConversationStarters';
 import { useLocalize, useAuthContext } from '~/hooks';
 
 const containerClassName =
@@ -235,6 +236,7 @@ export default function Landing({ centerFormOnLanding }: { centerFormOnLanding: 
             </div>
           ))}
       </div>
+      <ConversationStarters />
     </div>
   );
 }

@@ -621,6 +621,49 @@ html:not(.dark) .atk-cosmic-landing::after { animation-name: atkLogoBreathLight;
    floating overlay so the chat stays visible behind it.
    ========================================================================== */
 
+/* Conversation Starter chips — clickable cards on the /c/new empty state
+ * that fill the composer with a starter prompt. Solves blank-canvas paralysis
+ * for newcomers without taking over the page. */
+.atk-starter-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border-light, rgba(255, 255, 255, 0.08));
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 160ms ease, border-color 160ms ease, transform 120ms ease;
+  animation: atkStarterIn 320ms ease-out backwards;
+}
+.atk-starter-chip:hover {
+  background: rgba(56, 210, 239, 0.06);
+  border-color: rgba(56, 210, 239, 0.35);
+  transform: translateY(-1px);
+}
+.atk-starter-chip:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(56, 210, 239, 0.55);
+}
+html:not(.dark) .atk-starter-chip {
+  background: rgba(0, 0, 0, 0.02);
+}
+html:not(.dark) .atk-starter-chip:hover {
+  background: rgba(24, 168, 218, 0.05);
+  border-color: rgba(24, 168, 218, 0.30);
+}
+@keyframes atkStarterIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.atk-starter-chip:nth-child(2) { animation-delay: 60ms; }
+.atk-starter-chip:nth-child(3) { animation-delay: 120ms; }
+.atk-starter-chip:nth-child(4) { animation-delay: 180ms; }
+.atk-starter-chip:nth-child(5) { animation-delay: 240ms; }
+.atk-starter-chip:nth-child(6) { animation-delay: 300ms; }
+
 /* "Powered by Hermes runtime" pill — sits at the top of the Agent Panel so
  * the user knows which engine runs the task (vs. the main chat path). Small,
  * cyan-tinted, non-interactive. */
