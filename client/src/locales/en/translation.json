@@ -1803,6 +1803,8 @@
   "com_atk_response_angle": "Different angle",
   "com_atk_response_angle_prompt": "Take another swing — different angle, different structure. Be honest about what you'd change.",
   "com_atk_hint_discover_shortcut": "Tip — press Ctrl+K to explore every feature, find any setting, or jump to anywhere in the workspace.",
+  "com_atk_what_i_did_show": "What I did ({{0}} steps)",
+  "com_atk_what_i_did_hide": "Hide the steps",
   "com_atk_starter_summarize_title": "Summarize a document",
   "com_atk_starter_summarize_prompt": "Summarize this document for me. Give me the key takeaways in 5 bullets, then the most surprising thing.",
   "com_atk_starter_email_title": "Draft an email",

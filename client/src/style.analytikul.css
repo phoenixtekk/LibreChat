@@ -693,6 +693,95 @@ html:not(.dark) .atk-hermes-pill {
  * a text selection. Does NOT steal focus (mousedown.preventDefault in JS), so
  * native selection + Ctrl+C keep working. User clicks the chip explicitly to
  * open the comment popover. */
+/* "What I just did" expander — collapsible plain-English summary of
+ * the multi-step tool calls in an assistant message. Sits below the
+ * message body. Default-collapsed; one tap reveals what each step did.
+ * Teaches newcomers how the agent thinks without lecturing anyone. */
+.atk-what-i-did {
+  margin: 6px 0 4px 4px;
+  max-width: 100%;
+}
+.atk-what-i-did-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid var(--border-light, rgba(255, 255, 255, 0.10));
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+.atk-what-i-did-toggle:hover {
+  background: rgba(56, 210, 239, 0.08);
+  border-color: rgba(56, 210, 239, 0.30);
+  color: var(--atk-brand-cyan-bright);
+}
+.atk-what-i-did-toggle:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(56, 210, 239, 0.50);
+}
+html:not(.dark) .atk-what-i-did-toggle:hover {
+  background: rgba(24, 168, 218, 0.06);
+  border-color: rgba(24, 168, 218, 0.28);
+  color: #0c5996;
+}
+.atk-what-i-did-list {
+  list-style: none;
+  margin: 8px 0 0 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(56, 210, 239, 0.04);
+  border: 1px solid rgba(56, 210, 239, 0.16);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  animation: atkWhatIDidIn 200ms ease-out;
+}
+.atk-what-i-did-step {
+  display: flex;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+.atk-what-i-did-step-num {
+  flex-shrink: 0;
+  font-weight: 600;
+  color: var(--atk-brand-cyan-bright);
+  min-width: 1.4em;
+}
+.atk-what-i-did-step-body { min-width: 0; flex: 1; }
+.atk-what-i-did-step-tool {
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-right: 6px;
+}
+.atk-what-i-did-step-args {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  padding: 1px 5px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 3px;
+  color: var(--text-primary);
+}
+html:not(.dark) .atk-what-i-did-step-args {
+  background: rgba(0, 0, 0, 0.05);
+}
+.atk-what-i-did-step-out { display: inline; margin-left: 6px; color: var(--text-tertiary); }
+.atk-what-i-did-step-err { color: #f5b969; }
+@keyframes atkWhatIDidIn {
+  from { opacity: 0; transform: translateY(-2px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+html:not(.dark) .atk-what-i-did-list {
+  background: rgba(24, 168, 218, 0.04);
+  border-color: rgba(24, 168, 218, 0.22);
+}
+
 /* Ghost hint — one-shot per user, dismissable. Subtle, non-blocking;
  * appears at the moment of relevance, then never again. */
 .atk-ghost-hint {
