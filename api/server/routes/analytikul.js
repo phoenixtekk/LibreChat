@@ -13,8 +13,15 @@ const {
   listVaultKeys,
   putVaultKey,
   deleteVaultKey,
+  validateUrl,
   AdapterError,
 } = require('@librechat/api');
+const {
+  listUserEndpoints,
+  createUserEndpoint,
+  updateUserEndpoint,
+  deleteUserEndpoint,
+} = require('~/models');
 const rateLimit = require('express-rate-limit');
 const requireJwtAuth = require('~/server/middleware/requireJwtAuth');
 const { AgentTrace, Note, Annotation } = require('~/db/models');
@@ -278,6 +285,164 @@ router.delete('/keys/:provider', async (req, res) => {
     tenantOf(req),
   );
   res.status(deleted ? 200 : 404).json({ deleted });
+});
+
+/* ---------------- User-defined custom endpoints (BYOK, Feature 2a) ----------------
+ * Each user registers their own OpenAI-compatible endpoints, visible ONLY in
+ * their picker. Every baseURL is run through the SSRF guard before storage so
+ * a user can't point the platform at an internal service. The API key is
+ * encrypted at rest by the data-schemas methods (encryptV2). */
+
+const NAME_RE = /^[\w .-]{1,48}$/;
+
+/** Map an SSRF rejection to a user-facing message without leaking internals. */
+const SSRF_MESSAGES = {
+  invalid_url: 'That does not look like a valid URL.',
+  scheme_blocked: 'Only http and https URLs are allowed.',
+  hostname_pattern_blocked: 'That host is not allowed.',
+  port_blocked: 'That port is not allowed.',
+  dns_failed: 'The host could not be resolved.',
+  ip_private: 'That URL resolves to a private address and is not allowed.',
+  ip_loopback: 'That URL resolves to a loopback address and is not allowed.',
+  ip_link_local: 'That URL resolves to a link-local address and is not allowed.',
+  ip_multicast: 'That URL resolves to a multicast address and is not allowed.',
+  ip_reserved: 'That URL resolves to a reserved address and is not allowed.',
+  timeout: 'Validating the host timed out. Try again.',
+};
+
+function validateModelsField(models) {
+  if (models == null) {
+    return { ok: true, value: [] };
+  }
+  if (!Array.isArray(models) || models.length > 64) {
+    return { ok: false, message: 'models must be an array of up to 64 strings' };
+  }
+  for (const m of models) {
+    if (typeof m !== 'string' || m.length === 0 || m.length > 128) {
+      return { ok: false, message: 'each model must be a non-empty string (<=128 chars)' };
+    }
+  }
+  return { ok: true, value: models };
+}
+
+router.get('/endpoints', async (req, res) => {
+  try {
+    const endpoints = await listUserEndpoints({ userId: req.user.id });
+    res.status(200).json({ endpoints });
+  } catch (error) {
+    logger.error('[analytikul] list user endpoints failed', error);
+    res.status(500).json({ message: 'could not load endpoints' });
+  }
+});
+
+router.post('/endpoints', async (req, res) => {
+  try {
+    const { name, baseURL, apiKey, models } = req.body ?? {};
+    if (typeof name !== 'string' || !NAME_RE.test(name)) {
+      return res
+        .status(400)
+        .json({ message: 'name must be 1-48 chars (letters, numbers, space, . _ -)' });
+    }
+    if (typeof baseURL !== 'string' || baseURL.length === 0) {
+      return res.status(400).json({ message: 'baseURL required' });
+    }
+    if (typeof apiKey !== 'string' || apiKey.length === 0) {
+      return res.status(400).json({ message: 'apiKey required' });
+    }
+    const modelsCheck = validateModelsField(models);
+    if (!modelsCheck.ok) {
+      return res.status(400).json({ message: modelsCheck.message });
+    }
+    const decision = await validateUrl(baseURL);
+    if (!decision.allowed) {
+      return res.status(400).json({
+        message: SSRF_MESSAGES[decision.reason] ?? 'That URL is not allowed.',
+        reason: decision.reason,
+      });
+    }
+    const endpoint = await createUserEndpoint({
+      userId: req.user.id,
+      name,
+      baseURL,
+      apiKey,
+      models: modelsCheck.value,
+    });
+    res.status(201).json({ endpoint });
+  } catch (error) {
+    if (error?.code === 11000) {
+      return res.status(409).json({ message: 'you already have an endpoint with that name' });
+    }
+    logger.error('[analytikul] create user endpoint failed', error);
+    res.status(500).json({ message: 'could not create endpoint' });
+  }
+});
+
+router.put('/endpoints/:id', async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(404).json({ message: 'endpoint not found' });
+    }
+    const { name, baseURL, apiKey, models } = req.body ?? {};
+    const updates = {};
+    if (name !== undefined) {
+      if (typeof name !== 'string' || !NAME_RE.test(name)) {
+        return res
+          .status(400)
+          .json({ message: 'name must be 1-48 chars (letters, numbers, space, . _ -)' });
+      }
+      updates.name = name;
+    }
+    if (baseURL !== undefined) {
+      if (typeof baseURL !== 'string' || baseURL.length === 0) {
+        return res.status(400).json({ message: 'baseURL must be a non-empty string' });
+      }
+      const decision = await validateUrl(baseURL);
+      if (!decision.allowed) {
+        return res.status(400).json({
+          message: SSRF_MESSAGES[decision.reason] ?? 'That URL is not allowed.',
+          reason: decision.reason,
+        });
+      }
+      updates.baseURL = baseURL;
+    }
+    if (apiKey !== undefined) {
+      if (typeof apiKey !== 'string' || apiKey.length === 0) {
+        return res.status(400).json({ message: 'apiKey must be a non-empty string' });
+      }
+      updates.apiKey = apiKey;
+    }
+    if (models !== undefined) {
+      const modelsCheck = validateModelsField(models);
+      if (!modelsCheck.ok) {
+        return res.status(400).json({ message: modelsCheck.message });
+      }
+      updates.models = modelsCheck.value;
+    }
+    const endpoint = await updateUserEndpoint({ userId: req.user.id, id: req.params.id, updates });
+    if (!endpoint) {
+      return res.status(404).json({ message: 'endpoint not found' });
+    }
+    res.status(200).json({ endpoint });
+  } catch (error) {
+    if (error?.code === 11000) {
+      return res.status(409).json({ message: 'you already have an endpoint with that name' });
+    }
+    logger.error('[analytikul] update user endpoint failed', error);
+    res.status(500).json({ message: 'could not update endpoint' });
+  }
+});
+
+router.delete('/endpoints/:id', async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(404).json({ message: 'endpoint not found' });
+    }
+    const deleted = await deleteUserEndpoint({ userId: req.user.id, id: req.params.id });
+    res.status(deleted ? 200 : 404).json({ deleted });
+  } catch (error) {
+    logger.error('[analytikul] delete user endpoint failed', error);
+    res.status(500).json({ message: 'could not delete endpoint' });
+  }
 });
 
 /* ---------------- Notes (Open WebUI-parity notes workspace) ---------------- */

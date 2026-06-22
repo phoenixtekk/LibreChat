@@ -71,6 +71,16 @@ feature. (Sections are added as features ship; see FEATURES.md for status.)
   checklist"* or *"write a note summarizing this conversation"* — it has `search_notes`,
   `view_note`, and `write_note` tools scoped safely to your own notes.
 
+## Bringing your own endpoints
+- Open the **Keys** panel in the Preview Rail and switch to the **My Endpoints** tab.
+- Add any OpenAI-compatible endpoint: a **name**, the **base URL** (e.g. `https://api.example.com/v1`),
+  your **API key**, and the **model ids** you want to use (comma-separated).
+- Your endpoints are **private to you** — they appear only in your own model picker, and the key is
+  encrypted at rest and never shown again after saving.
+- For your safety, the base URL is checked before it's saved: URLs that point at private or internal
+  addresses are rejected (you'll see why), so an endpoint can't be used to reach internal services.
+- Remove an endpoint anytime with the ✕ next to it.
+
 ## Coming soon (placeholders, filled in as each milestone ships)
 - **Agent tasks & the Preview Rail** (M2): watch your agent browse, run code, and produce files
   live in a side panel; inspect every step and its cost in the Trace view.

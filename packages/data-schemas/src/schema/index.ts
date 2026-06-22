@@ -37,3 +37,5 @@ export { default as noteSchema } from './note';
 export type { INote } from './note';
 export { default as annotationSchema } from './annotation';
 export type { IAnnotation } from './annotation';
+export { default as userEndpointSchema } from './userEndpoint';
+export type { IUserEndpoint } from './userEndpoint';

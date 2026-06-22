@@ -69,12 +69,66 @@ claim; budget fail-closed for platform-key runs; notes regex escape.
   **true BYOK for paid users currently applies to the agent path (vault)**. Native-chat per-user
   BYOK needs a LibreChat endpoint-override (deferred — `ANTHROPIC_API_KEY=user_provided` is
   all-or-nothing per endpoint and conflicts with a platform-paid free tier).
+- **2a BYOK user-defined custom endpoints — IN PROGRESS.** Lets each user register their own
+  OpenAI-compatible endpoints that appear ONLY in their picker. Foundation shipped: SSRF guard
+  (`packages/api/src/security/ssrf`). Data layer DONE + builds clean (2026-06-21):
+  `packages/data-schemas/src/schema/userEndpoint.ts` (userId/name/baseURL/`apiKey` encrypted via
+  encryptV2 + `select:false`/models/tenantId, unique `{userId,name}`), model + `createUserEndpointMethods`
+  (list/get/create/update/delete + `resolveUserEndpoints` which returns decrypted keys for runtime
+  only), registered in the schema/models/methods barrels and exposed through `createMethods`.
+  CRUD API DONE (2026-06-21): added to `api/server/routes/analytikul.js` under `/api/analytikul/endpoints`
+  (GET list / POST / PUT :id / DELETE :id), authed + rate-limited by the existing router middleware,
+  calling the data-schemas methods via `~/models`. Every create/update runs `baseURL` through
+  `validateUrl()` (now exported from `@librechat/api`) before storage; invalid-ObjectId ids → 404,
+  duplicate names → 409. SSRF Jest suite DONE: `packages/api/src/security/ssrf/validator.spec.ts`,
+  16 tests incl. DNS-rebinding (re-resolve flips public→link-local), split-horizon multi-record,
+  CGNAT/docker-bridge/metadata IP classes — all passing. `packages/api` + `data-schemas` rebuilt.
+  CONFIG MERGE DONE (2026-06-21): a single seam handles picker + routing because `getEndpointsConfig`,
+  `loadConfigModels`, and `getCustomEndpointConfig` all read `req.config.endpoints.custom`. New helper
+  `api/server/services/Config/userEndpoints.js` `applyUserEndpoints(appConfig, req)` clones appConfig
+  (never mutates the cached global) and splices the user's `resolveUserEndpoints()` entries into
+  `endpoints.custom` ({name, apiKey, baseURL, models:{default,fetch:false}, modelDisplayLabel}),
+  skipping names that collide with global yaml endpoints. Wired into `configMiddleware`
+  (`middleware/config/app.js`); `configMiddleware` ALSO added to the `/api/endpoints` and `/api/models`
+  routes (they only had requireJwtAuth) so the picker's two data sources see the merged config. Unit
+  tested (`userEndpoints.spec.js`, 6 tests: clone-not-mutate, collision skip, graceful DB-failure).
+  Perf note: this adds one indexed `resolveUserEndpoints` query per request on configMiddleware routes
+  (chat/agents/endpoints/models) — fine for now; add a short per-user cache if it shows up hot.
+  UI DONE (2026-06-21): `KeysPanel.tsx` now has internal "Keys" / "My Endpoints" tabs; new
+  `client/src/components/analytikul/EndpointsPanel.tsx` does add/list/delete against
+  `/api/analytikul/endpoints` (mirrors the `KeysPanel`/`OrgMemoryPanel` fetch pattern), surfaces the
+  server's SSRF rejection message on a bad URL, and uses `com_atk_endpoints_*` locale keys (added to
+  `en/translation.json`). Typechecks clean.
+  2a is now CODE-COMPLETE (data layer + CRUD API + SSRF tests + config merge + UI), all unit tests
+  pass. REMAINING: (1) deploy to g3 — rebuild data-schemas + packages/api dist in the
+  `analytikul-app` container (or rebuild image), docker-cp the changed `api/server/**` JS + new client
+  dist, then `docker restart analytikul-app`; (2) browser-verify end-to-end (add an endpoint → it
+  appears in the picker → a chat routes to it); (3) optional: inline edit in the UI (currently
+  add/delete; edit = delete + re-add); per-user resolve cache if configMiddleware shows hot.
+  MINOR follow-up: `validator.ts` `resolveAllWithTimeout` leaks a 3s `setTimeout` (no `clearTimeout`
+  when the DNS promise wins the race) — harmless but trips Jest's open-handle warning; clear it.
 - **Dead code:** `useUnifiedSidebarLinks.ts` was already removed; `ConversationsSection` is still
   in use by `AnalytikulSidebar` (kept).
 
 ## Security / ops to confirm before scale
 - Test prod account `lacy@analytikul.ai` has a known weak password from chat — change it.
-- gVisor sandboxing NOT yet on production (agent code-exec isolation = container boundary only).
-  Fine for trusted users; harden before untrusted multi-tenant signups.
+- gVisor sandboxing: DONE — true per-task isolation is LIVE on linuxg3 (2026-06-21).
+  `analytikul_adapter/code_exec.py` now spawns a fresh ephemeral container per request via the
+  docker-socket-proxy when `TERMINAL_ENV=docker`: `--runtime=runsc` (from
+  `TERMINAL_DOCKER_EXTRA_ARGS`), `--network=none`, `--read-only` rootfs, `--cap-drop=ALL`,
+  `--security-opt no-new-privileges`, hard `--memory`/`--pids-limit`, non-root `--user 10001`,
+  and a `--mount volume-subpath` that exposes ONLY this task's workdir (a subdir of the shared
+  `analytikul_hermes-home` volume) — sibling tasks and the adapter home are not visible. Verified
+  end-to-end via `/exec`: code reports kernel `4.19.0-gvisor`, artifacts round-trip, network is
+  refused, infinite loops are killed at the timeout (exit 124). The in-adapter `_run_subprocess`
+  path remains only as the `TERMINAL_ENV=local` dev fallback. The fix is baked into the adapter
+  image (durable across recreate), not docker-cp'd.
+  Two infra prerequisites that bit us getting here (both fixed): (1) the adapter image must
+  install `docker-ce-cli` from Docker's apt repo, NOT Debian's `docker.io` (which ships no client
+  binary) — in `analytikul_adapter/Dockerfile`; (2) `tecnativa/docker-socket-proxy:0.3.0` must
+  NOT run with `read_only: true` — it writes `/usr/local/etc/haproxy/haproxy.cfg` at boot and
+  crash-loops otherwise (fixed in g3 compose and `scripts/activate-gvisor-sandbox.sh`).
+  FOLLOW-UP (minor): the `/exec` proxy still passes `files: []` (LibreChat file-ref handoff TODO),
+  so artifacts are returned in the response but input files from LibreChat aren't yet bridged.
 - SES likely in sandbox mode — only sends to verified addresses until production access granted.
 - Stripe/Telegram tokens not yet set in prod (features dormant, return 503/disabled).

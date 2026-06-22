@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useLocalize, useAuthContext } from '~/hooks';
+import EndpointsPanel from './EndpointsPanel';
 
 interface KeyRow {
   provider: string;
   key_hint: string;
   created_at: string;
 }
+
+type PanelTab = 'keys' | 'endpoints';
 
 const PROVIDERS = ['anthropic', 'openai', 'openrouter', 'google', 'groq', 'mistral'];
 
@@ -17,6 +20,7 @@ const PROVIDERS = ['anthropic', 'openai', 'openrouter', 'google', 'groq', 'mistr
 export default function KeysPanel() {
   const localize = useLocalize();
   const { token } = useAuthContext();
+  const [tab, setTab] = useState<PanelTab>('keys');
   const [keys, setKeys] = useState<KeyRow[] | null>(null);
   const [provider, setProvider] = useState(PROVIDERS[0]);
   const [draft, setDraft] = useState('');
@@ -63,10 +67,35 @@ export default function KeysPanel() {
     void load();
   };
 
+  const tabButton = (id: PanelTab, label: string) => (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={tab === id}
+      className={
+        'rounded-md px-3 py-1 text-sm ' +
+        (tab === id
+          ? 'bg-surface-active-alt text-text-primary'
+          : 'text-text-secondary hover:bg-surface-hover')
+      }
+      onClick={() => setTab(id)}
+    >
+      {label}
+    </button>
+  );
+
   return (
     <div className="flex h-full flex-col gap-2 text-sm">
-      <div className="text-xs text-text-tertiary">{localize('com_atk_keys_blurb')}</div>
-      <div className="flex gap-2">
+      <div role="tablist" className="flex gap-1">
+        {tabButton('keys', localize('com_atk_keys'))}
+        {tabButton('endpoints', localize('com_atk_endpoints'))}
+      </div>
+      {tab === 'endpoints' ? (
+        <EndpointsPanel />
+      ) : (
+        <div className="flex min-h-0 flex-1 flex-col gap-2">
+          <div className="text-xs text-text-tertiary">{localize('com_atk_keys_blurb')}</div>
+          <div className="flex gap-2">
         <select
           value={provider}
           className="rounded-md border border-border-medium bg-surface-primary p-2 text-sm text-text-primary"
@@ -136,7 +165,9 @@ export default function KeysPanel() {
             </button>
           </div>
         ))}
-      </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
