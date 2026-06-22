@@ -8,12 +8,24 @@
 FROM python:3.11-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git ripgrep curl ca-certificates \
-    # docker CLI: needed when TERMINAL_ENV=docker so the adapter can spawn
-    # per-task sandboxed containers (gVisor runtime, on prod) via a
-    # docker-socket proxy. Does NOT include the daemon — talks to the proxy
-    # over TCP (DOCKER_HOST=tcp://docker-socket-proxy:2375).
-    docker.io \
+    git ripgrep curl ca-certificates gnupg \
+    && rm -rf /var/lib/apt/lists/*
+
+# docker CLI (client only, no daemon): needed when TERMINAL_ENV=docker so the
+# adapter can spawn per-task sandboxed containers (gVisor runtime, on prod) by
+# talking to a docker-socket proxy over TCP
+# (DOCKER_HOST=tcp://docker-socket-proxy:2375). Debian's `docker.io` package
+# ships the daemon (docker-init) but not the `docker` client binary on this
+# base, so we install `docker-ce-cli` from Docker's official apt repo instead.
+RUN install -m 0755 -d /etc/apt/keyrings \
+    && curl -fsSL https://download.docker.com/linux/debian/gpg \
+        | gpg --dearmor -o /etc/apt/keyrings/docker.gpg \
+    && chmod a+r /etc/apt/keyrings/docker.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+https://download.docker.com/linux/debian $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
+        > /etc/apt/sources.list.d/docker.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends docker-ce-cli \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip install --no-cache-dir uv
