@@ -99,12 +99,16 @@ claim; budget fail-closed for platform-key runs; notes regex escape.
   `/api/analytikul/endpoints` (mirrors the `KeysPanel`/`OrgMemoryPanel` fetch pattern), surfaces the
   server's SSRF rejection message on a bad URL, and uses `com_atk_endpoints_*` locale keys (added to
   `en/translation.json`). Typechecks clean.
-  2a is now CODE-COMPLETE (data layer + CRUD API + SSRF tests + config merge + UI), all unit tests
-  pass. REMAINING: (1) deploy to g3 — rebuild data-schemas + packages/api dist in the
-  `analytikul-app` container (or rebuild image), docker-cp the changed `api/server/**` JS + new client
-  dist, then `docker restart analytikul-app`; (2) browser-verify end-to-end (add an endpoint → it
-  appears in the picker → a chat routes to it); (3) optional: inline edit in the UI (currently
-  add/delete; edit = delete + re-add); per-user resolve cache if configMiddleware shows hot.
+  2a is SHIPPED + verified on prod (2026-06-22). Deployed via docker-cp: data-schemas + packages/api
+  `dist/index.cjs`, the 5 `api/server/**` JS files, and client dist, then `docker restart analytikul-app`.
+  Authenticated E2E (minted JWT for the admin user) passed: SSRF gate rejects `http://redis:6379`
+  (400), create→list→delete work, the endpoint appears in BOTH `/api/endpoints` and `/api/models`
+  (picker merge live), the API key is NOT leaked to the client, and the picker routes still 200 (no
+  regression from the added configMiddleware). NOTE: the literal "send a chat through it" step needs a
+  REAL provider key (the user's, entered in the UI) — routing config is in place (getCustomEndpointConfig
+  reads the same merged req.config.endpoints.custom) but a live LLM call was not exercised with the
+  dummy key. REMAINING (optional): inline edit in the UI (currently add/delete; edit = delete + re-add);
+  a short per-user resolve cache if configMiddleware shows hot.
   MINOR follow-up: `validator.ts` `resolveAllWithTimeout` leaks a 3s `setTimeout` (no `clearTimeout`
   when the DNS promise wins the race) — harmless but trips Jest's open-handle warning; clear it.
 - **Dead code:** `useUnifiedSidebarLinks.ts` was already removed; `ConversationsSection` is still
