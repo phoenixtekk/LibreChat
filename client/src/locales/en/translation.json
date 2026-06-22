@@ -1925,7 +1925,7 @@
   "com_atk_endpoints_name": "Name (e.g. My LLM)",
   "com_atk_endpoints_url": "Base URL (e.g. https://api.example.com/v1)",
   "com_atk_endpoints_key_placeholder": "API key…",
-  "com_atk_endpoints_models_placeholder": "Models, comma-separated (e.g. gpt-4o, llama-3)",
+  "com_atk_endpoints_models_placeholder": "Models, comma-separated — leave blank to auto-detect",
   "com_atk_endpoints_add": "Add endpoint",
   "com_atk_endpoints_empty": "No custom endpoints yet. Add one above to use it in the model picker.",
   "com_atk_endpoints_delete": "Delete endpoint",

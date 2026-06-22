@@ -22,6 +22,7 @@ const {
   updateUserEndpoint,
   deleteUserEndpoint,
 } = require('~/models');
+const { fetchEndpointModels } = require('~/server/services/Config/fetchEndpointModels');
 const rateLimit = require('express-rate-limit');
 const requireJwtAuth = require('~/server/middleware/requireJwtAuth');
 const { AgentTrace, Note, Annotation } = require('~/db/models');
@@ -385,12 +386,24 @@ router.post('/endpoints', async (req, res) => {
         reason: decision.reason,
       });
     }
+    // When the user leaves models blank, auto-detect them from the endpoint's
+    // /models, pinned to the SSRF-validated IP (one-shot at creation — runtime
+    // stays fetch:false so we never re-resolve a user URL per request).
+    let resolvedModels = modelsCheck.value;
+    if (resolvedModels.length === 0) {
+      try {
+        resolvedModels = await fetchEndpointModels(baseURL, apiKey, decision.resolvedIp);
+      } catch (error) {
+        logger.warn(`[analytikul] model auto-fetch failed for ${name}: ${error.message}`);
+        resolvedModels = [];
+      }
+    }
     const endpoint = await createUserEndpoint({
       userId: req.user.id,
       name,
       baseURL,
       apiKey,
-      models: modelsCheck.value,
+      models: resolvedModels,
     });
     res.status(201).json({ endpoint });
   } catch (error) {
