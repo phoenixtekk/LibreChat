@@ -295,6 +295,28 @@ router.delete('/keys/:provider', async (req, res) => {
 
 const NAME_RE = /^[\w .-]{1,48}$/;
 
+/** Names that collide with a built-in provider would create a confusing
+ *  duplicate in the picker (two "OpenAI" entries — one BYOK-via-vault, one
+ *  custom), so we reserve them. Compared case-insensitively. */
+const RESERVED_ENDPOINT_NAMES = new Set([
+  'openai',
+  'azureopenai',
+  'google',
+  'anthropic',
+  'bedrock',
+  'assistants',
+  'azureassistants',
+  'agents',
+  'custom',
+  'gptplugins',
+  'chatgptbrowser',
+  'bingai',
+]);
+
+function reservedNameMessage(name) {
+  return `"${name}" is a reserved provider name. Pick a different name (e.g. "My ${name}").`;
+}
+
 /** Map an SSRF rejection to a user-facing message without leaking internals. */
 const SSRF_MESSAGES = {
   invalid_url: 'That does not look like a valid URL.',
@@ -343,6 +365,9 @@ router.post('/endpoints', async (req, res) => {
         .status(400)
         .json({ message: 'name must be 1-48 chars (letters, numbers, space, . _ -)' });
     }
+    if (RESERVED_ENDPOINT_NAMES.has(name.trim().toLowerCase())) {
+      return res.status(400).json({ message: reservedNameMessage(name) });
+    }
     if (typeof baseURL !== 'string' || baseURL.length === 0) {
       return res.status(400).json({ message: 'baseURL required' });
     }
@@ -389,6 +414,9 @@ router.put('/endpoints/:id', async (req, res) => {
         return res
           .status(400)
           .json({ message: 'name must be 1-48 chars (letters, numbers, space, . _ -)' });
+      }
+      if (RESERVED_ENDPOINT_NAMES.has(name.trim().toLowerCase())) {
+        return res.status(400).json({ message: reservedNameMessage(name) });
       }
       updates.name = name;
     }
