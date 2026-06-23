@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useRecoilValue } from 'recoil';
+import { useMediaQuery } from '@librechat/client';
 import { useEditor, EditorContent } from '@tiptap/react';
 import { BubbleMenu } from '@tiptap/react/menus';
 import StarterKit from '@tiptap/starter-kit';
@@ -8,6 +10,8 @@ import TaskItem from '@tiptap/extension-task-item';
 import Placeholder from '@tiptap/extension-placeholder';
 import type { Editor } from '@tiptap/core';
 import { useLocalize, useAuthContext } from '~/hooks';
+import OpenSidebar from '~/components/Chat/Menus/OpenSidebar';
+import store from '~/store';
 import { htmlToMarkdown, markdownToHtml } from './markdown';
 import { dayjs } from './time';
 
@@ -36,6 +40,13 @@ export default function NoteEditor() {
   const navigate = useNavigate();
   const { noteId } = useParams();
   const { token } = useAuthContext();
+  // When the sidebar is collapsed on desktop, this full-page note view has no
+  // chat header (where the reopen toggle normally lives), so surface one here —
+  // otherwise the user is stranded with no way back. Mobile already has the
+  // sidebar's own floating drawer toggle.
+  const sidebarExpanded = useRecoilValue(store.sidebarExpanded);
+  const isSmallScreen = useMediaQuery('(max-width: 768px)');
+  const showReopen = !sidebarExpanded && !isSmallScreen;
   const [note, setNote] = useState<Note | null>(null);
   const [aiBusy, setAiBusy] = useState<AiAction | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -190,6 +201,7 @@ export default function NoteEditor() {
   return (
     <div className="flex h-full w-full flex-col overflow-hidden bg-surface-primary text-text-primary">
       <div className="mb-1.5 flex items-center justify-between gap-2 px-3.5 pt-3">
+        {showReopen && <OpenSidebar className="shrink-0" />}
         <input
           value={note.title}
           placeholder={localize('com_atk_notes_title_ph')}

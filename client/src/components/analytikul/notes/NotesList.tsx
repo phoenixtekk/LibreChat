@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useRecoilValue } from 'recoil';
+import { useMediaQuery } from '@librechat/client';
 import { useLocalize, useAuthContext } from '~/hooks';
+import OpenSidebar from '~/components/Chat/Menus/OpenSidebar';
+import store from '~/store';
 import { dayjs, groupByTimeRange } from './time';
 
 export interface NoteSummary {
@@ -41,6 +45,11 @@ export default function NotesList() {
   const [grid, setGrid] = useState(() => localStorage.getItem('atk-notes-view') === 'grid');
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const [openDropdown, setOpenDropdown] = useState<DropdownKey | null>(null);
+  // Reopen affordance when the sidebar is collapsed on desktop (no chat header
+  // here to host the usual toggle). Mobile has the sidebar's own drawer toggle.
+  const sidebarExpanded = useRecoilValue(store.sidebarExpanded);
+  const isSmallScreen = useMediaQuery('(max-width: 768px)');
+  const showReopen = !sidebarExpanded && !isSmallScreen;
 
   const headers = useMemo(
     () => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }),
@@ -167,6 +176,7 @@ export default function NotesList() {
       <div className="mx-auto flex max-w-5xl flex-col pt-6">
         <div className="flex items-center justify-between px-0.5">
           <div className="flex shrink-0 items-center gap-2 text-xl font-medium">
+            {showReopen && <OpenSidebar className="shrink-0" />}
             {localize('com_atk_notes_title')}
             <span className="text-lg font-medium text-text-tertiary">{sorted.length}</span>
           </div>
