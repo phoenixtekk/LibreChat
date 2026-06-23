@@ -1,6 +1,21 @@
 # Analytikul — Open Issues & Technical Debt
 
 ## Active blockers / in-flight
+- **(RESOLVED 2026-06-23) Durable app deploy.** Rebuilt the `analytikul-app` image from
+  `marketing/analytics-tracking` HEAD on linuxg3 (`docker compose build app`) so all code (sandbox,
+  2a BYOK + polish, the merged security hardening) is now BAKED — no longer docker-cp hotfixes.
+  Recreated, restored `librechat.yaml` + `vllm_default` bridge, verified end-to-end (public 200, all
+  5 modelSpecs, 2a CRUD/guard/SSRF/auto-detect, gVisor /exec). Rollback image kept as
+  `analytikul-app:rollback-pre-rebuild`. A `--force-recreate` now only needs yaml + vLLM-bridge
+  re-applied (see [[deploy-fragility-warning]]).
+- **Security hardening — LIVE (audit memory was stale).** CORS allowlist, security headers
+  (HSTS/XFO/CSP/nosniff), per-route rate limiting, and internal-service `x-internal-token` are all
+  deployed; the token is enforced on billing/memory/analytics/gateway. REMAINING: (a) hermes-adapter
+  has no token — enabling it would 403 the `/exec` code path (which sends the stubbed
+  LIBRECHAT_CODE_API_KEY, not x-internal-token) unless `/exec` auth is reworked; floored by network
+  isolation for now. (b) `npm audit`: 1 critical (protobufjs) + others flagged at build — not yet
+  addressed.
+
 - **(RESOLVED 2026-06-13)** Open WebUI redesign — committed `8fb5d3456`, deployed (image
   `9a62c2c4ead7`), verified end-to-end in browser. Only the user's visual pixel sign-off vs
   `chat.analytikul.ai` remains (preview screenshot tool times out on this SPA).
