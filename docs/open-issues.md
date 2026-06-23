@@ -10,11 +10,16 @@
   re-applied (see [[deploy-fragility-warning]]).
 - **Security hardening — LIVE (audit memory was stale).** CORS allowlist, security headers
   (HSTS/XFO/CSP/nosniff), per-route rate limiting, and internal-service `x-internal-token` are all
-  deployed; the token is enforced on billing/memory/analytics/gateway. REMAINING: (a) hermes-adapter
-  has no token — enabling it would 403 the `/exec` code path (which sends the stubbed
-  LIBRECHAT_CODE_API_KEY, not x-internal-token) unless `/exec` auth is reworked; floored by network
-  isolation for now. (b) `npm audit`: 1 critical (protobufjs) + others flagged at build — not yet
-  addressed.
+  deployed; the token is enforced on ALL services. (RESOLVED 2026-06-23) hermes-adapter token is now ENABLED:
+  `require_internal_or_bearer` (accepts x-internal-token OR `Authorization: Bearer`) on `/exec` +
+  `/v1/code/run`, app sets `LIBRECHAT_CODE_API_KEY=INTERNAL_SERVICE_TOKEN`, token added to adapter
+  compose env; baked into both images. Verified: /exec no-auth→401, bearer→200, code-exec works.
+  REMAINING: `npm audit` protobufjs CRITICAL — NO safe fix (only 8.x patched; `onnx-proto@4.0.4` via
+  `@xenova/transformers@2.17.2` uses the protobufjs 6.x API, so forcing 8.x breaks embeddings). Real
+  fix = migrate memory-service to `@huggingface/transformers@4.2.0` (scoped refactor, verify
+  embedding parity). Exploitability low (all protobuf inputs trusted). Documented risk-acceptance.
+  NOTE: g3 `docker-compose.prod.yml` carries uncommitted infra (gVisor proxy, readonly-fix, adapter
+  token, hardening) — commit it for full reproducibility.
 
 - **(RESOLVED 2026-06-13)** Open WebUI redesign — committed `8fb5d3456`, deployed (image
   `9a62c2c4ead7`), verified end-to-end in browser. Only the user's visual pixel sign-off vs
