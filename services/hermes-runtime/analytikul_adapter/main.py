@@ -51,7 +51,31 @@ def require_internal(x_internal_token: Optional[str] = Header(default=None)) -> 
         raise HTTPException(status_code=401, detail="unauthorized")
 
 
+def require_internal_or_bearer(
+    x_internal_token: Optional[str] = Header(default=None),
+    authorization: Optional[str] = Header(default=None),
+) -> None:
+    """Like require_internal, but also accepts the token as `Authorization: Bearer`.
+
+    The main-chat code-exec path is LibreChat's bundled tool calling /exec via
+    LIBRECHAT_CODE_BASEURL; it sends the token as a bearer (LIBRECHAT_CODE_API_KEY),
+    not x-internal-token. Internal service callers still use x-internal-token.
+    Either carrying the shared token is accepted (constant-time compared)."""
+    if not INTERNAL_TOKEN:
+        return
+    candidates = []
+    if x_internal_token:
+        candidates.append(x_internal_token)
+    if authorization and authorization.lower().startswith("bearer "):
+        candidates.append(authorization[7:].strip())
+    for candidate in candidates:
+        if secrets.compare_digest(candidate, INTERNAL_TOKEN):
+            return
+    raise HTTPException(status_code=401, detail="unauthorized")
+
+
 PROTECTED = [Depends(require_internal)]
+CODE_PROTECTED = [Depends(require_internal_or_bearer)]
 
 app = FastAPI(title="analytikul-hermes-adapter", version="0.3.0")
 
@@ -193,7 +217,7 @@ def cancel(task_id: str):
     return {"cancelled": True, "task_id": task_id}
 
 
-@app.post("/v1/code/run", dependencies=PROTECTED)
+@app.post("/v1/code/run", dependencies=CODE_PROTECTED)
 def code_run(body: dict):
     """One-shot code execution. Body shape mirrors
     packages/api/src/tools/codeExec/hermesProvider.ts. See code_exec.py for
@@ -207,7 +231,7 @@ def code_run(body: dict):
 _LC_LANG_MAP = {"py": "python", "python": "python", "sh": "bash", "bash": "bash"}
 
 
-@app.post("/exec", dependencies=PROTECTED)
+@app.post("/exec", dependencies=CODE_PROTECTED)
 def code_exec_proxy(body: dict):
     """LibreChat-compatible code exec endpoint. Translates @librechat/agents'
     POST /exec request shape into the Hermes-internal shape understood by

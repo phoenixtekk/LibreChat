@@ -7,10 +7,12 @@ if (!process.env.LIBRECHAT_CODE_BASEURL) {
   process.env.LIBRECHAT_CODE_BASEURL = 'http://analytikul-hermes-adapter:8001';
 }
 if (!process.env.LIBRECHAT_CODE_API_KEY) {
-  // Some code paths require a non-empty key even though our /exec proxy
-  // ignores it (network isolation handles auth). Stub it so the auth-header
-  // resolver doesn't no-op the call.
-  process.env.LIBRECHAT_CODE_API_KEY = 'hermes-internal';
+  // The bundled code-exec tool sends this as `Authorization: Bearer` to the
+  // adapter's /exec. The adapter now authenticates that route with the shared
+  // INTERNAL_SERVICE_TOKEN (require_internal_or_bearer), so carry the real
+  // token when present; fall back to a stub for local/dev where it's unset.
+  process.env.LIBRECHAT_CODE_API_KEY =
+    process.env.INTERNAL_SERVICE_TOKEN || 'hermes-internal';
 }
 
 const telemetry = require('./telemetry');
