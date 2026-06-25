@@ -5,6 +5,37 @@
 # private docker network. No public ports, ever.
 
 services:
+  docker-socket-proxy:
+    container_name: analytikul-docker-proxy
+    image: tecnativa/docker-socket-proxy:0.3.0
+    restart: always
+    environment:
+      - CONTAINERS=1
+      - IMAGES=1
+      - NETWORKS=1
+      - POST=1
+      - DELETE=1
+      - EXEC=1
+      - VOLUMES=1
+      # Locked-off: prevent the adapter from creating new privileged daemons,
+      # touching docker config / build cache, or starting swarm.
+      - SWARM=0
+      - SERVICES=0
+      - BUILD=0
+      - CONFIGS=0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    tmpfs:
+      - /run
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+    security_opt:
+      - no-new-privileges:true
+
   app:
     container_name: analytikul-app
     build:
@@ -105,10 +136,15 @@ services:
       - AGENT_IDLE_TTL_S=600
       - AGENT_MAX_CONCURRENT=16
       - AGENT_MAX_PER_USER=2
+      - TERMINAL_ENV=docker
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN}
+      - DOCKER_HOST=tcp://docker-socket-proxy:2375
+      - TERMINAL_DOCKER_EXTRA_ARGS=["--runtime=runsc"]
     volumes:
       - hermes-home:/data/hermes
     depends_on:
       - redis
+      - docker-socket-proxy
 
   analytics-service:
     container_name: analytikul-analytics
