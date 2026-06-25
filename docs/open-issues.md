@@ -23,9 +23,11 @@
   (RESOLVED 2026-06-24) g3 `docker-compose.prod.yml` infra (gVisor socket-proxy, readonly-fix, adapter
   token, hardening env) is now COMMITTED to the repo (`72ee20939`, all `${VAR}` refs, no literal
   secrets).
-  REMAINING (new, low): `analytikul-memory` runs without `INTERNAL_SERVICE_TOKEN` (compose env omits
-  it) so its auth no-ops — network-isolated, but wire the token through for defense-in-depth (confirm
-  the app sends `x-internal-token` to memory first).
+  (RESOLVED 2026-06-25) `analytikul-memory` now enforces `INTERNAL_SERVICE_TOKEN` (`99f09d76b`): added
+  the env to its compose block. Both callers (app `internalHeaders()`, adapter `_internal_headers()`)
+  already send `x-internal-token`; gateway doesn't call memory. Verified: token hash identical across
+  app/adapter/memory, unauthenticated → 401, valid-token save/search → 201/200, wrong-token → 401, no
+  caller regression.
 
 - **(RESOLVED 2026-06-13)** Open WebUI redesign — committed `8fb5d3456`, deployed (image
   `9a62c2c4ead7`), verified end-to-end in browser. Only the user's visual pixel sign-off vs
