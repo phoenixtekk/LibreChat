@@ -172,6 +172,7 @@ services:
       - MEMORY_PORT=8012
       - MEMORY_PG_URI=postgresql://${POSTGRES_USER:-myuser}:${POSTGRES_PASSWORD}@vectordb:5432/${POSTGRES_DB:-mydatabase}
       - MODEL_CACHE_DIR=/models
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN}
     volumes:
       - ./services/memory-service:/app
       - embedder-models:/models
