@@ -14,12 +14,18 @@
   `require_internal_or_bearer` (accepts x-internal-token OR `Authorization: Bearer`) on `/exec` +
   `/v1/code/run`, app sets `LIBRECHAT_CODE_API_KEY=INTERNAL_SERVICE_TOKEN`, token added to adapter
   compose env; baked into both images. Verified: /exec no-auth→401, bearer→200, code-exec works.
-  REMAINING: `npm audit` protobufjs CRITICAL — NO safe fix (only 8.x patched; `onnx-proto@4.0.4` via
-  `@xenova/transformers@2.17.2` uses the protobufjs 6.x API, so forcing 8.x breaks embeddings). Real
-  fix = migrate memory-service to `@huggingface/transformers@4.2.0` (scoped refactor, verify
-  embedding parity). Exploitability low (all protobuf inputs trusted). Documented risk-acceptance.
-  NOTE: g3 `docker-compose.prod.yml` carries uncommitted infra (gVisor proxy, readonly-fix, adapter
-  token, hardening) — commit it for full reproducibility.
+  (RESOLVED 2026-06-24) protobufjs CRITICAL — migrated memory-service `@xenova/transformers@2.17.2`
+  → `@huggingface/transformers@4.2.0` (`4bf3bb842`). `onnx-proto`/protobufjs 6.x gone; protobufjs now
+  7.6.4 (patched), `npm audit` → 0 vulnerabilities. `dtype: 'q8'` pins the same int8 quantized
+  all-MiniLM-L6-v2, so embeddings are behavior-equivalent (prod had 0 stored rows anyway). Verified on
+  the prod base image + live save/search. (App-side protobufjs 7.5.8 via `@google/genai`/OTel-grpc is a
+  separate patched-7.x tree, not the CRITICAL.)
+  (RESOLVED 2026-06-24) g3 `docker-compose.prod.yml` infra (gVisor socket-proxy, readonly-fix, adapter
+  token, hardening env) is now COMMITTED to the repo (`72ee20939`, all `${VAR}` refs, no literal
+  secrets).
+  REMAINING (new, low): `analytikul-memory` runs without `INTERNAL_SERVICE_TOKEN` (compose env omits
+  it) so its auth no-ops — network-isolated, but wire the token through for defense-in-depth (confirm
+  the app sends `x-internal-token` to memory first).
 
 - **(RESOLVED 2026-06-13)** Open WebUI redesign — committed `8fb5d3456`, deployed (image
   `9a62c2c4ead7`), verified end-to-end in browser. Only the user's visual pixel sign-off vs
