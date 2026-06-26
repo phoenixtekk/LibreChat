@@ -170,7 +170,11 @@ services:
     command: sh -c "npm install --omit=dev --no-audit --no-fund && node src/index.js"
     environment:
       - MEMORY_PORT=8012
+      # Admin connection (myuser): DDL, role mgmt, cross-user jobs.
       - MEMORY_PG_URI=postgresql://${POSTGRES_USER:-myuser}:${POSTGRES_PASSWORD}@vectordb:5432/${POSTGRES_DB:-mydatabase}
+      # Runtime connection (least-privilege memory_rt, NOBYPASSRLS): all per-tenant queries — RLS enforced.
+      - MEMORY_PG_RT_URI=postgresql://memory_rt:${MEMORY_RT_PASSWORD}@vectordb:5432/${POSTGRES_DB:-mydatabase}
+      - MEMORY_RT_PASSWORD=${MEMORY_RT_PASSWORD}
       - MODEL_CACHE_DIR=/models
       - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN}
     volumes:

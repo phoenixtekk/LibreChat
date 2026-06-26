@@ -4,11 +4,30 @@
 import http from 'node:http';
 import crypto from 'node:crypto';
 import { warmup } from './embedder.js';
-import { migrate, saveMemory, searchMemories, listMemories, deleteMemory } from './store.js';
+import {
+  migrate,
+  saveMemory,
+  searchMemories,
+  listMemories,
+  deleteMemory,
+  upsertActiveEpisode,
+  listEpisodes,
+  listDailyLogs,
+  getDailyLog,
+  markDirty,
+} from './store.js';
 
 const PORT = process.env.MEMORY_PORT || 8012;
 const INTERNAL_TOKEN = process.env.INTERNAL_SERVICE_TOKEN || '';
 const log = (msg) => console.log(`[memory] ${msg}`);
+
+async function collect(req) {
+  const chunks = [];
+  for await (const chunk of req) {
+    chunks.push(chunk);
+  }
+  return chunks;
+}
 
 function authorized(req) {
   if (!INTERNAL_TOKEN) {
@@ -78,6 +97,50 @@ http
       if (deleteMatch && req.method === 'DELETE') {
         const deleted = await deleteMemory({ orgId, id: Number(deleteMatch[1]) });
         return send(deleted ? 200 : 404, { deleted });
+      }
+
+      const userId = url.searchParams.get('userId');
+
+      if (url.pathname === '/episodes' && req.method === 'POST') {
+        const body = JSON.parse(Buffer.concat(await collect(req)).toString() || '{}');
+        if (!body.userId || !body.conversationId || !body.summary) {
+          return send(400, { error: 'userId, conversationId, summary required' });
+        }
+        return send(201, { episode: await upsertActiveEpisode(body) });
+      }
+
+      if (url.pathname === '/episodes' && req.method === 'GET') {
+        if (!userId) {
+          return send(400, { error: 'userId required' });
+        }
+        const limit = Number(url.searchParams.get('limit') ?? 50);
+        return send(200, { episodes: await listEpisodes({ userId, limit }) });
+      }
+
+      if (url.pathname === '/observer/dirty' && req.method === 'POST') {
+        const body = JSON.parse(Buffer.concat(await collect(req)).toString() || '{}');
+        if (!body.userId || !body.conversationId) {
+          return send(400, { error: 'userId, conversationId required' });
+        }
+        await markDirty(body);
+        return send(202, { ok: true });
+      }
+
+      if (url.pathname === '/daily-logs' && req.method === 'GET') {
+        if (!userId) {
+          return send(400, { error: 'userId required' });
+        }
+        const limit = Number(url.searchParams.get('limit') ?? 90);
+        return send(200, { logs: await listDailyLogs({ userId, limit }) });
+      }
+
+      const dailyLogMatch = url.pathname.match(/^\/daily-logs\/(\d{4}-\d{2}-\d{2})$/);
+      if (dailyLogMatch && req.method === 'GET') {
+        if (!userId) {
+          return send(400, { error: 'userId required' });
+        }
+        const logDoc = await getDailyLog({ userId, date: dailyLogMatch[1] });
+        return send(logDoc ? 200 : 404, { log: logDoc });
       }
 
       return send(404, { error: 'not found' });
