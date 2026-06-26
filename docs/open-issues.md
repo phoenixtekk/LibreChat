@@ -1,6 +1,17 @@
 # Analytikul — Open Issues & Technical Debt
 
 ## Active blockers / in-flight
+- **(RESOLVED 2026-06-26) Memory: Phase 0 + org-RLS-bypass fix deployed (`21e426570`).** The 4-layer
+  memory engine + Daily Logs design is approved (ADR-010, `docs/memory-architecture.md`, Backend
+  Architect-reviewed). Phase 0 shipped: memory-service refactored to a two-role model (admin `myuser`
+  for DDL/cross-user; least-privilege `memory_rt` NOBYPASSRLS for all per-tenant queries), new `memory`
+  schema (episodes/daily_logs/facts/procedures/observer_queue/…), per-user `app.user_id` RLS, and
+  `/episodes` + `/daily-logs` + `/observer/dirty` endpoints. **This also closed a latent CRITICAL: the
+  org memory-service relied on RLS that the bootstrap superuser bypassed → org isolation was a no-op
+  (latent only because 0 rows). Now enforced (verified on prod: orgA search ≠ orgB).** Audited
+  analytics/billing/gateway — SAFE (explicit `WHERE org_id` filters). **NEXT = Phase 1 (Daily Logs):**
+  15-min observer + extraction + consolidation + UI panel, plus the deferred `vllm_default` compose
+  attachment for memory-service.
 - **(RESOLVED 2026-06-23) Durable app deploy.** Rebuilt the `analytikul-app` image from
   `marketing/analytics-tracking` HEAD on linuxg3 (`docker compose build app`) so all code (sandbox,
   2a BYOK + polish, the merged security hardening) is now BAKED — no longer docker-cp hotfixes.
