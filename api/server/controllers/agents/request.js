@@ -797,6 +797,27 @@ const _LegacyAgentController = async (req, res, next, initializeClient, addTitle
   // Create a function to handle final cleanup
   const performCleanup = async () => {
     logger.debug('[AgentController] Performing cleanup');
+
+    // Analytikul memory: mark this conversation dirty for the 15-min observer.
+    // Fire-and-forget + short timeout — must never block or fail chat cleanup.
+    try {
+      const memoryUrl = process.env.MEMORY_SERVICE_URL;
+      if (memoryUrl && userId && conversationId) {
+        const headers = { 'Content-Type': 'application/json' };
+        if (process.env.INTERNAL_SERVICE_TOKEN) {
+          headers['x-internal-token'] = process.env.INTERNAL_SERVICE_TOKEN;
+        }
+        fetch(`${memoryUrl}/observer/dirty`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ userId, conversationId }),
+          signal: AbortSignal.timeout(2000),
+        }).catch(() => {});
+      }
+    } catch {
+      /* never block cleanup */
+    }
+
     if (Array.isArray(cleanupHandlers)) {
       for (const handler of cleanupHandlers) {
         try {

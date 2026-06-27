@@ -24,6 +24,8 @@ import Bookmarks from './Bookmarks';
 import McpServers from './McpServers';
 import NotesList from '~/components/analytikul/notes/NotesList';
 import NoteEditor from '~/components/analytikul/notes/NoteEditor';
+import DailyLogsList from '~/components/analytikul/daily-logs/DailyLogsList';
+import DailyLogsViewer from '~/components/analytikul/daily-logs/DailyLogsViewer';
 import ModelsWorkspace from '~/components/analytikul/models/ModelsWorkspace';
 import Root from './Root';
 
@@ -158,6 +160,14 @@ export const router = createBrowserRouter(
             {
               path: 'notes/:noteId',
               element: <NoteEditor />,
+            },
+            {
+              path: 'daily-logs',
+              element: <DailyLogsList />,
+            },
+            {
+              path: 'daily-logs/:date',
+              element: <DailyLogsViewer />,
             },
             {
               path: 'workspace/models',

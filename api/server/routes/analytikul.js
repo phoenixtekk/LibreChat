@@ -819,6 +819,43 @@ router.delete('/memory/:id', async (req, res) => {
   }
 });
 
+// Daily Logs (per-user, read-only) — proxied from the memory engine, scoped to req.user.id.
+router.get('/daily-logs', async (req, res) => {
+  try {
+    const url = new URL(`${MEMORY_URL}/daily-logs`);
+    url.searchParams.set('userId', req.user.id);
+    if (req.query.limit) {
+      url.searchParams.set('limit', String(req.query.limit));
+    }
+    const upstream = await fetch(url, {
+      headers: internalHeaders(),
+      signal: AbortSignal.timeout(5000),
+    });
+    res.status(upstream.status).json(await upstream.json());
+  } catch (error) {
+    logger.error('[analytikul] daily-logs list failed', error);
+    res.status(502).json({ message: 'memory service unavailable' });
+  }
+});
+
+router.get('/daily-logs/:date', async (req, res) => {
+  try {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(req.params.date)) {
+      return res.status(400).json({ message: 'invalid date' });
+    }
+    const url = new URL(`${MEMORY_URL}/daily-logs/${req.params.date}`);
+    url.searchParams.set('userId', req.user.id);
+    const upstream = await fetch(url, {
+      headers: internalHeaders(),
+      signal: AbortSignal.timeout(5000),
+    });
+    res.status(upstream.status).json(await upstream.json());
+  } catch (error) {
+    logger.error('[analytikul] daily-log get failed', error);
+    res.status(502).json({ message: 'memory service unavailable' });
+  }
+});
+
 router.get('/agent/traces/:conversationId', async (req, res) => {
   try {
     const traces = await AgentTrace.find({
