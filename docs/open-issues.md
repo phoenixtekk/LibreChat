@@ -1,14 +1,15 @@
 # Analytikul — Open Issues & Technical Debt
 
 ## Active blockers / in-flight
-- **(IN PROGRESS 2026-06-26) Memory Phase 1 — Daily Logs ENGINE deployed (`d204f1df9`).** memory-service
-  now generates per-user daily logs: 15-min observer (dirty-queue worker, vLLM Qwen 2.5 extraction,
-  injection-contained), tz-aware idempotent consolidation, bounded backfill; joined `vllm_default` via
-  compose (survives recreate). Validated on throwaway infra + prod (real backfill seeded real episodes +
-  a daily log). **REMAINING (one analytikul-app image rebuild):** (a) activity hook in
-  `controllers/agents/request.js` → non-blocking `/observer/dirty` so the live observer captures ongoing
-  chats; (b) retrieval injection (adapter `memory.py` + `client.js useMemory`); (c) Daily Logs UI panel +
-  nav + `/api/analytikul/daily-logs` proxy. Then Phases 2–4. See `docs/memory-architecture.md`.
+- **(MOSTLY DONE 2026-06-27) Memory Phase 1 — Daily Logs DEPLOYED.** Engine (`d204f1df9`) +
+  app-side (`e06bf49d3`, app image `ddee6c42`) live: 15-min observer (dirty-queue, vLLM Qwen 2.5
+  extraction, injection-contained), tz-aware idempotent consolidation, bounded backfill; activity hook
+  (performCleanup → non-blocking `/observer/dirty`); `/api/analytikul/daily-logs` proxy; Daily Logs UI
+  (sidebar nav + `/daily-logs` list + `/daily-logs/:date` markdown viewer). Verified on prod (SPA 200,
+  proxy authed 200 with real backfilled log). **REMAINING:** (b) retrieval injection — adapter
+  `memory.py` build_memory_block (needs user_id plumbing) to inject the latest daily-log recap into new
+  chats (separate hermes-adapter rebuild); then Phases 2–4 (semantic/procedural/graph+decay). Refinement:
+  backfilled episodes are dated at backfill time; importance scoring still default 0.5 (Phase 4).
 - **(RESOLVED 2026-06-26) Memory: Phase 0 + org-RLS-bypass fix deployed (`21e426570`).** The 4-layer
   memory engine + Daily Logs design is approved (ADR-010, `docs/memory-architecture.md`, Backend
   Architect-reviewed). Phase 0 shipped: memory-service refactored to a two-role model (admin `myuser`
