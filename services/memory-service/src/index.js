@@ -16,6 +16,8 @@ import {
   getDailyLog,
   markDirty,
 } from './store.js';
+import { startObserver, runObserverOnce, backfillRecent } from './observer.js';
+import { startConsolidator, consolidateDay } from './consolidate.js';
 
 const PORT = process.env.MEMORY_PORT || 8012;
 const INTERNAL_TOKEN = process.env.INTERNAL_SERVICE_TOKEN || '';
@@ -46,6 +48,12 @@ if (!INTERNAL_TOKEN) {
   log('WARNING: INTERNAL_SERVICE_TOKEN unset — memory endpoints are unauthenticated. Set it in prod.');
 }
 warmup(log).catch((err) => log(`embedder warmup failed: ${err.message}`));
+
+if (process.env.MEMORY_OBSERVER_ENABLED !== 'false') {
+  startObserver(log);
+  startConsolidator(log);
+  log('observer + consolidator started');
+}
 
 http
   .createServer(async (req, res) => {
@@ -141,6 +149,24 @@ http
         }
         const logDoc = await getDailyLog({ userId, date: dailyLogMatch[1] });
         return send(logDoc ? 200 : 404, { log: logDoc });
+      }
+
+      // ── ops triggers (internal): run a cycle on demand ──
+      if (url.pathname === '/observe' && req.method === 'POST') {
+        await runObserverOnce(log);
+        return send(200, { ok: true });
+      }
+
+      if (url.pathname === '/consolidate' && req.method === 'POST') {
+        const body = JSON.parse(Buffer.concat(await collect(req)).toString() || '{}');
+        const written = await consolidateDay({ date: body.date }, log);
+        return send(200, { written });
+      }
+
+      if (url.pathname === '/backfill' && req.method === 'POST') {
+        const body = JSON.parse(Buffer.concat(await collect(req)).toString() || '{}');
+        const result = await backfillRecent({ days: body.days ?? 7, limit: body.limit ?? 25 }, log);
+        return send(200, result);
       }
 
       return send(404, { error: 'not found' });

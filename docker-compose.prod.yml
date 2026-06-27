@@ -177,11 +177,21 @@ services:
       - MEMORY_RT_PASSWORD=${MEMORY_RT_PASSWORD}
       - MODEL_CACHE_DIR=/models
       - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN}
+      # Phase 1 — observer reads conversation messages (Mongo, read-only) + extracts via local vLLM.
+      - MONGO_URI=mongodb://mongodb:27017/LibreChat
+      - VLLM_BASE_URL=http://vllm-vllm-tools-1:8000/v1
+      - VLLM_MODEL=Qwen/Qwen2.5-7B-Instruct-GPTQ-Int4
+      - VLLM_API_KEY=sk-vllm-local
+      - MEMORY_TZ=${MEMORY_TZ:-America/Chicago}
     volumes:
       - ./services/memory-service:/app
       - embedder-models:/models
     depends_on:
       - vectordb
+      - mongodb
+    networks:
+      - default
+      - vllm_default
 
   billing-service:
     container_name: analytikul-billing
@@ -231,3 +241,11 @@ volumes:
   redis-data:
   hermes-home:
   embedder-models:
+
+networks:
+  # Project default (analytikul_default). Services without an explicit `networks:` use it.
+  default:
+  # External vLLM network (shared with the vLLM tools stack) — memory-service joins it for the
+  # observer's extraction model. Declared here so it survives `--force-recreate`.
+  vllm_default:
+    external: true

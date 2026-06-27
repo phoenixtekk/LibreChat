@@ -266,3 +266,172 @@ export async function markDirty({ userId, conversationId }) {
     return true;
   });
 }
+
+/* ── Observer plumbing (admin pool; cross-user bookkeeping over the non-RLS queue) ───────────── */
+
+/** Atomically claim up to `limit` dirty, unclaimed (or stale-claimed) conversations. */
+export async function claimDirty(limit = 20) {
+  return withAdmin(async (client) => {
+    const { rows } = await client.query(
+      `WITH c AS (
+         SELECT user_id, conversation_id FROM memory.observer_queue
+         WHERE dirty_since IS NOT NULL
+           AND (claimed_at IS NULL OR claimed_at < now() - interval '10 minutes')
+         ORDER BY dirty_since
+         FOR UPDATE SKIP LOCKED
+         LIMIT $1
+       )
+       UPDATE memory.observer_queue q SET claimed_at = now()
+       FROM c WHERE q.user_id = c.user_id AND q.conversation_id = c.conversation_id
+       RETURNING q.user_id, q.conversation_id, q.cursor_message_id, q.claimed_at`,
+      [limit],
+    );
+    return rows;
+  });
+}
+
+/** Advance the cursor after a successful observe; keep dirty only if re-marked after we claimed. */
+export async function advanceCursor({ userId, conversationId, cursorMessageId, claimedAt }) {
+  return withAdmin(async (client) => {
+    await client.query(
+      `UPDATE memory.observer_queue
+       SET cursor_message_id = $3, claimed_at = NULL,
+           dirty_since = CASE WHEN dirty_since <= $4 THEN NULL ELSE dirty_since END
+       WHERE user_id = $1 AND conversation_id = $2`,
+      [userId, conversationId, cursorMessageId, claimedAt],
+    );
+  });
+}
+
+/** Release a claim without advancing (failed/invalid run) — leaves it dirty for retry. */
+export async function releaseClaim({ userId, conversationId }) {
+  return withAdmin(async (client) => {
+    await client.query(
+      `UPDATE memory.observer_queue SET claimed_at = NULL WHERE user_id = $1 AND conversation_id = $2`,
+      [userId, conversationId],
+    );
+  });
+}
+
+/** Caught up (no new messages): clear dirty + claim, advance cursor if provided. */
+export async function markCaughtUp({ userId, conversationId, cursorMessageId }) {
+  return withAdmin(async (client) => {
+    await client.query(
+      `UPDATE memory.observer_queue
+       SET dirty_since = NULL, claimed_at = NULL,
+           cursor_message_id = COALESCE($3, cursor_message_id)
+       WHERE user_id = $1 AND conversation_id = $2`,
+      [userId, conversationId, cursorMessageId ?? null],
+    );
+  });
+}
+
+/* ── Per-user episode reads/writes for the observer (runtime pool; RLS enforced) ─────────────── */
+
+export async function getActiveEpisodeState({ userId, conversationId }) {
+  return withUser(userId, async (client) => {
+    const { rows } = await client.query(
+      `SELECT id, goal, efforts, outcome, topics, summary
+       FROM memory.episodes WHERE conversation_id = $1 AND status = 'active'`,
+      [conversationId],
+    );
+    return rows[0] ?? null;
+  });
+}
+
+export async function episodeExistsForConversation({ userId, conversationId }) {
+  return withUser(userId, async (client) => {
+    const { rowCount } = await client.query(
+      `SELECT 1 FROM memory.episodes WHERE conversation_id = $1 LIMIT 1`,
+      [conversationId],
+    );
+    return rowCount > 0;
+  });
+}
+
+export async function recordRevision({ userId, episodeId, extracted, valid }) {
+  return withUser(userId, async (client) => {
+    await client.query(
+      `INSERT INTO memory.episode_revisions (episode_id, user_id, extracted, valid)
+       VALUES ($1, $2, $3::jsonb, $4)`,
+      [episodeId ?? null, userId, JSON.stringify(extracted ?? {}), valid],
+    );
+  });
+}
+
+/** Active episodes quiet long enough to finalize, and not currently dirty (admin scan). */
+export async function episodesToFinalize({ quietMinutes = 30, limit = 50 }) {
+  return withAdmin(async (client) => {
+    const { rows } = await client.query(
+      `SELECT e.id, e.user_id, e.goal, e.topics, e.summary
+       FROM memory.episodes e
+       WHERE e.status = 'active'
+         AND e.updated_at < now() - ($1 || ' minutes')::interval
+         AND NOT EXISTS (
+           SELECT 1 FROM memory.observer_queue q
+           WHERE q.user_id = e.user_id AND q.conversation_id = e.conversation_id
+             AND q.dirty_since IS NOT NULL
+         )
+       LIMIT $2`,
+      [String(quietMinutes), limit],
+    );
+    return rows;
+  });
+}
+
+/** Finalize an episode: embed a bounded goal-representation and flip status (runtime pool). */
+export async function finalizeEpisode({ userId, id, goalRep }) {
+  const vector = await embed(goalRep || 'session');
+  return withUser(userId, async (client) => {
+    const { rowCount } = await client.query(
+      `UPDATE memory.episodes
+       SET status = 'finalized', ended_at = updated_at, embedding = $2::vector
+       WHERE id = $1 AND status = 'active'`,
+      [id, JSON.stringify(vector)],
+    );
+    return rowCount > 0;
+  });
+}
+
+/* ── Daily consolidation (reflection) ───────────────────────────────────────────────────────── */
+
+/** Users with episode activity on a given local date (admin scan across users). */
+export async function usersWithActivityOn({ date, tz }) {
+  return withAdmin(async (client) => {
+    const { rows } = await client.query(
+      `SELECT DISTINCT user_id FROM memory.episodes
+       WHERE (COALESCE(ended_at, updated_at) AT TIME ZONE $2)::date = $1::date`,
+      [date, tz],
+    );
+    return rows.map((r) => r.user_id);
+  });
+}
+
+export async function episodesForDay({ userId, date, tz }) {
+  return withUser(userId, async (client) => {
+    const { rows } = await client.query(
+      `SELECT id, goal, efforts, outcome, topics, summary, status,
+              COALESCE(ended_at, updated_at) AS at
+       FROM memory.episodes
+       WHERE (COALESCE(ended_at, updated_at) AT TIME ZONE $2)::date = $1::date
+       ORDER BY at ASC`,
+      [date, tz],
+    );
+    return rows;
+  });
+}
+
+export async function upsertDailyLog({ userId, date, title, content, episodeIds, source }) {
+  return withUser(userId, async (client) => {
+    const { rows } = await client.query(
+      `INSERT INTO memory.daily_logs (user_id, log_date, title, content, episode_ids, source)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (user_id, log_date) DO UPDATE
+         SET title = EXCLUDED.title, content = EXCLUDED.content,
+             episode_ids = EXCLUDED.episode_ids, source = EXCLUDED.source
+       RETURNING id, log_date`,
+      [userId, date, title, content, episodeIds ?? [], source ?? 'reflection'],
+    );
+    return rows[0];
+  });
+}
