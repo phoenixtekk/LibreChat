@@ -363,7 +363,7 @@ export async function recordRevision({ userId, episodeId, extracted, valid }) {
 export async function episodesToFinalize({ quietMinutes = 30, limit = 50 }) {
   return withAdmin(async (client) => {
     const { rows } = await client.query(
-      `SELECT e.id, e.user_id, e.goal, e.topics, e.summary
+      `SELECT e.id, e.user_id, e.goal, e.outcome, e.topics, e.summary
        FROM memory.episodes e
        WHERE e.status = 'active'
          AND e.updated_at < now() - ($1 || ' minutes')::interval
@@ -418,6 +418,116 @@ export async function episodesForDay({ userId, date, tz }) {
       [date, tz],
     );
     return rows;
+  });
+}
+
+/* ── Semantic facts (Phase 2): dedup by (subject,predicate); confidence grows on repetition ───── */
+export async function upsertFact({ userId, subject, predicate, object, confidence, sourceEpisodeId }) {
+  const vector = await embed(`${subject} ${predicate} ${object}`);
+  return withUser(userId, async (client) => {
+    const existing = await client.query(
+      `SELECT id, confidence FROM memory.facts WHERE subject = $1 AND predicate = $2 LIMIT 1`,
+      [subject, predicate],
+    );
+    if (existing.rowCount > 0) {
+      const grown = Math.min(1, Math.max(existing.rows[0].confidence, confidence ?? 0.6) + 0.1);
+      await client.query(
+        `UPDATE memory.facts SET object = $2, confidence = $3, embedding = $4::vector, updated_at = now()
+         WHERE id = $1`,
+        [existing.rows[0].id, object, grown, JSON.stringify(vector)],
+      );
+      return { id: existing.rows[0].id, updated: true };
+    }
+    const { rows } = await client.query(
+      `INSERT INTO memory.facts (user_id, subject, predicate, object, confidence, source_episode_id, embedding)
+       VALUES ($1, $2, $3, $4, $5, $6, $7::vector) RETURNING id`,
+      [userId, subject, predicate, object, confidence ?? 0.6, sourceEpisodeId ?? null, JSON.stringify(vector)],
+    );
+    if (sourceEpisodeId) {
+      await client.query(
+        `INSERT INTO memory.relationships (user_id, source_id, target_id, relation)
+         VALUES ($1, $2, $3, 'derived_from')`,
+        [userId, rows[0].id, sourceEpisodeId],
+      );
+    }
+    return { id: rows[0].id, updated: false };
+  });
+}
+
+/* ── Procedural prefs (Phase 3): typed + allow-listed, one row per (user,dimension) ───────────── */
+export async function upsertProcedure({ userId, dimension, value, confidence }) {
+  return withUser(userId, async (client) => {
+    await client.query(
+      `INSERT INTO memory.procedures (user_id, dimension, value, confidence, last_used)
+       VALUES ($1, $2, $3, $4, now())
+       ON CONFLICT (user_id, dimension) DO UPDATE
+         SET value = EXCLUDED.value,
+             confidence = LEAST(1, GREATEST(memory.procedures.confidence, EXCLUDED.confidence) + 0.1),
+             last_used = now()`,
+      [userId, dimension, value, confidence ?? 0.6],
+    );
+  });
+}
+
+/* ── Retrieval for injection: latest daily-log recap + relevant episodes + facts + prefs ───────── */
+export async function retrieveContext({ userId, query, episodeLimit = 3, factLimit = 5 }) {
+  const vector = query ? await embed(query) : null;
+  return withUser(userId, async (client) => {
+    const latestLog =
+      (
+        await client.query(
+          `SELECT log_date, content FROM memory.daily_logs ORDER BY log_date DESC LIMIT 1`,
+        )
+      ).rows[0] ?? null;
+    const procedures = (
+      await client.query(
+        `SELECT dimension, value FROM memory.procedures ORDER BY priority DESC, confidence DESC`,
+      )
+    ).rows;
+    let episodes = [];
+    let facts = [];
+    if (vector) {
+      episodes = (
+        await client.query(
+          `SELECT goal, summary, importance, 1 - (embedding <=> $1::vector) AS similarity
+           FROM memory.episodes
+           WHERE status = 'finalized' AND embedding IS NOT NULL
+           ORDER BY embedding <=> $1::vector LIMIT $2`,
+          [JSON.stringify(vector), episodeLimit],
+        )
+      ).rows;
+      facts = (
+        await client.query(
+          `SELECT subject, predicate, object, confidence,
+                  1 - (embedding <=> $1::vector) AS similarity
+           FROM memory.facts ORDER BY embedding <=> $1::vector LIMIT $2`,
+          [JSON.stringify(vector), factLimit],
+        )
+      ).rows;
+    } else {
+      facts = (
+        await client.query(
+          `SELECT subject, predicate, object, confidence FROM memory.facts
+           ORDER BY confidence DESC, updated_at DESC LIMIT $1`,
+          [factLimit],
+        )
+      ).rows;
+    }
+    return { latestLog, procedures, episodes, facts };
+  });
+}
+
+/* ── Decay (Phase 4): admin cross-user scan; importance > 0.8 never decays ─────────────────────── */
+export async function decayEpisodes({ days = 90, factor = 0.9 }) {
+  return withAdmin(async (client) => {
+    const { rowCount } = await client.query(
+      `UPDATE memory.episodes
+       SET importance = GREATEST(0, importance * $2)
+       WHERE status = 'finalized' AND importance <= 0.8
+         AND COALESCE(last_accessed, ended_at, updated_at) < now() - ($1 || ' days')::interval`,
+      [String(days), factor],
+    );
+    return rowCount;
   });
 }
 

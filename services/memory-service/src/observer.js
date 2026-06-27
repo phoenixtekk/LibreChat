@@ -14,14 +14,48 @@ import {
   finalizeEpisode,
   episodeExistsForConversation,
 } from './store.js';
+import {
+  upsertFact,
+  upsertProcedure,
+} from './store.js';
 import { readNewMessages, toTranscript, recentConversations } from './mongo.js';
-import { extractEpisode } from './extract.js';
+import { extractEpisode, extractDistillation } from './extract.js';
 import { consolidateRecentDays } from './consolidate.js';
 
 let observing = false;
 
 function goalRepOf({ goal, topics, summary }) {
   return [goal, (topics || []).join(', ')].filter(Boolean).join('\n') || summary || 'session';
+}
+
+/** Heuristic importance 0..1 (real scoring replaces the prior flat 0.5; greetings score low). */
+function scoreImportance(messageCount, episode) {
+  let score = 0.35 + Math.min(0.3, messageCount * 0.04);
+  const goal = (episode.goal || '').toLowerCase();
+  const trivial = goal.length < 12 || /^(hi|hello|hey|yo|test|thanks|thank you|greeting)\b/.test(goal);
+  if (!trivial) {
+    score += 0.2;
+  }
+  score += Math.min(0.15, (episode.topics?.length || 0) * 0.05);
+  return Math.max(0, Math.min(1, Number(score.toFixed(3))));
+}
+
+/** Distill durable facts + allow-listed prefs from a finalized episode (best-effort). */
+async function distill(episode, log) {
+  try {
+    const { facts, preferences } = await extractDistillation({ episode });
+    for (const f of facts) {
+      await upsertFact({ userId: episode.user_id, ...f, sourceEpisodeId: episode.id });
+    }
+    for (const p of preferences) {
+      await upsertProcedure({ userId: episode.user_id, dimension: p.dimension, value: p.value });
+    }
+    if (facts.length || preferences.length) {
+      log?.(`distill: episode ${episode.id} -> ${facts.length} facts, ${preferences.length} prefs`);
+    }
+  } catch (err) {
+    log?.(`distill: episode ${episode.id} failed: ${err.message}`);
+  }
 }
 
 async function processClaim(claim, log) {
@@ -56,6 +90,7 @@ async function processClaim(claim, log) {
     topics: ep.topics,
     summary: ep.summary,
     sourceTrust: 'user',
+    importance: scoreImportance(messages.length, ep),
   });
   await recordRevision({ userId, episodeId: saved.id, extracted: ep, valid: true });
   await advanceCursor({ userId, conversationId, cursorMessageId: newCursor, claimedAt: claim.claimed_at });
@@ -69,6 +104,7 @@ async function finalizeQuiet(log) {
   for (const e of candidates) {
     try {
       await finalizeEpisode({ userId: e.user_id, id: e.id, goalRep: goalRepOf(e) });
+      await distill(e, log);
       finalized += 1;
     } catch (err) {
       log?.(`observer: finalize ${e.id} failed: ${err.message}`);
@@ -122,8 +158,15 @@ export async function backfillRecent({ days = 7, limit = 25 } = {}, log) {
         continue;
       }
       const ep = result.episode;
-      const saved = await upsertActiveEpisode({ userId, conversationId, ...ep, sourceTrust: 'user' });
+      const saved = await upsertActiveEpisode({
+        userId,
+        conversationId,
+        ...ep,
+        sourceTrust: 'user',
+        importance: scoreImportance(messages.length, ep),
+      });
       await finalizeEpisode({ userId, id: saved.id, goalRep: goalRepOf(ep) });
+      await distill({ id: saved.id, user_id: userId, ...ep }, log);
       seeded += 1;
     } catch (err) {
       log?.(`backfill: ${conversationId} failed: ${err.message}`);

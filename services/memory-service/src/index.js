@@ -15,6 +15,8 @@ import {
   listDailyLogs,
   getDailyLog,
   markDirty,
+  retrieveContext,
+  decayEpisodes,
 } from './store.js';
 import { startObserver, runObserverOnce, backfillRecent } from './observer.js';
 import { startConsolidator, consolidateDay } from './consolidate.js';
@@ -52,7 +54,14 @@ warmup(log).catch((err) => log(`embedder warmup failed: ${err.message}`));
 if (process.env.MEMORY_OBSERVER_ENABLED !== 'false') {
   startObserver(log);
   startConsolidator(log);
-  log('observer + consolidator started');
+  const decayMs = Number(process.env.MEMORY_DECAY_INTERVAL_MS ?? 24 * 60 * 60 * 1000);
+  const decayDays = Number(process.env.MEMORY_DECAY_DAYS ?? 90);
+  setInterval(() => {
+    decayEpisodes({ days: decayDays })
+      .then((n) => n && log(`decay: lowered importance on ${n} episodes`))
+      .catch((e) => log(`decay error: ${e.message}`));
+  }, decayMs);
+  log('observer + consolidator + decay started');
 }
 
 http
@@ -140,6 +149,15 @@ http
         }
         const limit = Number(url.searchParams.get('limit') ?? 90);
         return send(200, { logs: await listDailyLogs({ userId, limit }) });
+      }
+
+      // Retrieval for chat injection: per-user recap + relevant episodes + facts + prefs.
+      if (url.pathname === '/retrieve' && req.method === 'GET') {
+        if (!userId) {
+          return send(400, { error: 'userId required' });
+        }
+        const query = url.searchParams.get('q') ?? '';
+        return send(200, await retrieveContext({ userId, query }));
       }
 
       const dailyLogMatch = url.pathname.match(/^\/daily-logs\/(\d{4}-\d{2}-\d{2})$/);
