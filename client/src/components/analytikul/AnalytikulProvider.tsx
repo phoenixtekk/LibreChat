@@ -1,5 +1,5 @@
 import { useEffect, useCallback } from 'react';
-import { useRecoilState, useSetRecoilState } from 'recoil';
+import { useRecoilState, useSetRecoilState, useRecoilValue } from 'recoil';
 import type { RailTab } from './PreviewRail';
 import { CatalogPanel } from './catalog';
 import PreviewRail from './PreviewRail';
@@ -17,6 +17,7 @@ import store from '~/store';
 export default function AnalytikulProvider() {
   const [rail, setRail] = useRecoilState(store.previewRail);
   const setCatalog = useSetRecoilState(store.catalogPanel);
+  const activeSpec = useRecoilValue(store.conversationSpecByIndex(0));
   const stream = useAgentStream();
 
   useEffect(() => {
@@ -30,6 +31,14 @@ export default function AnalytikulProvider() {
       setRail((prev) => ({ ...prev, open: true }));
     }
   }, [stream.state, setRail]);
+
+  // The "Hermes Agent" spec is the default experience — when it's the active
+  // model, surface the agent console (open the rail on its Agent tab).
+  useEffect(() => {
+    if (activeSpec === 'hermes-agent') {
+      setRail((prev) => ({ ...prev, open: true, tab: 'agent' }));
+    }
+  }, [activeSpec, setRail]);
 
   // Global Ctrl/Cmd+K opens the Discover catalog. Replaces the old
   // hand-rolled CommandPalette (the catalog supersedes its commands).
