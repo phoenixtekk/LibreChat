@@ -10,6 +10,13 @@
   `memory.py` build_memory_block (needs user_id plumbing) to inject the latest daily-log recap into new
   chats (separate hermes-adapter rebuild); then Phases 2–4 (semantic/procedural/graph+decay). Refinement:
   backfilled episodes are dated at backfill time; importance scoring still default 0.5 (Phase 4).
+- **(DONE 2026-06-27) Memory Phases 2–4 engine + retrieval injection.** Engine (`49b6ae49f`): real
+  importance scoring, distillation → semantic facts (dedup + confidence growth) + allow-listed
+  procedural prefs, `GET /retrieve`, daily decay. Injection (`1c289e7ad`, hermes-adapter rebuild):
+  adapter injects per-user recap + facts + prefs as a DATA-not-instructions block. Verified on prod
+  (real facts/prefs/importance, /retrieve). REMAINING/MINOR: topic relationship-graph (only fact→episode
+  lineage so far); backfill episode dating; live agent-run injection E2E + browser click-through of the
+  UI (Chrome was disconnected).
 - **(RESOLVED 2026-06-26) Memory: Phase 0 + org-RLS-bypass fix deployed (`21e426570`).** The 4-layer
   memory engine + Daily Logs design is approved (ADR-010, `docs/memory-architecture.md`, Backend
   Architect-reviewed). Phase 0 shipped: memory-service refactored to a two-role model (admin `myuser`
