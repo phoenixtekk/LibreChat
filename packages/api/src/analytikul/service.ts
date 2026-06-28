@@ -333,34 +333,65 @@ const TIER_RANK: Record<string, number> = {
   enterprise: 4,
 };
 
-/** toolset → minimum plan tier required to use it. */
+/** toolset → minimum plan tier required. code_execution/file are Pro+ (sandboxed compute). */
 export const PLAN_GATED_TOOLSETS: Record<string, string> = {
+  code_execution: 'pro',
+  file: 'pro',
   messaging: 'team',
   homeassistant: 'team',
 };
 
-/** Toolsets to strip for a plan: the hard floor + any plan-gated tool the plan can't reach. */
-export function forbiddenToolsetsForPlan(plan: string | null | undefined): string[] {
+/** Toolsets the "Agent Power Tools" add-on unlocks (on a Pro+ base). */
+const ADDON_TOOLSETS = ['messaging', 'homeassistant'];
+
+/**
+ * Toolsets to strip = the hard floor + any plan-gated tool the plan can't reach,
+ * EXCEPT add-on tools when the org holds the Agent Power Tools add-on (Pro+ base).
+ */
+export function forbiddenToolsetsForPlan(
+  plan: string | null | undefined,
+  powerTools = false,
+): string[] {
   const rank = TIER_RANK[(plan ?? 'free').toLowerCase()] ?? 0;
+  const addonActive = powerTools && rank >= TIER_RANK.pro;
   const gated = Object.entries(PLAN_GATED_TOOLSETS)
-    .filter(([, minTier]) => rank < (TIER_RANK[minTier] ?? Number.MAX_SAFE_INTEGER))
+    .filter(([toolset, minTier]) => {
+      const reaches = rank >= (TIER_RANK[minTier] ?? Number.MAX_SAFE_INTEGER);
+      const viaAddon = addonActive && ADDON_TOOLSETS.includes(toolset);
+      return !reaches && !viaAddon;
+    })
     .map(([toolset]) => toolset);
   return [...HARD_FLOORED_TOOLSETS, ...gated];
 }
 
-/** Read an org's plan from the billing service; defaults to 'free' (least privilege) on any error. */
-export async function getOrgPlan(orgId = 'default'): Promise<string> {
+export interface OrgEntitlements {
+  plan: string;
+  powerTools: boolean;
+}
+
+/** Read an org's plan + add-ons from billing; defaults to free/no-addon (least privilege) on error. */
+export async function getOrgEntitlements(orgId = 'default'): Promise<OrgEntitlements> {
   try {
     const res = await fetch(`${BILLING_URL()}/org?orgId=${encodeURIComponent(orgId)}`, {
       headers: internalHeaders(),
       signal: AbortSignal.timeout(4000),
     });
     if (!res.ok) {
-      return 'free';
+      return { plan: 'free', powerTools: false };
     }
-    const body = (await res.json()) as { org?: { plan?: string } | null };
-    return body.org?.plan ?? 'free';
+    const body = (await res.json()) as {
+      org?: { plan?: string; addons?: { powerTools?: boolean } } | null;
+    };
+    return {
+      plan: body.org?.plan ?? 'free',
+      powerTools: Boolean(body.org?.addons?.powerTools),
+    };
   } catch {
-    return 'free';
+    return { plan: 'free', powerTools: false };
   }
+}
+
+/** Back-compat thin wrapper. */
+export async function getOrgPlan(orgId = 'default'): Promise<string> {
+  return (await getOrgEntitlements(orgId)).plan;
 }

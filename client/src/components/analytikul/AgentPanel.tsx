@@ -71,21 +71,25 @@ export default function AgentPanel({ stream }: { stream: AgentStreamApi }) {
   const [message, setMessage] = useState('');
   const [showOptions, setShowOptions] = useState(false);
   const [plan, setPlan] = useState('free');
+  const [powerTools, setPowerTools] = useState(false);
   const [enabled, setEnabled] = useState<Set<string>>(
     () => new Set(TOOLSETS.filter((t) => !DEFAULT_OFF.has(t))),
   );
   const [provider, setProvider] = useState('');
   const [model, setModel] = useState('');
 
-  // Resolve the caller's plan so Team+ unlocks the plan-gated action tools.
-  const teamPlus = (TIER_RANK[plan] ?? 0) >= TIER_RANK.team;
+  // Action tools (messaging/homeassistant) unlock at Team+, or via the Agent Power
+  // Tools add-on on a Pro+ base.
+  const rank = TIER_RANK[plan] ?? 0;
+  const unlocked = rank >= TIER_RANK.team || (powerTools && rank >= TIER_RANK.pro);
   useEffect(() => {
     let active = true;
     fetch('/api/analytikul/plan', { headers: { Authorization: `Bearer ${token}` } })
-      .then((r) => (r.ok ? r.json() : { plan: 'free' }))
-      .then((d: { plan?: string }) => {
-        if (active && d.plan) {
-          setPlan(d.plan);
+      .then((r) => (r.ok ? r.json() : { plan: 'free', powerTools: false }))
+      .then((d: { plan?: string; powerTools?: boolean }) => {
+        if (active) {
+          setPlan(d.plan ?? 'free');
+          setPowerTools(Boolean(d.powerTools));
         }
       })
       .catch(() => {});
@@ -96,19 +100,19 @@ export default function AgentPanel({ stream }: { stream: AgentStreamApi }) {
 
   // Toolsets the user can actually toggle (safe + sandboxed + plan-gated when entitled).
   const selectable = useMemo(
-    () => (teamPlus ? [...TOOLSETS, ...PLAN_GATED] : [...TOOLSETS]),
-    [teamPlus],
+    () => (unlocked ? [...TOOLSETS, ...PLAN_GATED] : [...TOOLSETS]),
+    [unlocked],
   );
-  // Once Team+ is known, enable the newly-available plan-gated tools by default.
+  // Once unlocked, enable the newly-available plan-gated tools by default.
   useEffect(() => {
-    if (teamPlus) {
+    if (unlocked) {
       setEnabled((prev) => {
         const next = new Set(prev);
         PLAN_GATED.forEach((t) => next.add(t));
         return next;
       });
     }
-  }, [teamPlus]);
+  }, [unlocked]);
 
   const { data: modelsMap = {} } = useGetModelsQuery();
   const providerModels = useMemo(() => {
@@ -292,7 +296,7 @@ export default function AgentPanel({ stream }: { stream: AgentStreamApi }) {
             </div>
 
             {/* Team-gated action tools (shown below Team as an upgrade prompt) */}
-            {!teamPlus && (
+            {!unlocked && (
               <div className="mt-3">
                 <span className="text-[11px] font-medium text-text-tertiary">
                   {localize('com_atk_agent_upgrade')}

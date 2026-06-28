@@ -82,12 +82,28 @@ export async function applyEvent(event, log) {
       log(`org ${event.orgId} -> plan ${event.plan}`);
       await grantPlanBalance(event.orgId, event.plan, log);
       break;
+    case 'addon_started':
+      await col.updateOne(
+        { orgId: event.orgId },
+        {
+          $set: { 'addons.powerTools': true, addonSubscriptionId: event.subscriptionId },
+          $setOnInsert: { name: event.orgId, plan: 'free', seats: 1, creditsUsd: 0 },
+        },
+        { upsert: true },
+      );
+      log(`org ${event.orgId} -> add-on powerTools ON`);
+      break;
     case 'subscription_ended':
+      // A cancel event carries only the subscriptionId; it may be the base plan OR the add-on.
       await col.updateOne(
         { billingSubscriptionId: event.subscriptionId },
         { $set: { plan: 'free' }, $unset: { billingSubscriptionId: '' } },
       );
-      log(`subscription ${event.subscriptionId} ended -> free`);
+      await col.updateOne(
+        { addonSubscriptionId: event.subscriptionId },
+        { $set: { 'addons.powerTools': false }, $unset: { addonSubscriptionId: '' } },
+      );
+      log(`subscription ${event.subscriptionId} ended (base->free and/or add-on off)`);
       break;
     case 'payment_failed':
       log(`payment failed for customer ${event.customerId} (alerting lands with admin panel)`);

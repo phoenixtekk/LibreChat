@@ -10,12 +10,14 @@ export function polarReady() {
   return Boolean(process.env.POLAR_ACCESS_TOKEN);
 }
 
-/** plan+interval -> Polar product id, from env. */
+/** plan+interval -> Polar product id, from env. ('powertools' is the Agent Power Tools add-on.) */
 const PRODUCTS = () => ({
   pro_month: process.env.POLAR_PRODUCT_PRO_MONTH,
   pro_year: process.env.POLAR_PRODUCT_PRO_YEAR,
   team_month: process.env.POLAR_PRODUCT_TEAM_MONTH,
   team_year: process.env.POLAR_PRODUCT_TEAM_YEAR,
+  powertools_month: process.env.POLAR_PRODUCT_POWERTOOLS_MONTH,
+  powertools_year: process.env.POLAR_PRODUCT_POWERTOOLS_YEAR,
 });
 
 async function polarFetch(path, options = {}) {
@@ -110,6 +112,17 @@ export function normalizeWebhook(rawBody, headers) {
   switch (event.type) {
     case 'subscription.created':
     case 'subscription.active':
+      // The Agent Power Tools add-on rides the same checkout flow with plan='powertools';
+      // it toggles an org add-on flag instead of changing the base plan.
+      if (plan === 'powertools') {
+        return {
+          type: 'addon_started',
+          eventId,
+          orgId,
+          addon: 'powerTools',
+          subscriptionId: data.id,
+        };
+      }
       return {
         type: 'subscription_started',
         eventId,

@@ -15,7 +15,7 @@ const {
   deleteVaultKey,
   validateUrl,
   AdapterError,
-  getOrgPlan,
+  getOrgEntitlements,
   forbiddenToolsetsForPlan,
 } = require('@librechat/api');
 const {
@@ -95,9 +95,9 @@ router.post('/agent/run', agentRunLimiter, async (req, res) => {
     //    sandbox/VM isolation ships (they run host commands / drive a desktop).
     //  - messaging + homeassistant are PLAN-GATED (Team+); stripped below that.
     // code_execution + file are allowed (gVisor-sandboxed since 2026-06-20).
-    // getOrgPlan fails closed to 'free' if billing is unreachable.
-    const plan = await getOrgPlan(tenantOf(req));
-    const FORBIDDEN_TOOLSETS = forbiddenToolsetsForPlan(plan);
+    // Entitlements fail closed to free/no-addon if billing is unreachable.
+    const ent = await getOrgEntitlements(tenantOf(req));
+    const FORBIDDEN_TOOLSETS = forbiddenToolsetsForPlan(ent.plan, ent.powerTools);
     const safeEnabled = Array.isArray(enabledToolsets)
       ? enabledToolsets.filter((t) => !FORBIDDEN_TOOLSETS.includes(t))
       : undefined;
@@ -857,10 +857,10 @@ router.get('/daily-logs/:date', async (req, res) => {
 // The caller's org plan — used by the Agent panel to reflect tool entitlements.
 router.get('/plan', async (req, res) => {
   try {
-    res.json({ plan: await getOrgPlan(tenantOf(req)) });
+    res.json(await getOrgEntitlements(tenantOf(req)));
   } catch (error) {
     logger.error('[analytikul] plan lookup failed', error);
-    res.json({ plan: 'free' });
+    res.json({ plan: 'free', powerTools: false });
   }
 });
 

@@ -27,13 +27,12 @@ devices). The action tools are the premium, governed tier — pricing them *is* 
 | Toolset class | Free ($0) | Pro ($20) | Team ($40) | Enterprise (Custom) |
 |---|---|---|---|---|
 | Safe (info) tools | ✅ | ✅ | ✅ | ✅ |
-| `code_execution`, `file` (sandboxed) | ✅* | ✅ | ✅ | ✅ |
-| `messaging`, `homeassistant` | 🔒 | 🔒 | ➕ | ➕ |
+| `code_execution`, `file` (sandboxed) | 🔒 | ✅ | ✅ | ✅ |
+| `messaging`, `homeassistant` | 🔒 | ➕ via add-on | ➕ | ➕ |
 | `terminal`, `computer_use` | ⛔ | ⛔ | ⛔ | ⛔ → ➕ once sandbox/VM ships (admin-approved, metered, audit-logged) |
 
-\* As SHIPPED, `code_execution`/`file` are available on every plan (gVisor-sandboxed). **Proposed
-option:** gate them at Pro+ to align compute cost with revenue (one-line policy change). Not done
-yet — flagged for your call.
+**Decided 2026-06-28:** `code_execution`/`file` are now **Pro+** (gated for Free). `messaging`/
+`homeassistant` are **Team+ OR the $99/org/mo "Agent Power Tools" add-on on a Pro+ base**.
 
 **What's enforced today (server):**
 - `terminal` + `computer_use` → **hard-floored for everyone**, regardless of plan, until per-task
@@ -53,10 +52,11 @@ Current plans: **Free $0 · Pro $20 · Team $40/user/mo · Enterprise Custom**. 
 `messaging`/`homeassistant` are a concrete reason to move Pro → Team (+$20/user/mo). Keeps the upgrade
 story simple and already enforced.
 
-### B. "Agent Power Tools" add-on (recommended next)
-A purchasable add-on that unlocks the action tools without forcing a full tier jump:
-- **+$15–25 / user / mo** (or a per-org flat, e.g. +$99/mo) → unlocks `messaging` + `homeassistant`
-  on Pro or Team.
+### B. "Agent Power Tools" add-on — **$99 / org / mo (DECIDED)**
+A purchasable org-level add-on that unlocks the action tools without forcing a full tier jump:
+- **$99 / org / mo** → unlocks `messaging` + `homeassistant` on a **Pro+** base.
+- Implemented: a Polar product (`POLAR_PRODUCT_POWERTOOLS_MONTH`) → `addon_started` webhook →
+  `org.addons.powerTools = true`; the agent route honors it via `getOrgEntitlements`.
 - Bundles the **governance** layer (admin approval + audit log) — itself an enterprise selling point.
 - When sandbox ships, the add-on (Enterprise only) also unlocks `terminal` + `computer_use`.
 
@@ -91,8 +91,17 @@ add `terminal`/`computer_use` to Enterprise only after sandbox/VM isolation + au
 - The Agent panel reflects entitlements: gated tools show as locked chips; `messaging`/`homeassistant`
   become selectable at Team+.
 
-## 5. Open decisions for the owner
-1. **Gate `code_execution`/`file` at Pro+?** (currently open to Free) — one-line policy change.
-2. **Add-on price** (B) and **usage markup** (C) numbers.
-3. **Lift the `terminal`/`computer_use` floor** — only after per-task sandbox/VM isolation + audit log;
-   then Enterprise + admin-approved + metered.
+## 5. Decisions (resolved 2026-06-28)
+1. ✅ `code_execution`/`file` gated at **Pro+**.
+2. ✅ "Agent Power Tools" add-on at **$99 / org / mo** (unlocks messaging + homeassistant on Pro+).
+   Usage-markup multiplier (C) still TBD — not yet wired.
+3. ✅ `terminal`/`computer_use` stay floored until per-task sandbox/VM + audit log; then Enterprise,
+   admin-approved.
+
+## 6. Owner's remaining step to activate the add-on (money side)
+Code is wired; to go live the **$99/mo Polar product** must exist:
+1. Create an "Agent Power Tools" recurring product ($99/mo) in the Polar dashboard.
+2. Set `POLAR_PRODUCT_POWERTOOLS_MONTH=<product_id>` in g3 `~/analytikul/.env`, restart `billing-service`.
+3. Wire the pricing-page "Add Power Tools" button to checkout with `plan=powertools` (checkout flow +
+   webhook → `addon_started` already handle the rest). Then a Pro+ org that buys it gets
+   `messaging`/`homeassistant` automatically.
