@@ -7,10 +7,19 @@
   everyone until sandbox/VM isolation; `messaging`/`homeassistant` Team+. UI (AgentPanel) reflects
   entitlements; `/api/analytikul/plan` proxy added. Verified on prod (free/pro strip all four, team/
   enterprise strip only the two host tools). Spec + pricing: `docs/agent-power-tools.md` (+ wiki
-  Analytikul/agent-power-tools). **OWNER DECISIONS PENDING (no money moved without sign-off):** (1) gate
-  `code_execution`/`file` at Pro+? (currently open to all); (2) "Agent Power Tools" add-on price +
-  usage-markup multiplier → then wire the Polar add-on product + markup; (3) lift `terminal`/
-  `computer_use` floor only after per-task sandbox/VM + audit log ship (Enterprise, admin-approved).
+  Analytikul/agent-power-tools).
+- **(DONE 2026-06-28) Pricing decisions shipped** (`99731d79f`, app image `69c04297e675`): `code_execution`/
+  `file` now **Pro+**; **$99/org/mo "Agent Power Tools" add-on** unlocks `messaging`/`homeassistant` on a
+  Pro+ base (Team+ also gets them by tier). Wired: `getOrgEntitlements`→`{plan,powerTools}`, billing
+  `powertools` product → `addon_started` webhook → `org.addons.powerTools`, pricing-page callout, plan-
+  aware AgentPanel. Verified live per tier. **OWNER's remaining step (money side):** create the $99/mo
+  product in Polar, set `POLAR_PRODUCT_POWERTOOLS_MONTH` on g3, restart billing, wire the pricing button
+  (checkout `plan=powertools`). Polar is currently unconfigured in prod (`polar: false`). Usage-markup
+  multiplier still TBD. terminal/computer_use stay floored until sandbox/VM + audit log.
+- **(FOLLOW-UP, flagged) billing-service internal-token gap** (`task_b4ce615f`): compose omits
+  `INTERNAL_SERVICE_TOKEN`, so billing's vault/`/org` endpoints are unauthenticated on the internal
+  network (same fix as memory-service `99f09d76b`). Network-isolated; defense-in-depth. Also audit
+  analytics/gateway.
 
 - **(MOSTLY DONE 2026-06-27) Memory Phase 1 — Daily Logs DEPLOYED.** Engine (`d204f1df9`) +
   app-side (`e06bf49d3`, app image `ddee6c42`) live: 15-min observer (dirty-queue, vLLM Qwen 2.5
