@@ -1,6 +1,17 @@
 # Analytikul — Open Issues & Technical Debt
 
 ## Active blockers / in-flight
+- **(DONE 2026-06-28) Agent Power Tools — per-plan toolset entitlements** (`eecf850a6`, app image
+  `994195eeef45`). Replaced the static global toolset floor with plan-aware gating: `getOrgPlan` +
+  `forbiddenToolsetsForPlan` (fail-closed to `free`). `terminal`/`computer_use` hard-floored for
+  everyone until sandbox/VM isolation; `messaging`/`homeassistant` Team+. UI (AgentPanel) reflects
+  entitlements; `/api/analytikul/plan` proxy added. Verified on prod (free/pro strip all four, team/
+  enterprise strip only the two host tools). Spec + pricing: `docs/agent-power-tools.md` (+ wiki
+  Analytikul/agent-power-tools). **OWNER DECISIONS PENDING (no money moved without sign-off):** (1) gate
+  `code_execution`/`file` at Pro+? (currently open to all); (2) "Agent Power Tools" add-on price +
+  usage-markup multiplier → then wire the Polar add-on product + markup; (3) lift `terminal`/
+  `computer_use` floor only after per-task sandbox/VM + audit log ship (Enterprise, admin-approved).
+
 - **(MOSTLY DONE 2026-06-27) Memory Phase 1 — Daily Logs DEPLOYED.** Engine (`d204f1df9`) +
   app-side (`e06bf49d3`, app image `ddee6c42`) live: 15-min observer (dirty-queue, vLLM Qwen 2.5
   extraction, injection-contained), tz-aware idempotent consolidation, bounded backfill; activity hook
