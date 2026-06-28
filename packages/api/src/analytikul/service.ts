@@ -315,3 +315,52 @@ export async function deleteVaultKey(
   });
   return res.ok;
 }
+
+/* ── Agent Power Tools entitlement policy ──────────────────────────────────────
+ * Two layers gate the highest-risk agent toolsets:
+ *  - HARD_FLOORED: off for EVERYONE regardless of plan, until per-task sandbox/VM
+ *    isolation ships (these run host commands or drive a live desktop).
+ *  - PLAN_GATED: allowed only at/above a minimum plan tier (BYO-credential model).
+ * Replaces the old static global floor in the /agent/run route.
+ */
+export const HARD_FLOORED_TOOLSETS = ['terminal', 'computer_use'] as const;
+
+const TIER_RANK: Record<string, number> = {
+  free: 0,
+  pro: 1,
+  team: 2,
+  business: 3,
+  enterprise: 4,
+};
+
+/** toolset → minimum plan tier required to use it. */
+export const PLAN_GATED_TOOLSETS: Record<string, string> = {
+  messaging: 'team',
+  homeassistant: 'team',
+};
+
+/** Toolsets to strip for a plan: the hard floor + any plan-gated tool the plan can't reach. */
+export function forbiddenToolsetsForPlan(plan: string | null | undefined): string[] {
+  const rank = TIER_RANK[(plan ?? 'free').toLowerCase()] ?? 0;
+  const gated = Object.entries(PLAN_GATED_TOOLSETS)
+    .filter(([, minTier]) => rank < (TIER_RANK[minTier] ?? Number.MAX_SAFE_INTEGER))
+    .map(([toolset]) => toolset);
+  return [...HARD_FLOORED_TOOLSETS, ...gated];
+}
+
+/** Read an org's plan from the billing service; defaults to 'free' (least privilege) on any error. */
+export async function getOrgPlan(orgId = 'default'): Promise<string> {
+  try {
+    const res = await fetch(`${BILLING_URL()}/org?orgId=${encodeURIComponent(orgId)}`, {
+      headers: internalHeaders(),
+      signal: AbortSignal.timeout(4000),
+    });
+    if (!res.ok) {
+      return 'free';
+    }
+    const body = (await res.json()) as { org?: { plan?: string } | null };
+    return body.org?.plan ?? 'free';
+  } catch {
+    return 'free';
+  }
+}

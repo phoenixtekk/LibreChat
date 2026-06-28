@@ -1,8 +1,8 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { ChevronDown, Zap, Lock } from 'lucide-react';
 import { useGetModelsQuery } from 'librechat-data-provider/react-query';
-import { useLocalize } from '~/hooks';
+import { useLocalize, useAuthContext } from '~/hooks';
 import { cn } from '~/utils';
 import TraceViewer from './TraceViewer';
 import type { AgentStreamApi } from './useAgentStream';
@@ -45,11 +45,18 @@ const TOOLSETS = [
 ] as const;
 
 /**
- * Surfaced but disabled — these run host commands or pivot to internal services
- * and are floored server-side (FORBIDDEN_TOOLSETS) until sandbox approval, so
- * they're shown for transparency but can't be enabled from the UI.
+ * Plan-gated action tools — available at Team+ (BYO-credential). Below Team they
+ * show as an upgrade prompt; the server strips them regardless of the UI.
  */
-const GATED_TOOLSETS = ['terminal', 'computer_use', 'messaging', 'homeassistant'] as const;
+const PLAN_GATED = ['messaging', 'homeassistant'] as const;
+
+/**
+ * Hard-floored — run host commands / drive a live desktop. Off for everyone
+ * until per-task sandbox/VM isolation ships; shown for transparency only.
+ */
+const HARD_GATED = ['terminal', 'computer_use'] as const;
+
+const TIER_RANK: Record<string, number> = { free: 0, pro: 1, team: 2, business: 3, enterprise: 4 };
 
 /** Off by default. */
 const DEFAULT_OFF = new Set<string>([]);
@@ -60,13 +67,48 @@ const PROVIDERS = ['', 'openrouter', 'openai', 'anthropic', 'google', 'groq', 'm
 export default function AgentPanel({ stream }: { stream: AgentStreamApi }) {
   const localize = useLocalize();
   const { conversationId } = useParams();
+  const { token } = useAuthContext();
   const [message, setMessage] = useState('');
   const [showOptions, setShowOptions] = useState(false);
+  const [plan, setPlan] = useState('free');
   const [enabled, setEnabled] = useState<Set<string>>(
     () => new Set(TOOLSETS.filter((t) => !DEFAULT_OFF.has(t))),
   );
   const [provider, setProvider] = useState('');
   const [model, setModel] = useState('');
+
+  // Resolve the caller's plan so Team+ unlocks the plan-gated action tools.
+  const teamPlus = (TIER_RANK[plan] ?? 0) >= TIER_RANK.team;
+  useEffect(() => {
+    let active = true;
+    fetch('/api/analytikul/plan', { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => (r.ok ? r.json() : { plan: 'free' }))
+      .then((d: { plan?: string }) => {
+        if (active && d.plan) {
+          setPlan(d.plan);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [token]);
+
+  // Toolsets the user can actually toggle (safe + sandboxed + plan-gated when entitled).
+  const selectable = useMemo(
+    () => (teamPlus ? [...TOOLSETS, ...PLAN_GATED] : [...TOOLSETS]),
+    [teamPlus],
+  );
+  // Once Team+ is known, enable the newly-available plan-gated tools by default.
+  useEffect(() => {
+    if (teamPlus) {
+      setEnabled((prev) => {
+        const next = new Set(prev);
+        PLAN_GATED.forEach((t) => next.add(t));
+        return next;
+      });
+    }
+  }, [teamPlus]);
 
   const { data: modelsMap = {} } = useGetModelsQuery();
   const providerModels = useMemo(() => {
@@ -78,7 +120,10 @@ export default function AgentPanel({ stream }: { stream: AgentStreamApi }) {
 
   const busy = stream.state === 'starting' || stream.state === 'running';
 
-  const disabledToolsets = useMemo(() => TOOLSETS.filter((t) => !enabled.has(t)), [enabled]);
+  const disabledToolsets = useMemo(
+    () => selectable.filter((t) => !enabled.has(t)),
+    [selectable, enabled],
+  );
 
   const toggle = (name: string) =>
     setEnabled((prev) => {
@@ -147,7 +192,7 @@ export default function AgentPanel({ stream }: { stream: AgentStreamApi }) {
           onClick={() => setShowOptions((prev) => !prev)}
         >
           <span>
-            {localize('com_atk_agent_options')} · {enabled.size}/{TOOLSETS.length}
+            {localize('com_atk_agent_options')} · {enabled.size}/{selectable.length}
           </span>
           <ChevronDown
             size={14}
@@ -209,7 +254,7 @@ export default function AgentPanel({ stream }: { stream: AgentStreamApi }) {
                 <button
                   type="button"
                   className="text-text-secondary hover:text-text-primary"
-                  onClick={() => setEnabled(new Set(TOOLSETS))}
+                  onClick={() => setEnabled(new Set(selectable))}
                 >
                   {localize('com_atk_agent_all')}
                 </button>
@@ -225,7 +270,7 @@ export default function AgentPanel({ stream }: { stream: AgentStreamApi }) {
 
             {/* Toolset chips */}
             <div className="flex flex-wrap gap-1.5">
-              {TOOLSETS.map((name) => {
+              {selectable.map((name) => {
                 const on = enabled.has(name);
                 return (
                   <button
@@ -246,13 +291,37 @@ export default function AgentPanel({ stream }: { stream: AgentStreamApi }) {
               })}
             </div>
 
-            {/* Sandbox-gated tools (surfaced, not selectable) */}
+            {/* Team-gated action tools (shown below Team as an upgrade prompt) */}
+            {!teamPlus && (
+              <div className="mt-3">
+                <span className="text-[11px] font-medium text-text-tertiary">
+                  {localize('com_atk_agent_upgrade')}
+                </span>
+                <div className="mt-1 flex flex-wrap gap-1.5">
+                  {PLAN_GATED.map((name) => (
+                    <span
+                      key={name}
+                      title={localize('com_atk_agent_upgrade_hint')}
+                      className="inline-flex cursor-not-allowed items-center gap-1 rounded-full border border-dashed border-border-light px-2.5 py-1 text-[11px] text-text-tertiary opacity-70"
+                    >
+                      <Lock size={10} aria-hidden="true" />
+                      {name}
+                    </span>
+                  ))}
+                </div>
+                <p className="mt-1 text-[10px] leading-snug text-text-tertiary">
+                  {localize('com_atk_agent_upgrade_hint')}
+                </p>
+              </div>
+            )}
+
+            {/* Hard-floored host tools (surfaced for transparency, not selectable) */}
             <div className="mt-3">
               <span className="text-[11px] font-medium text-text-tertiary">
                 {localize('com_atk_agent_advanced')}
               </span>
               <div className="mt-1 flex flex-wrap gap-1.5">
-                {GATED_TOOLSETS.map((name) => (
+                {HARD_GATED.map((name) => (
                   <span
                     key={name}
                     title={localize('com_atk_agent_advanced_hint')}

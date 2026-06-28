@@ -15,6 +15,8 @@ const {
   deleteVaultKey,
   validateUrl,
   AdapterError,
+  getOrgPlan,
+  forbiddenToolsetsForPlan,
 } = require('@librechat/api');
 const {
   listUserEndpoints,
@@ -88,18 +90,14 @@ router.post('/agent/run', agentRunLimiter, async (req, res) => {
     if (!message || !conversationId) {
       return res.status(400).json({ message: 'message and conversationId are required' });
     }
-    // SECURITY: server-enforced toolset floor. With gVisor installed at the
-    // docker daemon (2026-06-20), code_execution and file are now unblocked —
-    // the runtime sandbox catches kernel-level escape attempts. The remaining
-    // entries stay floored because they can directly run host commands or
-    // pivot to internal services, neither of which gVisor mitigates on its
-    // own. Per-task ephemeral containers (Phase 2) will unblock 'terminal'.
-    const FORBIDDEN_TOOLSETS = [
-      'terminal',
-      'computer_use',
-      'messaging',
-      'homeassistant',
-    ];
+    // SECURITY + ENTITLEMENT: per-plan toolset floor (Agent Power Tools).
+    //  - terminal + computer_use stay HARD-floored for everyone until per-task
+    //    sandbox/VM isolation ships (they run host commands / drive a desktop).
+    //  - messaging + homeassistant are PLAN-GATED (Team+); stripped below that.
+    // code_execution + file are allowed (gVisor-sandboxed since 2026-06-20).
+    // getOrgPlan fails closed to 'free' if billing is unreachable.
+    const plan = await getOrgPlan(tenantOf(req));
+    const FORBIDDEN_TOOLSETS = forbiddenToolsetsForPlan(plan);
     const safeEnabled = Array.isArray(enabledToolsets)
       ? enabledToolsets.filter((t) => !FORBIDDEN_TOOLSETS.includes(t))
       : undefined;
@@ -853,6 +851,16 @@ router.get('/daily-logs/:date', async (req, res) => {
   } catch (error) {
     logger.error('[analytikul] daily-log get failed', error);
     res.status(502).json({ message: 'memory service unavailable' });
+  }
+});
+
+// The caller's org plan — used by the Agent panel to reflect tool entitlements.
+router.get('/plan', async (req, res) => {
+  try {
+    res.json({ plan: await getOrgPlan(tenantOf(req)) });
+  } catch (error) {
+    logger.error('[analytikul] plan lookup failed', error);
+    res.json({ plan: 'free' });
   }
 });
 

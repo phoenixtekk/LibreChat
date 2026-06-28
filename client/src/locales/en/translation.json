@@ -1877,6 +1877,8 @@
   "com_atk_agent_subtitle": "Autonomous multi-step tasks — tools, live trace, real-time cost.",
   "com_atk_agent_advanced": "Sandbox-gated tools",
   "com_atk_agent_advanced_hint": "Blocked server-side until sandbox approval — shown for transparency.",
+  "com_atk_agent_upgrade": "Team-plan tools",
+  "com_atk_agent_upgrade_hint": "Messaging and Home Assistant unlock on the Team plan (bring your own credentials).",
   "com_atk_agent_placeholder": "Describe a task for the agent… (web research, code, files)",
   "com_atk_agent_options": "Tools & model",
   "com_atk_agent_tools": "Toolsets",
