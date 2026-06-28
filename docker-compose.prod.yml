@@ -201,6 +201,7 @@ services:
     command: sh -c "npm install --omit=dev --no-audit --no-fund && node src/index.js"
     environment:
       - BILLING_PORT=8013
+      - BILLING_PROVIDER=stripe
       - BILLING_PG_URI=postgresql://${POSTGRES_USER:-myuser}:${POSTGRES_PASSWORD}@vectordb:5432/${POSTGRES_DB:-mydatabase}
       - MONGO_URI=mongodb://mongodb:27017/LibreChat
       - ANALYTIKUL_VAULT_KEY=${ANALYTIKUL_VAULT_KEY}
@@ -208,6 +209,7 @@ services:
       - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}
       - STRIPE_PRICE_PRO=${STRIPE_PRICE_PRO:-}
       - STRIPE_PRICE_TEAM=${STRIPE_PRICE_TEAM:-}
+      - STRIPE_PRICE_POWERTOOLS=${STRIPE_PRICE_POWERTOOLS:-}
     volumes:
       - ./services/billing-service:/app
     depends_on:

@@ -20,6 +20,8 @@ function stripe() {
 const PLAN_PRICES = () => ({
   pro: process.env.STRIPE_PRICE_PRO,
   team: process.env.STRIPE_PRICE_TEAM,
+  // Agent Power Tools add-on (rides the same subscription checkout via plan='powertools').
+  powertools: process.env.STRIPE_PRICE_POWERTOOLS,
 });
 
 export async function createSubscriptionCheckout({ orgId, plan, successUrl, cancelUrl }) {
@@ -85,11 +87,22 @@ export function normalizeWebhook(rawBody, signature) {
           creditsUsd: object.amount_total / 100,
         };
       }
+      const plan = object.metadata?.plan ?? 'pro';
+      // The Agent Power Tools add-on toggles an org flag instead of changing the base plan.
+      if (plan === 'powertools') {
+        return {
+          type: 'addon_started',
+          eventId,
+          orgId,
+          addon: 'powerTools',
+          subscriptionId: object.subscription,
+        };
+      }
       return {
         type: 'subscription_started',
         eventId,
         orgId,
-        plan: object.metadata?.plan ?? 'pro',
+        plan,
         customerId: object.customer,
         subscriptionId: object.subscription,
       };

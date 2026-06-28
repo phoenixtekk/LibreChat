@@ -8,10 +8,22 @@ Hybrid BYOK SaaS (decided at planning, 2026-06-11):
   drawn down per metered LLM call (the M3 analytics pipeline is the meter).
 
 ## Processor
-**Polar** (Merchant of Record), active as of 2026-06-14 (`BILLING_PROVIDER=polar`). Polar is the
-legal seller of record and absorbs chargeback, fraud, and sales-tax/VAT liability (~4%+40¢ vs
-Stripe's ~2.9% — accepted as de-risking for a new AI SaaS). The Stripe module is retained behind
-the same interface as a fallback/redundancy (`BILLING_PROVIDER=stripe`).
+**Stripe** — switched on 2026-06-28 (`BILLING_PROVIDER=stripe`, owner-directed). Polar (Merchant of
+Record) is retained behind the same interface as the fallback (`BILLING_PROVIDER=polar`).
+
+> ⚠️ **Risk note (owner-acknowledged):** moving off the MoR means Analytikul is again the merchant of
+> record — it takes on chargeback/fraud liability, automated **account-freeze risk**, and **global
+> sales-tax/VAT** registration + remittance itself. This reverses the original MoR de-risking
+> rationale; recorded here per the payment-infrastructure standing rule. Keep chargebacks low (clear
+> descriptors, easy support contact, prompt refunds) and warn Stripe before launch volume spikes.
+
+**To activate (owner's step — keys/products are not in repo):** create in the Stripe dashboard the
+Pro, Team, and **Agent Power Tools ($99/mo)** recurring Prices; create a webhook to
+`https://analytikul.ai/api/analytikul/webhooks/stripe`; then set on g3 `~/analytikul/.env`:
+`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_PRO`, `STRIPE_PRICE_TEAM`,
+`STRIPE_PRICE_POWERTOOLS`, and recreate `billing-service`. Until then billing logs `stripe: false`
+and checkout is dormant (entitlement reads still work). The add-on rides the subscription checkout via
+`plan=powertools` → `addon_started` → `org.addons.powerTools` (parity with Polar).
 
 **Polar org**: Analytikul (`f87f8df7-edaf-4823-b279-152333560fdf`). **Products** (env on g3):
 Pro Monthly `8c07831f…` / Annual `bc07a009…`, Team Monthly `62e2c177…` / Annual `7f49e04f…`.
