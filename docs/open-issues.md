@@ -13,9 +13,12 @@
   Pro+ base (Team+ also gets them by tier). Wired: `getOrgEntitlements`→`{plan,powerTools}`, billing
   `powertools` product → `addon_started` webhook → `org.addons.powerTools`, pricing-page callout, plan-
   aware AgentPanel. Verified live per tier. **OWNER's remaining step (money side):** create the $99/mo
-  product in Polar, set `POLAR_PRODUCT_POWERTOOLS_MONTH` on g3, restart billing, wire the pricing button
-  (checkout `plan=powertools`). Polar is currently unconfigured in prod (`polar: false`). Usage-markup
-  multiplier still TBD. terminal/computer_use stay floored until sandbox/VM + audit log.
+  Price in **Stripe**, set `STRIPE_PRICE_POWERTOOLS` on g3, restart billing, wire the pricing button
+  (checkout `plan=powertools`). Stripe is currently unconfigured in prod (`stripe: false`, no keys set).
+  Usage-markup multiplier still TBD. terminal/computer_use stay floored until sandbox/VM + audit log.
+- **(2026-06-30) Billing = Stripe only; Polar removed** (`polar.js`, `/webhooks/polar`, `POLAR_*`/
+  `BILLING_PROVIDER` config deleted). Processor abstraction kept (single `stripe.js`); no fallback
+  processor configured now (redundancy tradeoff acknowledged). See `BILLING.md`.
 - **(FOLLOW-UP, flagged) billing-service internal-token gap** (`task_b4ce615f`): compose omits
   `INTERNAL_SERVICE_TOKEN`, so billing's vault/`/org` endpoints are unauthenticated on the internal
   network (same fix as memory-service `99f09d76b`). Network-isolated; defense-in-depth. Also audit

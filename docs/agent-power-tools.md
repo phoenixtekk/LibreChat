@@ -55,8 +55,9 @@ story simple and already enforced.
 ### B. "Agent Power Tools" add-on — **$99 / org / mo (DECIDED)**
 A purchasable org-level add-on that unlocks the action tools without forcing a full tier jump:
 - **$99 / org / mo** → unlocks `messaging` + `homeassistant` on a **Pro+** base.
-- Implemented: a Polar product (`POLAR_PRODUCT_POWERTOOLS_MONTH`) → `addon_started` webhook →
-  `org.addons.powerTools = true`; the agent route honors it via `getOrgEntitlements`.
+- Implemented: a Stripe Price (`STRIPE_PRICE_POWERTOOLS`, checkout `plan=powertools`) →
+  `addon_started` webhook → `org.addons.powerTools = true`; the agent route honors it via
+  `getOrgEntitlements`.
 - Bundles the **governance** layer (admin approval + audit log) — itself an enterprise selling point.
 - When sandbox ships, the add-on (Enterprise only) also unlocks `terminal` + `computer_use`.
 
@@ -99,9 +100,9 @@ add `terminal`/`computer_use` to Enterprise only after sandbox/VM isolation + au
    admin-approved.
 
 ## 6. Owner's remaining step to activate the add-on (money side)
-Code is wired; to go live the **$99/mo Polar product** must exist:
-1. Create an "Agent Power Tools" recurring product ($99/mo) in the Polar dashboard.
-2. Set `POLAR_PRODUCT_POWERTOOLS_MONTH=<product_id>` in g3 `~/analytikul/.env`, restart `billing-service`.
+Code is wired; to go live the **$99/mo Stripe Price** must exist:
+1. Create an "Agent Power Tools" recurring Price ($99/mo) in the Stripe dashboard.
+2. Set `STRIPE_PRICE_POWERTOOLS=<price_id>` in g3 `~/analytikul/.env`, restart `billing-service`.
 3. Wire the pricing-page "Add Power Tools" button to checkout with `plan=powertools` (checkout flow +
    webhook → `addon_started` already handle the rest). Then a Pro+ org that buys it gets
    `messaging`/`homeassistant` automatically.

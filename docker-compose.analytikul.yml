@@ -93,7 +93,6 @@ services:
     command: sh -c "npm install --omit=dev --no-audit --no-fund && node src/index.js"
     environment:
       - BILLING_PORT=8013
-      - BILLING_PROVIDER=${BILLING_PROVIDER:-polar}
       - BILLING_PG_URI=postgresql://myuser:mypassword@vectordb:5432/mydatabase
       - MONGO_URI=mongodb://mongodb:27017/LibreChat
       - ANALYTIKUL_VAULT_KEY=${ANALYTIKUL_VAULT_KEY:-}
@@ -102,12 +101,7 @@ services:
       - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}
       - STRIPE_PRICE_PRO=${STRIPE_PRICE_PRO:-}
       - STRIPE_PRICE_TEAM=${STRIPE_PRICE_TEAM:-}
-      - POLAR_ACCESS_TOKEN=${POLAR_ACCESS_TOKEN:-}
-      - POLAR_WEBHOOK_SECRET=${POLAR_WEBHOOK_SECRET:-}
-      - POLAR_PRODUCT_PRO_MONTH=${POLAR_PRODUCT_PRO_MONTH:-}
-      - POLAR_PRODUCT_PRO_YEAR=${POLAR_PRODUCT_PRO_YEAR:-}
-      - POLAR_PRODUCT_TEAM_MONTH=${POLAR_PRODUCT_TEAM_MONTH:-}
-      - POLAR_PRODUCT_TEAM_YEAR=${POLAR_PRODUCT_TEAM_YEAR:-}
+      - STRIPE_PRICE_POWERTOOLS=${STRIPE_PRICE_POWERTOOLS:-}
       - PLAN_CREDIT_GRANT_PRO=${PLAN_CREDIT_GRANT_PRO:-0}
       - PLAN_CREDIT_GRANT_TEAM=${PLAN_CREDIT_GRANT_TEAM:-0}
     volumes:

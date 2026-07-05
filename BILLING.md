@@ -8,36 +8,33 @@ Hybrid BYOK SaaS (decided at planning, 2026-06-11):
   drawn down per metered LLM call (the M3 analytics pipeline is the meter).
 
 ## Processor
-**Stripe** — switched on 2026-06-28 (`BILLING_PROVIDER=stripe`, owner-directed). Polar (Merchant of
-Record) is retained behind the same interface as the fallback (`BILLING_PROVIDER=polar`).
+**Stripe — the only processor** (owner-directed, 2026-06-28→30). Polar was fully removed: `polar.js`,
+the `/webhooks/polar` route + app forwarder, and all `POLAR_*` / `BILLING_PROVIDER` config are gone.
+The processor-abstraction is retained (single module `stripe.js`, processor-agnostic entitlements) so
+a backup processor could be re-added later by adding one module — but none is configured today.
 
-> ⚠️ **Risk note (owner-acknowledged):** moving off the MoR means Analytikul is again the merchant of
-> record — it takes on chargeback/fraud liability, automated **account-freeze risk**, and **global
-> sales-tax/VAT** registration + remittance itself. This reverses the original MoR de-risking
-> rationale; recorded here per the payment-infrastructure standing rule. Keep chargebacks low (clear
-> descriptors, easy support contact, prompt refunds) and warn Stripe before launch volume spikes.
+> ⚠️ **Risk note (owner-acknowledged):** on Stripe (a direct processor, not a Merchant of Record)
+> Analytikul is the merchant of record — it takes on chargeback/fraud liability, automated
+> **account-freeze risk**, and **global sales-tax/VAT** registration + remittance itself. Removing
+> Polar also removes the **fallback-processor redundancy** the payment rule recommends. Recorded per
+> the standing rule. Mitigate: clear statement descriptor, support contact at checkout, prompt refunds,
+> and warn Stripe before launch volume spikes.
 
 **To activate (owner's step — keys/products are not in repo):** create in the Stripe dashboard the
 Pro, Team, and **Agent Power Tools ($99/mo)** recurring Prices; create a webhook to
-`https://analytikul.ai/api/analytikul/webhooks/stripe`; then set on g3 `~/analytikul/.env`:
+`https://analytikul.ai/api/analytikul/webhooks/stripe` (events `checkout.session.completed`,
+`customer.subscription.deleted`, `invoice.payment_failed`); then set on g3 `~/analytikul/.env`:
 `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_PRO`, `STRIPE_PRICE_TEAM`,
 `STRIPE_PRICE_POWERTOOLS`, and recreate `billing-service`. Until then billing logs `stripe: false`
 and checkout is dormant (entitlement reads still work). The add-on rides the subscription checkout via
-`plan=powertools` → `addon_started` → `org.addons.powerTools` (parity with Polar).
-
-**Polar org**: Analytikul (`f87f8df7-edaf-4823-b279-152333560fdf`). **Products** (env on g3):
-Pro Monthly `8c07831f…` / Annual `bc07a009…`, Team Monthly `62e2c177…` / Annual `7f49e04f…`.
-**Webhook**: `https://analytikul.ai/api/analytikul/webhooks/polar` (endpoint `d5c73e23…`, secret in
-`POLAR_WEBHOOK_SECRET`). Checkout path verified live 2026-06-14 (returns a real polar.sh checkout
-URL). **Pending**: Lacy's KYC in Polar (identity, payout account, submit for review) before real
-payouts; pricing-page checkout-button wiring + a 100%-discount-code end-to-end purchase test.
+`plan=powertools` → `addon_started` → `org.addons.powerTools`.
 
 ## Lock-in containment
-- **Each processor lives in ONE module**: `services/billing-service/src/polar.js` (active) and
-  `stripe.js` (fallback). Nothing else imports a processor SDK or touches its payload shapes.
-  `BILLING_PROVIDER` selects which one handles checkout + webhooks.
+- **The processor lives in ONE module**: `services/billing-service/src/stripe.js`. Nothing else imports
+  the Stripe SDK or touches its payload shapes. To add a backup processor later, add one sibling module
+  emitting the same internal events — no app-layer changes.
 - Entitlements use **processor-agnostic** fields (`billingCustomerId`, `billingSubscriptionId`);
-  both modules emit the same internal events, so swapping processors touches one module only.
+  the module emits internal events, so swapping/adding a processor touches one module only.
 - Webhooks are normalized into internal events (`checkout_completed`, `subscription_updated`,
   `payment_failed`) before any app logic sees them — `services/billing-service/src/events.js`.
 - Entitlements (plan, seats, credits) are stored on our own `Organization` Mongo collection,

@@ -10,16 +10,9 @@ import {
   createSubscriptionCheckout,
   createCreditsCheckout,
 } from './stripe.js';
-import {
-  polarReady,
-  normalizeWebhook as polarNormalizeWebhook,
-  createSubscriptionCheckout as polarCreateSubscriptionCheckout,
-  createCreditsCheckout as polarCreateCreditsCheckout,
-} from './polar.js';
 import { applyEvent, getOrg } from './entitlements.js';
 
 const PORT = process.env.BILLING_PORT || 8013;
-const PROVIDER = process.env.BILLING_PROVIDER ?? 'polar';
 const INTERNAL_TOKEN = process.env.INTERNAL_SERVICE_TOKEN || '';
 const MAX_BODY = 256 * 1024;
 const log = (msg) => console.log(`[billing] ${msg}`);
@@ -37,12 +30,8 @@ function authorized(req) {
   return crypto.timingSafeEqual(Buffer.from(provided), Buffer.from(INTERNAL_TOKEN));
 }
 
-const subscriptionCheckout =
-  PROVIDER === 'polar' ? polarCreateSubscriptionCheckout : createSubscriptionCheckout;
-const creditsCheckout = PROVIDER === 'polar' ? polarCreateCreditsCheckout : createCreditsCheckout;
-
 await migrateVault();
-log(`vault schema ready; provider: ${PROVIDER}; stripe: ${stripeReady()}; polar: ${polarReady()}`);
+log(`vault schema ready; provider: stripe; stripe: ${stripeReady()}`);
 if (!INTERNAL_TOKEN) {
   log('WARNING: INTERNAL_SERVICE_TOKEN unset — internal endpoints are unauthenticated. Set it in prod.');
 }
@@ -116,12 +105,12 @@ http
 
       if (url.pathname === '/checkout/subscription' && req.method === 'POST') {
         const body = await readBody(req);
-        return send(200, await subscriptionCheckout(body));
+        return send(200, await createSubscriptionCheckout(body));
       }
 
       if (url.pathname === '/checkout/credits' && req.method === 'POST') {
         const body = await readBody(req);
-        return send(200, await creditsCheckout(body));
+        return send(200, await createCreditsCheckout(body));
       }
 
       if (url.pathname === '/webhooks/stripe' && req.method === 'POST') {
@@ -132,19 +121,6 @@ http
             await applyEvent(event, log);
           } else {
             log(`stripe event ${event.eventId} already processed — skipping (replay/retry)`);
-          }
-        }
-        return send(200, { received: true });
-      }
-
-      if (url.pathname === '/webhooks/polar' && req.method === 'POST') {
-        const raw = await readBody(req, true);
-        const event = polarNormalizeWebhook(raw, req.headers);
-        if (event != null) {
-          if (await claimEvent(event.eventId)) {
-            await applyEvent(event, log);
-          } else {
-            log(`polar event ${event.eventId} already processed — skipping (replay/retry)`);
           }
         }
         return send(200, { received: true });
