@@ -16,9 +16,16 @@
   Price in **Stripe**, set `STRIPE_PRICE_POWERTOOLS` on g3, restart billing, wire the pricing button
   (checkout `plan=powertools`). Stripe is currently unconfigured in prod (`stripe: false`, no keys set).
   Usage-markup multiplier still TBD. terminal/computer_use stay floored until sandbox/VM + audit log.
-- **(2026-06-30) Billing = Stripe only; Polar removed** (`polar.js`, `/webhooks/polar`, `POLAR_*`/
-  `BILLING_PROVIDER` config deleted). Processor abstraction kept (single `stripe.js`); no fallback
-  processor configured now (redundancy tradeoff acknowledged). See `BILLING.md`.
+- **(2026-06-30) Billing = Stripe only; Polar removed + self-serve checkout wired** (`9e62b4b8d`, app
+  image `7dff6e76f9ff`). Polar fully gone (`polar.js`, `/webhooks/polar` billing route + app forwarder,
+  `POLAR_*`/`BILLING_PROVIDER` deleted — app-side baked in this rebuild). Stripe checkout wired end to
+  end: `POST /api/analytikul/billing/checkout` (authed) → billing `/checkout/subscription`; marketing
+  pricing buttons → `/chat?upgrade=pro|team|powertools` → AnalytikulProvider makes the authed call +
+  redirects to Stripe (required because the JWT is header-only, so a static `<a>` can't auth). Verified
+  live: no-auth 401, bad-plan 400, authed 502 "not configured" (until keys). Processor abstraction kept
+  (single `stripe.js`); no fallback processor now (redundancy tradeoff acknowledged). **REMAINING (owner,
+  money side):** set Stripe keys + Price IDs (`STRIPE_SECRET_KEY`/`STRIPE_WEBHOOK_SECRET`/
+  `STRIPE_PRICE_PRO`/`TEAM`/`POWERTOOLS`) in g3 `.env`, recreate billing → checkout goes fully live.
 - **(FOLLOW-UP, flagged) billing-service internal-token gap** (`task_b4ce615f`): compose omits
   `INTERNAL_SERVICE_TOKEN`, so billing's vault/`/org` endpoints are unauthenticated on the internal
   network (same fix as memory-service `99f09d76b`). Network-isolated; defense-in-depth. Also audit
