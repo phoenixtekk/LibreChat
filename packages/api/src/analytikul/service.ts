@@ -395,3 +395,23 @@ export async function getOrgEntitlements(orgId = 'default'): Promise<OrgEntitlem
 export async function getOrgPlan(orgId = 'default'): Promise<string> {
   return (await getOrgEntitlements(orgId)).plan;
 }
+
+/** Create a Stripe Checkout session for a plan/add-on via the billing service. */
+export async function createCheckout(args: {
+  orgId: string;
+  plan: string;
+  successUrl: string;
+  cancelUrl: string;
+}): Promise<{ url: string }> {
+  const res = await fetch(`${BILLING_URL()}/checkout/subscription`, {
+    method: 'POST',
+    headers: internalHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(args),
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? `billing checkout failed (${res.status})`);
+  }
+  return (await res.json()) as { url: string };
+}

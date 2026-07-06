@@ -6,6 +6,7 @@ import PreviewRail from './PreviewRail';
 import useAgentStream from './useAgentStream';
 import useComposerHistory from './useComposerHistory';
 import { initTheme } from './theme';
+import { useAuthContext } from '~/hooks';
 import store from '~/store';
 
 /**
@@ -18,11 +19,40 @@ export default function AnalytikulProvider() {
   const [rail, setRail] = useRecoilState(store.previewRail);
   const setCatalog = useSetRecoilState(store.catalogPanel);
   const activeSpec = useRecoilValue(store.conversationSpecByIndex(0));
+  const { token } = useAuthContext();
   const stream = useAgentStream();
 
   useEffect(() => {
     initTheme();
   }, []);
+
+  // Self-serve upgrade: a marketing pricing button lands here as ?upgrade=<plan>.
+  // Start a Stripe Checkout (authed) and redirect the browser to it.
+  useEffect(() => {
+    if (!token) {
+      return;
+    }
+    const params = new URLSearchParams(window.location.search);
+    const plan = params.get('upgrade');
+    if (!plan) {
+      return;
+    }
+    params.delete('upgrade');
+    const qs = params.toString();
+    window.history.replaceState({}, '', window.location.pathname + (qs ? `?${qs}` : ''));
+    fetch('/api/analytikul/billing/checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ plan }),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { url?: string } | null) => {
+        if (d?.url) {
+          window.location.href = d.url;
+        }
+      })
+      .catch(() => {});
+  }, [token]);
 
   useComposerHistory();
 

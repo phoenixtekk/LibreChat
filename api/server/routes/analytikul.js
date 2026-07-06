@@ -17,6 +17,7 @@ const {
   AdapterError,
   getOrgEntitlements,
   forbiddenToolsetsForPlan,
+  createCheckout,
 } = require('@librechat/api');
 const {
   listUserEndpoints,
@@ -851,6 +852,29 @@ router.get('/daily-logs/:date', async (req, res) => {
   } catch (error) {
     logger.error('[analytikul] daily-log get failed', error);
     res.status(502).json({ message: 'memory service unavailable' });
+  }
+});
+
+// Start a Stripe Checkout for a plan/add-on. Authed (req.user); the client calls this with the
+// bearer token and redirects the browser to the returned Stripe URL.
+const CHECKOUT_PLANS = new Set(['pro', 'team', 'powertools']);
+router.post('/billing/checkout', async (req, res) => {
+  try {
+    const plan = req.body?.plan;
+    if (!CHECKOUT_PLANS.has(plan)) {
+      return res.status(400).json({ message: 'invalid plan' });
+    }
+    const base = process.env.DOMAIN_CLIENT || 'https://analytikul.ai';
+    const out = await createCheckout({
+      orgId: tenantOf(req),
+      plan,
+      successUrl: `${base}/chat?upgraded=1`,
+      cancelUrl: `${base}/pricing`,
+    });
+    res.json(out);
+  } catch (error) {
+    logger.error('[analytikul] checkout failed', error);
+    res.status(502).json({ message: 'billing unavailable' });
   }
 });
 
