@@ -400,6 +400,7 @@ export async function getOrgPlan(orgId = 'default'): Promise<string> {
 export async function createCheckout(args: {
   orgId: string;
   plan: string;
+  interval?: string;
   successUrl: string;
   cancelUrl: string;
 }): Promise<{ url: string }> {

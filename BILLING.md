@@ -25,7 +25,9 @@ Pro, Team, and **Agent Power Tools ($99/mo)** recurring Prices; create a webhook
 `https://analytikul.ai/api/analytikul/webhooks/stripe` (events `checkout.session.completed`,
 `customer.subscription.deleted`, `invoice.payment_failed`); then set on g3 `~/analytikul/.env`:
 `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_PRO`, `STRIPE_PRICE_TEAM`,
-`STRIPE_PRICE_POWERTOOLS`, and recreate `billing-service`. Until then billing logs `stripe: false`
+`STRIPE_PRICE_POWERTOOLS`, and (for the monthly/annual toggle) `STRIPE_PRICE_PRO_YEAR` +
+`STRIPE_PRICE_TEAM_YEAR`, then recreate `billing-service`. Checkout takes `plan` + `interval`
+(`month`|`year`); annual falls back to the monthly Price if the `_YEAR` var is unset. Until then billing logs `stripe: false`
 and checkout is dormant (entitlement reads still work). The add-on rides the subscription checkout via
 `plan=powertools` → `addon_started` → `org.addons.powerTools`.
 

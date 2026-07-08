@@ -1989,6 +1989,8 @@
   "com_atk_notes_none_hint": "Create your first note by clicking on the plus button above.",
   "com_atk_notes_undo": "Undo",
   "com_atk_notes_redo": "Redo",
+  "com_atk_notes_width_full": "Full width",
+  "com_atk_notes_width_default": "Default width",
   "com_atk_notes_chars": "characters",
   "com_atk_notes_back": "Back to notes",
   "com_atk_notes_filter_all": "All",

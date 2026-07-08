@@ -864,10 +864,12 @@ router.post('/billing/checkout', async (req, res) => {
     if (!CHECKOUT_PLANS.has(plan)) {
       return res.status(400).json({ message: 'invalid plan' });
     }
+    const interval = req.body?.interval === 'year' ? 'year' : 'month';
     const base = process.env.DOMAIN_CLIENT || 'https://analytikul.ai';
     const out = await createCheckout({
       orgId: tenantOf(req),
       plan,
+      interval,
       successUrl: `${base}/chat?upgraded=1`,
       cancelUrl: `${base}/pricing`,
     });

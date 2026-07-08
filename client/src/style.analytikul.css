@@ -330,6 +330,11 @@ kbd.atk-kbd {
    big gaps between bullets. Zero the inner <p> margins and tighten <li> spacing.
    Scoped to .atk-note-prose so no other editor is affected.
    ========================================================================== */
+/* Reading width is controlled by the note wrapper (default vs full), so the prose
+   itself must fill it — override Tailwind Typography's 65ch cap. */
+.atk-note-prose {
+  max-width: none !important;
+}
 .atk-note-prose li > p {
   margin-top: 0 !important;
   margin-bottom: 0 !important;

@@ -17,17 +17,23 @@ function stripe() {
   return client;
 }
 
+// plan+interval → Stripe Price id (from env). Annual falls back to monthly if unset.
 const PLAN_PRICES = () => ({
-  pro: process.env.STRIPE_PRICE_PRO,
-  team: process.env.STRIPE_PRICE_TEAM,
+  pro_month: process.env.STRIPE_PRICE_PRO,
+  pro_year: process.env.STRIPE_PRICE_PRO_YEAR,
+  team_month: process.env.STRIPE_PRICE_TEAM,
+  team_year: process.env.STRIPE_PRICE_TEAM_YEAR,
   // Agent Power Tools add-on (rides the same subscription checkout via plan='powertools').
-  powertools: process.env.STRIPE_PRICE_POWERTOOLS,
+  powertools_month: process.env.STRIPE_PRICE_POWERTOOLS,
+  powertools_year: process.env.STRIPE_PRICE_POWERTOOLS,
 });
 
-export async function createSubscriptionCheckout({ orgId, plan, successUrl, cancelUrl }) {
-  const price = PLAN_PRICES()[plan];
+export async function createSubscriptionCheckout({ orgId, plan, interval = 'month', successUrl, cancelUrl }) {
+  const period = interval === 'year' ? 'year' : 'month';
+  const prices = PLAN_PRICES();
+  const price = prices[`${plan}_${period}`] ?? prices[`${plan}_month`];
   if (!price) {
-    throw new Error(`no Stripe price configured for plan "${plan}"`);
+    throw new Error(`no Stripe price configured for "${plan}_${period}"`);
   }
   const session = await stripe().checkout.sessions.create({
     mode: 'subscription',
@@ -35,7 +41,7 @@ export async function createSubscriptionCheckout({ orgId, plan, successUrl, canc
     success_url: successUrl,
     cancel_url: cancelUrl,
     client_reference_id: orgId,
-    metadata: { orgId, plan },
+    metadata: { orgId, plan, interval: period },
   });
   return { url: session.url };
 }

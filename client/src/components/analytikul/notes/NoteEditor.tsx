@@ -11,6 +11,7 @@ import Placeholder from '@tiptap/extension-placeholder';
 import type { Editor } from '@tiptap/core';
 import { useLocalize, useAuthContext } from '~/hooks';
 import OpenSidebar from '~/components/Chat/Menus/OpenSidebar';
+import { cn } from '~/utils';
 import store from '~/store';
 import { htmlToMarkdown, markdownToHtml } from './markdown';
 import { dayjs } from './time';
@@ -50,6 +51,13 @@ export default function NoteEditor() {
   const [note, setNote] = useState<Note | null>(null);
   const [aiBusy, setAiBusy] = useState<AiAction | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [wide, setWide] = useState(() => localStorage.getItem('atk-note-width') === 'wide');
+  const toggleWide = () =>
+    setWide((prev) => {
+      const next = !prev;
+      localStorage.setItem('atk-note-width', next ? 'wide' : 'default');
+      return next;
+    });
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const noteRef = useRef<Note | null>(null);
   noteRef.current = note;
@@ -200,6 +208,12 @@ export default function NoteEditor() {
 
   return (
     <div className="flex h-full w-full flex-col overflow-hidden bg-surface-primary text-text-primary">
+     <div
+       className={cn(
+         'mx-auto flex w-full min-h-0 flex-1 flex-col overflow-hidden',
+         wide ? 'max-w-none' : 'max-w-[1180px]',
+       )}
+     >
       <div className="mb-1.5 flex items-center justify-between gap-2 px-3.5 pt-3">
         {showReopen && <OpenSidebar className="shrink-0" />}
         <input
@@ -225,6 +239,27 @@ export default function NoteEditor() {
             onClick={() => editor?.chain().focus().redo().run()}
             path="M15 14h5V9M19.5 13.5A8 8 0 1 0 17 18"
           />
+          <button
+            type="button"
+            aria-pressed={wide}
+            title={localize(wide ? 'com_atk_notes_width_default' : 'com_atk_notes_width_full')}
+            aria-label={localize(wide ? 'com_atk_notes_width_default' : 'com_atk_notes_width_full')}
+            className={cn(
+              'rounded-xl p-1.5 hover:bg-surface-hover',
+              wide ? 'text-text-primary' : 'text-text-secondary',
+            )}
+            onClick={toggleWide}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M9 6L5 12l4 6M15 6l4 6-4 6"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
           {(['enhance', 'summarize', 'continue'] as AiAction[]).map((action) => (
             <button
               key={action}
@@ -326,6 +361,7 @@ export default function NoteEditor() {
         )}
         <EditorContent editor={editor} />
       </div>
+     </div>
     </div>
   );
 }

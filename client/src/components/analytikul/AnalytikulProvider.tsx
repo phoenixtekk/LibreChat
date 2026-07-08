@@ -37,13 +37,15 @@ export default function AnalytikulProvider() {
     if (!plan) {
       return;
     }
+    const interval = params.get('interval') === 'year' ? 'year' : 'month';
     params.delete('upgrade');
+    params.delete('interval');
     const qs = params.toString();
     window.history.replaceState({}, '', window.location.pathname + (qs ? `?${qs}` : ''));
     fetch('/api/analytikul/billing/checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ plan }),
+      body: JSON.stringify({ plan, interval }),
     })
       .then((r) => (r.ok ? r.json() : null))
       .then((d: { url?: string } | null) => {
