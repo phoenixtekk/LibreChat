@@ -335,6 +335,24 @@ kbd.atk-kbd {
 .atk-note-prose {
   max-width: none !important;
 }
+/* Headings one size smaller than the prose default (owner request): each heading
+   drops to roughly the next-smaller heading's size. */
+.atk-note-prose h1 {
+  font-size: 1.5em;
+}
+.atk-note-prose h2 {
+  font-size: 1.25em;
+}
+.atk-note-prose h3 {
+  font-size: 1.1em;
+}
+.atk-note-prose h4 {
+  font-size: 0.95em;
+}
+.atk-note-prose h5,
+.atk-note-prose h6 {
+  font-size: 0.85em;
+}
 .atk-note-prose li > p {
   margin-top: 0 !important;
   margin-bottom: 0 !important;
