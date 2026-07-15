@@ -36,10 +36,15 @@ const AUTOSAVE_MS = 600;
  * line, undo/redo, bubble formatting toolbar on selection, and AI actions
  * (enhance/summarize/continue) running as metered agent calls.
  */
-export default function NoteEditor() {
+export default function NoteEditor({
+  noteId: propNoteId,
+  embedded = false,
+  onSaved,
+}: { noteId?: string; embedded?: boolean; onSaved?: () => void } = {}) {
   const localize = useLocalize();
   const navigate = useNavigate();
-  const { noteId } = useParams();
+  const params = useParams();
+  const noteId = propNoteId ?? params.noteId;
   const { token } = useAuthContext();
   // When the sidebar is collapsed on desktop, this full-page note view has no
   // chat header (where the reopen toggle normally lives), so surface one here —
@@ -47,11 +52,13 @@ export default function NoteEditor() {
   // sidebar's own floating drawer toggle.
   const sidebarExpanded = useRecoilValue(store.sidebarExpanded);
   const isSmallScreen = useMediaQuery('(max-width: 768px)');
-  const showReopen = !sidebarExpanded && !isSmallScreen;
+  const showReopen = !embedded && !sidebarExpanded && !isSmallScreen;
   const [note, setNote] = useState<Note | null>(null);
   const [aiBusy, setAiBusy] = useState<AiAction | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [wide, setWide] = useState(() => localStorage.getItem('atk-note-width') === 'wide');
+  // Notes are full width by default (owner request); the toggle can narrow to a
+  // comfortable reading width.
+  const [wide, setWide] = useState(() => localStorage.getItem('atk-note-width') !== 'default');
   const toggleWide = () =>
     setWide((prev) => {
       const next = !prev;
@@ -116,7 +123,8 @@ export default function NoteEditor() {
         sharedWithOrg: current.sharedWithOrg,
       }),
     });
-  }, [editor, headers]);
+    onSaved?.();
+  }, [editor, headers, onSaved]);
 
   const scheduleSave = useCallback(() => {
     if (saveTimer.current != null) {
@@ -292,6 +300,26 @@ export default function NoteEditor() {
       </div>
 
       {error != null && <div className="px-3.5 py-1 text-xs text-text-destructive">{error}</div>}
+
+      {editor != null && (
+        <div className="flex flex-wrap items-center gap-0.5 border-y border-border-light px-2.5 py-1">
+          <BubbleButton active={editor.isActive('heading', { level: 1 })} label="H1" onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} />
+          <BubbleButton active={editor.isActive('heading', { level: 2 })} label="H2" onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} />
+          <BubbleButton active={editor.isActive('heading', { level: 3 })} label="H3" onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} />
+          <span className="mx-1 h-4 w-px bg-border-light" />
+          <BubbleButton active={editor.isActive('bold')} label="B" bold onClick={() => editor.chain().focus().toggleBold().run()} />
+          <BubbleButton active={editor.isActive('italic')} label="I" italic onClick={() => editor.chain().focus().toggleItalic().run()} />
+          <BubbleButton active={editor.isActive('strike')} label="S" strike onClick={() => editor.chain().focus().toggleStrike().run()} />
+          <BubbleButton active={editor.isActive('code')} label="</>" onClick={() => editor.chain().focus().toggleCode().run()} />
+          <span className="mx-1 h-4 w-px bg-border-light" />
+          <BubbleButton active={editor.isActive('bulletList')} label="•" onClick={() => editor.chain().focus().toggleBulletList().run()} />
+          <BubbleButton active={editor.isActive('orderedList')} label="1." onClick={() => editor.chain().focus().toggleOrderedList().run()} />
+          <BubbleButton active={editor.isActive('taskList')} label="☑" onClick={() => editor.chain().focus().toggleTaskList().run()} />
+          <BubbleButton active={editor.isActive('blockquote')} label="❝" onClick={() => editor.chain().focus().toggleBlockquote().run()} />
+          <BubbleButton active={editor.isActive('codeBlock')} label="{ }" onClick={() => editor.chain().focus().toggleCodeBlock().run()} />
+          <BubbleButton active={false} label="―" onClick={() => editor.chain().focus().setHorizontalRule().run()} />
+        </div>
+      )}
 
       <div className="min-h-0 flex-1 overflow-y-auto px-3.5 pb-24 pt-2">
         {editor != null && (

@@ -1953,6 +1953,8 @@
   "com_atk_notes_hint": "Select a note on the left or create a new one with +. Your agent can read and write notes too — try \"search my notes for…\" in the Agent tab.",
   "com_atk_notes_search": "Search Notes",
   "com_atk_notes_new": "New Note",
+  "com_atk_notes_import": "Import a Markdown (.md) file as a note",
+  "com_atk_notes_select_or_create": "Select a note, or create a new one.",
   "com_atk_notes_empty": "No notes yet. Click + to create your first note.",
   "com_atk_notes_untitled": "Untitled",
   "com_atk_notes_note_title": "Note title",
