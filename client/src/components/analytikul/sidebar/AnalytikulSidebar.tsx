@@ -10,6 +10,7 @@ import {
   PenSquare,
   Search,
   NotebookPen,
+  CalendarDays,
   LayoutGrid,
   ScrollText,
   MessageSquareText,
@@ -122,6 +123,13 @@ function AnalytikulSidebar() {
       icon: NotebookPen,
       onClick: () => go('/notes'),
       active: location.pathname.startsWith('/notes'),
+    },
+    {
+      id: 'daily-logs',
+      label: localize('com_atk_daily_logs_title'),
+      icon: CalendarDays,
+      onClick: () => go('/daily-logs'),
+      active: location.pathname.startsWith('/daily-logs'),
     },
   ];
 

@@ -35,7 +35,6 @@ PROXY_SERVICE = """  docker-socket-proxy:
       - CONFIGS=0
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-    read_only: true
     tmpfs:
       - /run
     cap_drop:

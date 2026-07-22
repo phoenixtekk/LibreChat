@@ -5,6 +5,37 @@
 # private docker network. No public ports, ever.
 
 services:
+  docker-socket-proxy:
+    container_name: analytikul-docker-proxy
+    image: tecnativa/docker-socket-proxy:0.3.0
+    restart: always
+    environment:
+      - CONTAINERS=1
+      - IMAGES=1
+      - NETWORKS=1
+      - POST=1
+      - DELETE=1
+      - EXEC=1
+      - VOLUMES=1
+      # Locked-off: prevent the adapter from creating new privileged daemons,
+      # touching docker config / build cache, or starting swarm.
+      - SWARM=0
+      - SERVICES=0
+      - BUILD=0
+      - CONFIGS=0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    tmpfs:
+      - /run
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+    security_opt:
+      - no-new-privileges:true
+
   app:
     container_name: analytikul-app
     build:
@@ -105,10 +136,15 @@ services:
       - AGENT_IDLE_TTL_S=600
       - AGENT_MAX_CONCURRENT=16
       - AGENT_MAX_PER_USER=2
+      - TERMINAL_ENV=docker
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN}
+      - DOCKER_HOST=tcp://docker-socket-proxy:2375
+      - TERMINAL_DOCKER_EXTRA_ARGS=["--runtime=runsc"]
     volumes:
       - hermes-home:/data/hermes
     depends_on:
       - redis
+      - docker-socket-proxy
 
   analytics-service:
     container_name: analytikul-analytics
@@ -134,13 +170,28 @@ services:
     command: sh -c "npm install --omit=dev --no-audit --no-fund && node src/index.js"
     environment:
       - MEMORY_PORT=8012
+      # Admin connection (myuser): DDL, role mgmt, cross-user jobs.
       - MEMORY_PG_URI=postgresql://${POSTGRES_USER:-myuser}:${POSTGRES_PASSWORD}@vectordb:5432/${POSTGRES_DB:-mydatabase}
+      # Runtime connection (least-privilege memory_rt, NOBYPASSRLS): all per-tenant queries — RLS enforced.
+      - MEMORY_PG_RT_URI=postgresql://memory_rt:${MEMORY_RT_PASSWORD}@vectordb:5432/${POSTGRES_DB:-mydatabase}
+      - MEMORY_RT_PASSWORD=${MEMORY_RT_PASSWORD}
       - MODEL_CACHE_DIR=/models
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN}
+      # Phase 1 — observer reads conversation messages (Mongo, read-only) + extracts via local vLLM.
+      - MONGO_URI=mongodb://mongodb:27017/LibreChat
+      - VLLM_BASE_URL=http://vllm-vllm-tools-1:8000/v1
+      - VLLM_MODEL=Qwen/Qwen2.5-7B-Instruct-GPTQ-Int4
+      - VLLM_API_KEY=sk-vllm-local
+      - MEMORY_TZ=${MEMORY_TZ:-America/Chicago}
     volumes:
       - ./services/memory-service:/app
       - embedder-models:/models
     depends_on:
       - vectordb
+      - mongodb
+    networks:
+      - default
+      - vllm_default
 
   billing-service:
     container_name: analytikul-billing
@@ -156,7 +207,10 @@ services:
       - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}
       - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}
       - STRIPE_PRICE_PRO=${STRIPE_PRICE_PRO:-}
+      - STRIPE_PRICE_PRO_YEAR=${STRIPE_PRICE_PRO_YEAR:-}
       - STRIPE_PRICE_TEAM=${STRIPE_PRICE_TEAM:-}
+      - STRIPE_PRICE_TEAM_YEAR=${STRIPE_PRICE_TEAM_YEAR:-}
+      - STRIPE_PRICE_POWERTOOLS=${STRIPE_PRICE_POWERTOOLS:-}
     volumes:
       - ./services/billing-service:/app
     depends_on:
@@ -190,3 +244,11 @@ volumes:
   redis-data:
   hermes-home:
   embedder-models:
+
+networks:
+  # Project default (analytikul_default). Services without an explicit `networks:` use it.
+  default:
+  # External vLLM network (shared with the vLLM tools stack) — memory-service joins it for the
+  # observer's extraction model. Declared here so it survives `--force-recreate`.
+  vllm_default:
+    external: true

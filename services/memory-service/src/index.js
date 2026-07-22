@@ -4,11 +4,34 @@
 import http from 'node:http';
 import crypto from 'node:crypto';
 import { warmup } from './embedder.js';
-import { migrate, saveMemory, searchMemories, listMemories, deleteMemory } from './store.js';
+import {
+  migrate,
+  saveMemory,
+  searchMemories,
+  listMemories,
+  deleteMemory,
+  upsertActiveEpisode,
+  listEpisodes,
+  listDailyLogs,
+  getDailyLog,
+  markDirty,
+  retrieveContext,
+  decayEpisodes,
+} from './store.js';
+import { startObserver, runObserverOnce, backfillRecent } from './observer.js';
+import { startConsolidator, consolidateDay } from './consolidate.js';
 
 const PORT = process.env.MEMORY_PORT || 8012;
 const INTERNAL_TOKEN = process.env.INTERNAL_SERVICE_TOKEN || '';
 const log = (msg) => console.log(`[memory] ${msg}`);
+
+async function collect(req) {
+  const chunks = [];
+  for await (const chunk of req) {
+    chunks.push(chunk);
+  }
+  return chunks;
+}
 
 function authorized(req) {
   if (!INTERNAL_TOKEN) {
@@ -27,6 +50,19 @@ if (!INTERNAL_TOKEN) {
   log('WARNING: INTERNAL_SERVICE_TOKEN unset — memory endpoints are unauthenticated. Set it in prod.');
 }
 warmup(log).catch((err) => log(`embedder warmup failed: ${err.message}`));
+
+if (process.env.MEMORY_OBSERVER_ENABLED !== 'false') {
+  startObserver(log);
+  startConsolidator(log);
+  const decayMs = Number(process.env.MEMORY_DECAY_INTERVAL_MS ?? 24 * 60 * 60 * 1000);
+  const decayDays = Number(process.env.MEMORY_DECAY_DAYS ?? 90);
+  setInterval(() => {
+    decayEpisodes({ days: decayDays })
+      .then((n) => n && log(`decay: lowered importance on ${n} episodes`))
+      .catch((e) => log(`decay error: ${e.message}`));
+  }, decayMs);
+  log('observer + consolidator + decay started');
+}
 
 http
   .createServer(async (req, res) => {
@@ -78,6 +114,77 @@ http
       if (deleteMatch && req.method === 'DELETE') {
         const deleted = await deleteMemory({ orgId, id: Number(deleteMatch[1]) });
         return send(deleted ? 200 : 404, { deleted });
+      }
+
+      const userId = url.searchParams.get('userId');
+
+      if (url.pathname === '/episodes' && req.method === 'POST') {
+        const body = JSON.parse(Buffer.concat(await collect(req)).toString() || '{}');
+        if (!body.userId || !body.conversationId || !body.summary) {
+          return send(400, { error: 'userId, conversationId, summary required' });
+        }
+        return send(201, { episode: await upsertActiveEpisode(body) });
+      }
+
+      if (url.pathname === '/episodes' && req.method === 'GET') {
+        if (!userId) {
+          return send(400, { error: 'userId required' });
+        }
+        const limit = Number(url.searchParams.get('limit') ?? 50);
+        return send(200, { episodes: await listEpisodes({ userId, limit }) });
+      }
+
+      if (url.pathname === '/observer/dirty' && req.method === 'POST') {
+        const body = JSON.parse(Buffer.concat(await collect(req)).toString() || '{}');
+        if (!body.userId || !body.conversationId) {
+          return send(400, { error: 'userId, conversationId required' });
+        }
+        await markDirty(body);
+        return send(202, { ok: true });
+      }
+
+      if (url.pathname === '/daily-logs' && req.method === 'GET') {
+        if (!userId) {
+          return send(400, { error: 'userId required' });
+        }
+        const limit = Number(url.searchParams.get('limit') ?? 90);
+        return send(200, { logs: await listDailyLogs({ userId, limit }) });
+      }
+
+      // Retrieval for chat injection: per-user recap + relevant episodes + facts + prefs.
+      if (url.pathname === '/retrieve' && req.method === 'GET') {
+        if (!userId) {
+          return send(400, { error: 'userId required' });
+        }
+        const query = url.searchParams.get('q') ?? '';
+        return send(200, await retrieveContext({ userId, query }));
+      }
+
+      const dailyLogMatch = url.pathname.match(/^\/daily-logs\/(\d{4}-\d{2}-\d{2})$/);
+      if (dailyLogMatch && req.method === 'GET') {
+        if (!userId) {
+          return send(400, { error: 'userId required' });
+        }
+        const logDoc = await getDailyLog({ userId, date: dailyLogMatch[1] });
+        return send(logDoc ? 200 : 404, { log: logDoc });
+      }
+
+      // ── ops triggers (internal): run a cycle on demand ──
+      if (url.pathname === '/observe' && req.method === 'POST') {
+        await runObserverOnce(log);
+        return send(200, { ok: true });
+      }
+
+      if (url.pathname === '/consolidate' && req.method === 'POST') {
+        const body = JSON.parse(Buffer.concat(await collect(req)).toString() || '{}');
+        const written = await consolidateDay({ date: body.date }, log);
+        return send(200, { written });
+      }
+
+      if (url.pathname === '/backfill' && req.method === 'POST') {
+        const body = JSON.parse(Buffer.concat(await collect(req)).toString() || '{}');
+        const result = await backfillRecent({ days: body.days ?? 7, limit: body.limit ?? 25 }, log);
+        return send(200, result);
       }
 
       return send(404, { error: 'not found' });

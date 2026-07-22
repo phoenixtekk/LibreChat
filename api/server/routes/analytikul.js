@@ -13,8 +13,19 @@ const {
   listVaultKeys,
   putVaultKey,
   deleteVaultKey,
+  validateUrl,
   AdapterError,
+  getOrgEntitlements,
+  forbiddenToolsetsForPlan,
+  createCheckout,
 } = require('@librechat/api');
+const {
+  listUserEndpoints,
+  createUserEndpoint,
+  updateUserEndpoint,
+  deleteUserEndpoint,
+} = require('~/models');
+const { fetchEndpointModels } = require('~/server/services/Config/fetchEndpointModels');
 const rateLimit = require('express-rate-limit');
 const requireJwtAuth = require('~/server/middleware/requireJwtAuth');
 const { AgentTrace, Note, Annotation } = require('~/db/models');
@@ -80,18 +91,14 @@ router.post('/agent/run', agentRunLimiter, async (req, res) => {
     if (!message || !conversationId) {
       return res.status(400).json({ message: 'message and conversationId are required' });
     }
-    // SECURITY: server-enforced toolset floor. With gVisor installed at the
-    // docker daemon (2026-06-20), code_execution and file are now unblocked —
-    // the runtime sandbox catches kernel-level escape attempts. The remaining
-    // entries stay floored because they can directly run host commands or
-    // pivot to internal services, neither of which gVisor mitigates on its
-    // own. Per-task ephemeral containers (Phase 2) will unblock 'terminal'.
-    const FORBIDDEN_TOOLSETS = [
-      'terminal',
-      'computer_use',
-      'messaging',
-      'homeassistant',
-    ];
+    // SECURITY + ENTITLEMENT: per-plan toolset floor (Agent Power Tools).
+    //  - terminal + computer_use stay HARD-floored for everyone until per-task
+    //    sandbox/VM isolation ships (they run host commands / drive a desktop).
+    //  - messaging + homeassistant are PLAN-GATED (Team+); stripped below that.
+    // code_execution + file are allowed (gVisor-sandboxed since 2026-06-20).
+    // Entitlements fail closed to free/no-addon if billing is unreachable.
+    const ent = await getOrgEntitlements(tenantOf(req));
+    const FORBIDDEN_TOOLSETS = forbiddenToolsetsForPlan(ent.plan, ent.powerTools);
     const safeEnabled = Array.isArray(enabledToolsets)
       ? enabledToolsets.filter((t) => !FORBIDDEN_TOOLSETS.includes(t))
       : undefined;
@@ -278,6 +285,204 @@ router.delete('/keys/:provider', async (req, res) => {
     tenantOf(req),
   );
   res.status(deleted ? 200 : 404).json({ deleted });
+});
+
+/* ---------------- User-defined custom endpoints (BYOK, Feature 2a) ----------------
+ * Each user registers their own OpenAI-compatible endpoints, visible ONLY in
+ * their picker. Every baseURL is run through the SSRF guard before storage so
+ * a user can't point the platform at an internal service. The API key is
+ * encrypted at rest by the data-schemas methods (encryptV2). */
+
+const NAME_RE = /^[\w .-]{1,48}$/;
+
+/** Names that collide with a built-in provider would create a confusing
+ *  duplicate in the picker (two "OpenAI" entries — one BYOK-via-vault, one
+ *  custom), so we reserve them. Compared case-insensitively. */
+const RESERVED_ENDPOINT_NAMES = new Set([
+  'openai',
+  'azureopenai',
+  'google',
+  'anthropic',
+  'bedrock',
+  'assistants',
+  'azureassistants',
+  'agents',
+  'custom',
+  'gptplugins',
+  'chatgptbrowser',
+  'bingai',
+]);
+
+function reservedNameMessage(name) {
+  return `"${name}" is a reserved provider name. Pick a different name (e.g. "My ${name}").`;
+}
+
+/** Map an SSRF rejection to a user-facing message without leaking internals. */
+const SSRF_MESSAGES = {
+  invalid_url: 'That does not look like a valid URL.',
+  scheme_blocked: 'Only http and https URLs are allowed.',
+  hostname_pattern_blocked: 'That host is not allowed.',
+  port_blocked: 'That port is not allowed.',
+  dns_failed: 'The host could not be resolved.',
+  ip_private: 'That URL resolves to a private address and is not allowed.',
+  ip_loopback: 'That URL resolves to a loopback address and is not allowed.',
+  ip_link_local: 'That URL resolves to a link-local address and is not allowed.',
+  ip_multicast: 'That URL resolves to a multicast address and is not allowed.',
+  ip_reserved: 'That URL resolves to a reserved address and is not allowed.',
+  timeout: 'Validating the host timed out. Try again.',
+};
+
+function validateModelsField(models) {
+  if (models == null) {
+    return { ok: true, value: [] };
+  }
+  if (!Array.isArray(models) || models.length > 64) {
+    return { ok: false, message: 'models must be an array of up to 64 strings' };
+  }
+  for (const m of models) {
+    if (typeof m !== 'string' || m.length === 0 || m.length > 128) {
+      return { ok: false, message: 'each model must be a non-empty string (<=128 chars)' };
+    }
+  }
+  return { ok: true, value: models };
+}
+
+router.get('/endpoints', async (req, res) => {
+  try {
+    const endpoints = await listUserEndpoints({ userId: req.user.id });
+    res.status(200).json({ endpoints });
+  } catch (error) {
+    logger.error('[analytikul] list user endpoints failed', error);
+    res.status(500).json({ message: 'could not load endpoints' });
+  }
+});
+
+router.post('/endpoints', async (req, res) => {
+  try {
+    const { name, baseURL, apiKey, models } = req.body ?? {};
+    if (typeof name !== 'string' || !NAME_RE.test(name)) {
+      return res
+        .status(400)
+        .json({ message: 'name must be 1-48 chars (letters, numbers, space, . _ -)' });
+    }
+    if (RESERVED_ENDPOINT_NAMES.has(name.trim().toLowerCase())) {
+      return res.status(400).json({ message: reservedNameMessage(name) });
+    }
+    if (typeof baseURL !== 'string' || baseURL.length === 0) {
+      return res.status(400).json({ message: 'baseURL required' });
+    }
+    if (typeof apiKey !== 'string' || apiKey.length === 0) {
+      return res.status(400).json({ message: 'apiKey required' });
+    }
+    const modelsCheck = validateModelsField(models);
+    if (!modelsCheck.ok) {
+      return res.status(400).json({ message: modelsCheck.message });
+    }
+    const decision = await validateUrl(baseURL);
+    if (!decision.allowed) {
+      return res.status(400).json({
+        message: SSRF_MESSAGES[decision.reason] ?? 'That URL is not allowed.',
+        reason: decision.reason,
+      });
+    }
+    // When the user leaves models blank, auto-detect them from the endpoint's
+    // /models, pinned to the SSRF-validated IP (one-shot at creation — runtime
+    // stays fetch:false so we never re-resolve a user URL per request).
+    let resolvedModels = modelsCheck.value;
+    if (resolvedModels.length === 0) {
+      try {
+        resolvedModels = await fetchEndpointModels(baseURL, apiKey, decision.resolvedIp);
+      } catch (error) {
+        logger.warn(`[analytikul] model auto-fetch failed for ${name}: ${error.message}`);
+        resolvedModels = [];
+      }
+    }
+    const endpoint = await createUserEndpoint({
+      userId: req.user.id,
+      name,
+      baseURL,
+      apiKey,
+      models: resolvedModels,
+    });
+    res.status(201).json({ endpoint });
+  } catch (error) {
+    if (error?.code === 11000) {
+      return res.status(409).json({ message: 'you already have an endpoint with that name' });
+    }
+    logger.error('[analytikul] create user endpoint failed', error);
+    res.status(500).json({ message: 'could not create endpoint' });
+  }
+});
+
+router.put('/endpoints/:id', async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(404).json({ message: 'endpoint not found' });
+    }
+    const { name, baseURL, apiKey, models } = req.body ?? {};
+    const updates = {};
+    if (name !== undefined) {
+      if (typeof name !== 'string' || !NAME_RE.test(name)) {
+        return res
+          .status(400)
+          .json({ message: 'name must be 1-48 chars (letters, numbers, space, . _ -)' });
+      }
+      if (RESERVED_ENDPOINT_NAMES.has(name.trim().toLowerCase())) {
+        return res.status(400).json({ message: reservedNameMessage(name) });
+      }
+      updates.name = name;
+    }
+    if (baseURL !== undefined) {
+      if (typeof baseURL !== 'string' || baseURL.length === 0) {
+        return res.status(400).json({ message: 'baseURL must be a non-empty string' });
+      }
+      const decision = await validateUrl(baseURL);
+      if (!decision.allowed) {
+        return res.status(400).json({
+          message: SSRF_MESSAGES[decision.reason] ?? 'That URL is not allowed.',
+          reason: decision.reason,
+        });
+      }
+      updates.baseURL = baseURL;
+    }
+    if (apiKey !== undefined) {
+      if (typeof apiKey !== 'string' || apiKey.length === 0) {
+        return res.status(400).json({ message: 'apiKey must be a non-empty string' });
+      }
+      updates.apiKey = apiKey;
+    }
+    if (models !== undefined) {
+      const modelsCheck = validateModelsField(models);
+      if (!modelsCheck.ok) {
+        return res.status(400).json({ message: modelsCheck.message });
+      }
+      updates.models = modelsCheck.value;
+    }
+    const endpoint = await updateUserEndpoint({ userId: req.user.id, id: req.params.id, updates });
+    if (!endpoint) {
+      return res.status(404).json({ message: 'endpoint not found' });
+    }
+    res.status(200).json({ endpoint });
+  } catch (error) {
+    if (error?.code === 11000) {
+      return res.status(409).json({ message: 'you already have an endpoint with that name' });
+    }
+    logger.error('[analytikul] update user endpoint failed', error);
+    res.status(500).json({ message: 'could not update endpoint' });
+  }
+});
+
+router.delete('/endpoints/:id', async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(404).json({ message: 'endpoint not found' });
+    }
+    const deleted = await deleteUserEndpoint({ userId: req.user.id, id: req.params.id });
+    res.status(deleted ? 200 : 404).json({ deleted });
+  } catch (error) {
+    logger.error('[analytikul] delete user endpoint failed', error);
+    res.status(500).json({ message: 'could not delete endpoint' });
+  }
 });
 
 /* ---------------- Notes (Open WebUI-parity notes workspace) ---------------- */
@@ -610,6 +815,78 @@ router.delete('/memory/:id', async (req, res) => {
   } catch (error) {
     logger.error('[analytikul] memory delete failed', error);
     res.status(502).json({ message: 'memory service unavailable' });
+  }
+});
+
+// Daily Logs (per-user, read-only) — proxied from the memory engine, scoped to req.user.id.
+router.get('/daily-logs', async (req, res) => {
+  try {
+    const url = new URL(`${MEMORY_URL}/daily-logs`);
+    url.searchParams.set('userId', req.user.id);
+    if (req.query.limit) {
+      url.searchParams.set('limit', String(req.query.limit));
+    }
+    const upstream = await fetch(url, {
+      headers: internalHeaders(),
+      signal: AbortSignal.timeout(5000),
+    });
+    res.status(upstream.status).json(await upstream.json());
+  } catch (error) {
+    logger.error('[analytikul] daily-logs list failed', error);
+    res.status(502).json({ message: 'memory service unavailable' });
+  }
+});
+
+router.get('/daily-logs/:date', async (req, res) => {
+  try {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(req.params.date)) {
+      return res.status(400).json({ message: 'invalid date' });
+    }
+    const url = new URL(`${MEMORY_URL}/daily-logs/${req.params.date}`);
+    url.searchParams.set('userId', req.user.id);
+    const upstream = await fetch(url, {
+      headers: internalHeaders(),
+      signal: AbortSignal.timeout(5000),
+    });
+    res.status(upstream.status).json(await upstream.json());
+  } catch (error) {
+    logger.error('[analytikul] daily-log get failed', error);
+    res.status(502).json({ message: 'memory service unavailable' });
+  }
+});
+
+// Start a Stripe Checkout for a plan/add-on. Authed (req.user); the client calls this with the
+// bearer token and redirects the browser to the returned Stripe URL.
+const CHECKOUT_PLANS = new Set(['pro', 'team', 'powertools']);
+router.post('/billing/checkout', async (req, res) => {
+  try {
+    const plan = req.body?.plan;
+    if (!CHECKOUT_PLANS.has(plan)) {
+      return res.status(400).json({ message: 'invalid plan' });
+    }
+    const interval = req.body?.interval === 'year' ? 'year' : 'month';
+    const base = process.env.DOMAIN_CLIENT || 'https://analytikul.ai';
+    const out = await createCheckout({
+      orgId: tenantOf(req),
+      plan,
+      interval,
+      successUrl: `${base}/chat?upgraded=1`,
+      cancelUrl: `${base}/pricing`,
+    });
+    res.json(out);
+  } catch (error) {
+    logger.error('[analytikul] checkout failed', error);
+    res.status(502).json({ message: 'billing unavailable' });
+  }
+});
+
+// The caller's org plan — used by the Agent panel to reflect tool entitlements.
+router.get('/plan', async (req, res) => {
+  try {
+    res.json(await getOrgEntitlements(tenantOf(req)));
+  } catch (error) {
+    logger.error('[analytikul] plan lookup failed', error);
+    res.json({ plan: 'free', powerTools: false });
   }
 });
 

@@ -171,7 +171,9 @@ class SessionPool:
         )
         try:
             bus.emit("status", {"state": "running", "model": agent.model})
-            memory_block = memory.build_memory_block(session.tenant_id, message)
+            org_block = memory.build_memory_block(session.tenant_id, message)
+            personal_block = memory.build_personal_memory_block(session.user_id, message)
+            memory_block = "\n\n".join(b for b in (personal_block, org_block) if b) or None
             if memory_block is not None:
                 bus.emit("status", {"state": "memory_injected"})
             result = agent.run_conversation(

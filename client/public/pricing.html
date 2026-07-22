@@ -24,7 +24,7 @@
   .navlinks a:not(.btn){color:var(--muted);text-decoration:none;font-size:14px;transition:color .2s;}
   .navlinks a:not(.btn):hover{color:var(--ink);}
   .navlinks a.active{color:var(--blue-bright);}
-  .btn{font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:500;letter-spacing:.03em;text-decoration:none;cursor:pointer;padding:10px 20px;border-radius:999px;transition:all .22s ease;display:inline-flex;align-items:center;gap:8px;}
+  .btn{font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:500;letter-spacing:.03em;text-decoration:none;cursor:pointer;padding:10px 20px;border-radius:15px;transition:all .22s ease;display:inline-flex;align-items:center;gap:8px;}
   .btn-ghost{color:var(--ink);border:1px solid var(--line);background:transparent;}
   .btn-ghost:hover{border-color:var(--blue);color:var(--blue-bright);}
   .btn-blue{color:#021019;background:linear-gradient(180deg,var(--blue-bright),var(--blue));font-weight:700;}
@@ -38,6 +38,11 @@
   h1 .glow{color:var(--blue-bright);text-shadow:0 0 38px rgba(56,210,239,.45);}
   .sub{margin:20px auto 0;max-width:56ch;color:var(--muted);font-size:clamp(15px,2vw,18px);}
   .note{margin-top:14px;font-size:13px;color:var(--faint);}
+  .billtoggle{display:flex;justify-content:center;gap:6px;margin:2.5vh auto 0;padding:5px;border:1px solid var(--line);border-radius:999px;width:max-content;background:var(--card);}
+  .bt-opt{font-family:'Space Grotesk',sans-serif;font-size:14px;color:var(--muted);background:transparent;border:none;cursor:pointer;padding:8px 18px;border-radius:999px;transition:all .2s;display:inline-flex;align-items:center;gap:8px;}
+  .bt-opt.active{background:linear-gradient(180deg,var(--blue-bright),var(--blue));color:#021019;font-weight:700;}
+  .bt-save{font-size:11px;letter-spacing:.04em;color:var(--blue-bright);}
+  .bt-opt.active .bt-save{color:#021019;opacity:.8;}
   .tiers{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:18px;margin:5vh 0 3vh;align-items:stretch;}
   .tier{border:1px solid var(--line);background:var(--card);border-radius:20px;padding:28px 24px;display:flex;flex-direction:column;}
   .tier.feature{border-color:var(--blue);box-shadow:0 0 50px rgba(24,168,218,.12);position:relative;}
@@ -77,7 +82,7 @@
       <a href="/pricing" class="hide-sm active">Pricing</a>
       <a href="/help" class="hide-sm">Docs</a>
       <a href="/chat" class="btn btn-ghost">Sign in</a>
-      <a href="/chat" class="btn btn-blue">Launch app →</a>
+      <a href="/chat" class="btn btn-blue">Chat</a>
     </div>
   </nav>
 
@@ -88,6 +93,11 @@
       <p class="sub">Start free. Scale when your team does. Bring your own API keys on any paid plan and only pay for the platform — not a markup on every token.</p>
       <p class="note">Prices in USD. Annual billing saves ~20%. Billing launches soon — early users get founding pricing locked in.</p>
     </section>
+
+    <div class="billtoggle" role="group" aria-label="Billing period">
+      <button type="button" class="bt-opt active" data-interval="month">Monthly</button>
+      <button type="button" class="bt-opt" data-interval="year">Annual <span class="bt-save">save ~20%</span></button>
+    </div>
 
     <section class="tiers">
       <div class="tier">
@@ -109,7 +119,7 @@
       <div class="tier feature">
         <span class="badge">Most popular</span>
         <h3>Pro</h3>
-        <div class="price">$20 <small>/ user / mo</small></div>
+        <div class="price" data-plan-price="pro">$20 <small>/ user / mo</small></div>
         <div class="tag">For power users who want it all.</div>
         <ul>
           <li>Everything in Free</li>
@@ -120,12 +130,12 @@
           <li>Cost tracking &amp; budgets</li>
           <li>Priority models</li>
         </ul>
-        <a href="/chat" class="btn btn-blue btn-full">Start Pro →</a>
+        <a href="/chat?upgrade=pro" data-upgrade="pro" class="btn btn-blue btn-full">Start Pro →</a>
       </div>
 
       <div class="tier">
         <h3>Team</h3>
-        <div class="price">$40 <small>/ user / mo</small></div>
+        <div class="price" data-plan-price="team">$40 <small>/ user / mo</small></div>
         <div class="tag">For teams building together.</div>
         <ul>
           <li>Everything in Pro</li>
@@ -136,7 +146,7 @@
           <li>Roles &amp; permissions</li>
           <li>Priority support</li>
         </ul>
-        <a href="/chat" class="btn btn-ghost btn-full">Start Team</a>
+        <a href="/chat?upgrade=team" data-upgrade="team" class="btn btn-ghost btn-full">Start Team</a>
       </div>
 
       <div class="tier">
@@ -155,6 +165,14 @@
         <a href="/help" class="btn btn-ghost btn-full">Contact us</a>
       </div>
     </section>
+
+    <section style="max-width:760px;margin:28px auto 0;border:1px solid var(--line);border-radius:15px;padding:22px 24px;">
+      <h3 style="margin:0 0 4px;">Agent Power Tools <span style="font-weight:400;color:var(--muted);">— add-on</span></h3>
+      <div class="price" style="font-size:28px;margin:6px 0;">$99 <small>/ org / mo</small></div>
+      <p style="margin:6px 0 14px;">Unlock the Hermes Agent's <strong>action tools</strong> on Pro &amp; Team — <strong>Messaging</strong> and <strong>Home Assistant</strong> (bring your own credentials) — with admin approval and audit logging. Terminal &amp; computer control arrive on Enterprise once fully sandboxed.</p>
+      <a href="/chat?upgrade=powertools" class="btn btn-blue">Add Power Tools</a>
+    </section>
+
     <p class="note" style="text-align:center;"><sup>*</sup> Fair-use limits apply. With your own keys, model usage is billed by your provider at cost.</p>
 
     <h2>Questions</h2>
@@ -178,5 +196,33 @@
     </div>
   </footer>
 </main>
+<script>
+  (function () {
+    // Monthly/annual toggle: swaps displayed price + the checkout interval on the buttons.
+    // Annual shows the monthly-equivalent of a ~20%-off yearly plan; set the matching annual
+    // Price in Stripe (STRIPE_PRICE_PRO_YEAR / STRIPE_PRICE_TEAM_YEAR).
+    var PRICES = { pro: { m: '$20', y: '$16' }, team: { m: '$40', y: '$32' } };
+    var annual = false;
+    var monthBtn = document.querySelector('.bt-opt[data-interval="month"]');
+    var yearBtn = document.querySelector('.bt-opt[data-interval="year"]');
+    function render() {
+      document.querySelectorAll('[data-plan-price]').forEach(function (el) {
+        var p = el.getAttribute('data-plan-price');
+        var amt = annual ? PRICES[p].y : PRICES[p].m;
+        var sub = annual ? '/ user / mo, billed yearly' : '/ user / mo';
+        el.innerHTML = amt + ' <small>' + sub + '</small>';
+      });
+      document.querySelectorAll('[data-upgrade]').forEach(function (a) {
+        var plan = a.getAttribute('data-upgrade');
+        a.href = '/chat?upgrade=' + plan + (annual ? '&interval=year' : '');
+      });
+      monthBtn.classList.toggle('active', !annual);
+      yearBtn.classList.toggle('active', annual);
+    }
+    monthBtn.addEventListener('click', function () { annual = false; render(); });
+    yearBtn.addEventListener('click', function () { annual = true; render(); });
+    render();
+  })();
+</script>
 </body>
 </html>

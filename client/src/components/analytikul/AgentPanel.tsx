@@ -1,8 +1,8 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { ChevronDown, Zap } from 'lucide-react';
+import { ChevronDown, Zap, Lock } from 'lucide-react';
 import { useGetModelsQuery } from 'librechat-data-provider/react-query';
-import { useLocalize } from '~/hooks';
+import { useLocalize, useAuthContext } from '~/hooks';
 import { cn } from '~/utils';
 import TraceViewer from './TraceViewer';
 import type { AgentStreamApi } from './useAgentStream';
@@ -15,10 +15,8 @@ const PROVIDER_MODEL_KEY: Record<string, string> = {
 };
 
 /**
- * User-facing Hermes toolsets. Host-command / filesystem / device tools
- * (terminal, code_execution, file, computer_use, messaging, homeassistant) are
- * intentionally omitted — they are force-disabled server-side until the runtime
- * is sandboxed, so offering them here would be misleading.
+ * Hermes toolsets surfaced for selection. code_execution + file are sandbox-gated
+ * by gVisor and allowed server-side; planning bundles notes + org-memory tools.
  */
 const TOOLSETS = [
   'web',
@@ -32,6 +30,7 @@ const TOOLSETS = [
   'tts',
   'todo',
   'memory',
+  'planning',
   'context_engine',
   'session_search',
   'delegation',
@@ -41,7 +40,23 @@ const TOOLSETS = [
   'clarify',
   'moa',
   'discord',
+  'code_execution',
+  'file',
 ] as const;
+
+/**
+ * Plan-gated action tools — available at Team+ (BYO-credential). Below Team they
+ * show as an upgrade prompt; the server strips them regardless of the UI.
+ */
+const PLAN_GATED = ['messaging', 'homeassistant'] as const;
+
+/**
+ * Hard-floored — run host commands / drive a live desktop. Off for everyone
+ * until per-task sandbox/VM isolation ships; shown for transparency only.
+ */
+const HARD_GATED = ['terminal', 'computer_use'] as const;
+
+const TIER_RANK: Record<string, number> = { free: 0, pro: 1, team: 2, business: 3, enterprise: 4 };
 
 /** Off by default. */
 const DEFAULT_OFF = new Set<string>([]);
@@ -52,13 +67,52 @@ const PROVIDERS = ['', 'openrouter', 'openai', 'anthropic', 'google', 'groq', 'm
 export default function AgentPanel({ stream }: { stream: AgentStreamApi }) {
   const localize = useLocalize();
   const { conversationId } = useParams();
+  const { token } = useAuthContext();
   const [message, setMessage] = useState('');
   const [showOptions, setShowOptions] = useState(false);
+  const [plan, setPlan] = useState('free');
+  const [powerTools, setPowerTools] = useState(false);
   const [enabled, setEnabled] = useState<Set<string>>(
     () => new Set(TOOLSETS.filter((t) => !DEFAULT_OFF.has(t))),
   );
   const [provider, setProvider] = useState('');
   const [model, setModel] = useState('');
+
+  // Action tools (messaging/homeassistant) unlock at Team+, or via the Agent Power
+  // Tools add-on on a Pro+ base.
+  const rank = TIER_RANK[plan] ?? 0;
+  const unlocked = rank >= TIER_RANK.team || (powerTools && rank >= TIER_RANK.pro);
+  useEffect(() => {
+    let active = true;
+    fetch('/api/analytikul/plan', { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => (r.ok ? r.json() : { plan: 'free', powerTools: false }))
+      .then((d: { plan?: string; powerTools?: boolean }) => {
+        if (active) {
+          setPlan(d.plan ?? 'free');
+          setPowerTools(Boolean(d.powerTools));
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [token]);
+
+  // Toolsets the user can actually toggle (safe + sandboxed + plan-gated when entitled).
+  const selectable = useMemo(
+    () => (unlocked ? [...TOOLSETS, ...PLAN_GATED] : [...TOOLSETS]),
+    [unlocked],
+  );
+  // Once unlocked, enable the newly-available plan-gated tools by default.
+  useEffect(() => {
+    if (unlocked) {
+      setEnabled((prev) => {
+        const next = new Set(prev);
+        PLAN_GATED.forEach((t) => next.add(t));
+        return next;
+      });
+    }
+  }, [unlocked]);
 
   const { data: modelsMap = {} } = useGetModelsQuery();
   const providerModels = useMemo(() => {
@@ -71,8 +125,8 @@ export default function AgentPanel({ stream }: { stream: AgentStreamApi }) {
   const busy = stream.state === 'starting' || stream.state === 'running';
 
   const disabledToolsets = useMemo(
-    () => TOOLSETS.filter((t) => !enabled.has(t)),
-    [enabled],
+    () => selectable.filter((t) => !enabled.has(t)),
+    [selectable, enabled],
   );
 
   const toggle = (name: string) =>
@@ -99,20 +153,32 @@ export default function AgentPanel({ stream }: { stream: AgentStreamApi }) {
   };
 
   return (
-    <div className="flex h-full flex-col gap-2">
-      <div
-        className="atk-hermes-pill"
-        title={localize('com_atk_hermes_pill_tooltip')}
-        aria-label={localize('com_atk_hermes_pill_tooltip')}
-      >
-        <Zap size={11} aria-hidden="true" />
-        <span>{localize('com_atk_hermes_pill')}</span>
+    <div className="flex h-full flex-col gap-3">
+      {/* Hermes agent console header */}
+      <div className="flex items-center gap-2.5">
+        <div
+          className="atk-hermes-pill"
+          title={localize('com_atk_hermes_pill_tooltip')}
+          aria-label={localize('com_atk_hermes_pill_tooltip')}
+        >
+          <Zap size={11} aria-hidden="true" />
+          <span>{localize('com_atk_hermes_pill')}</span>
+        </div>
+        <div className="flex min-w-0 flex-col leading-tight">
+          <span className="text-sm font-semibold text-text-primary">
+            {localize('com_atk_agent_title')}
+          </span>
+          <span className="truncate text-[11px] text-text-tertiary">
+            {localize('com_atk_agent_subtitle')}
+          </span>
+        </div>
       </div>
+
       <textarea
         value={message}
         rows={3}
         placeholder={localize('com_atk_agent_placeholder')}
-        className="w-full resize-none rounded-md border border-border-medium bg-surface-primary p-2 text-sm text-text-primary outline-none focus:border-border-heavy"
+        className="w-full resize-none rounded-lg border border-border-medium bg-surface-primary p-2.5 text-sm text-text-primary outline-none transition focus:border-border-heavy"
         onChange={(event) => setMessage(event.target.value)}
         onKeyDown={(event) => {
           if (event.key === 'Enter' && !event.shiftKey) {
@@ -122,7 +188,7 @@ export default function AgentPanel({ stream }: { stream: AgentStreamApi }) {
         }}
       />
 
-      <div className="rounded-md border border-border-light">
+      <div className="rounded-lg border border-border-light">
         <button
           type="button"
           className="flex w-full items-center justify-between px-2.5 py-1.5 text-xs font-medium text-text-secondary"
@@ -130,7 +196,7 @@ export default function AgentPanel({ stream }: { stream: AgentStreamApi }) {
           onClick={() => setShowOptions((prev) => !prev)}
         >
           <span>
-            {localize('com_atk_agent_options')} · {enabled.size}/{TOOLSETS.length}
+            {localize('com_atk_agent_options')} · {enabled.size}/{selectable.length}
           </span>
           <ChevronDown
             size={14}
@@ -139,7 +205,7 @@ export default function AgentPanel({ stream }: { stream: AgentStreamApi }) {
           />
         </button>
         {showOptions && (
-          <div className="border-t border-border-light px-2.5 py-2">
+          <div className="border-t border-border-light px-2.5 py-2.5">
             <div className="mb-1 flex items-center gap-2">
               <select
                 aria-label={localize('com_atk_agent_provider')}
@@ -180,7 +246,7 @@ export default function AgentPanel({ stream }: { stream: AgentStreamApi }) {
                 />
               )}
             </div>
-            <p className="mb-2 text-[11px] leading-snug text-text-tertiary">
+            <p className="mb-2.5 text-[11px] leading-snug text-text-tertiary">
               {localize('com_atk_agent_model_hint')}
             </p>
 
@@ -192,7 +258,7 @@ export default function AgentPanel({ stream }: { stream: AgentStreamApi }) {
                 <button
                   type="button"
                   className="text-text-secondary hover:text-text-primary"
-                  onClick={() => setEnabled(new Set(TOOLSETS))}
+                  onClick={() => setEnabled(new Set(selectable))}
                 >
                   {localize('com_atk_agent_all')}
                 </button>
@@ -205,18 +271,74 @@ export default function AgentPanel({ stream }: { stream: AgentStreamApi }) {
                 </button>
               </div>
             </div>
-            <div className="grid max-h-44 grid-cols-2 gap-x-3 gap-y-1 overflow-y-auto">
-              {TOOLSETS.map((name) => (
-                <label key={name} className="flex items-center gap-1.5 text-xs text-text-primary">
-                  <input
-                    type="checkbox"
-                    className="h-3.5 w-3.5 rounded border-border-medium"
-                    checked={enabled.has(name)}
-                    onChange={() => toggle(name)}
-                  />
-                  <span className="truncate">{name}</span>
-                </label>
-              ))}
+
+            {/* Toolset chips */}
+            <div className="flex flex-wrap gap-1.5">
+              {selectable.map((name) => {
+                const on = enabled.has(name);
+                return (
+                  <button
+                    key={name}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => toggle(name)}
+                    className={cn(
+                      'rounded-full border px-2.5 py-1 text-[11px] transition',
+                      on
+                        ? 'border-transparent bg-surface-submit text-white'
+                        : 'border-border-medium text-text-secondary hover:border-border-heavy hover:text-text-primary',
+                    )}
+                  >
+                    {name}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Team-gated action tools (shown below Team as an upgrade prompt) */}
+            {!unlocked && (
+              <div className="mt-3">
+                <span className="text-[11px] font-medium text-text-tertiary">
+                  {localize('com_atk_agent_upgrade')}
+                </span>
+                <div className="mt-1 flex flex-wrap gap-1.5">
+                  {PLAN_GATED.map((name) => (
+                    <span
+                      key={name}
+                      title={localize('com_atk_agent_upgrade_hint')}
+                      className="inline-flex cursor-not-allowed items-center gap-1 rounded-full border border-dashed border-border-light px-2.5 py-1 text-[11px] text-text-tertiary opacity-70"
+                    >
+                      <Lock size={10} aria-hidden="true" />
+                      {name}
+                    </span>
+                  ))}
+                </div>
+                <p className="mt-1 text-[10px] leading-snug text-text-tertiary">
+                  {localize('com_atk_agent_upgrade_hint')}
+                </p>
+              </div>
+            )}
+
+            {/* Hard-floored host tools (surfaced for transparency, not selectable) */}
+            <div className="mt-3">
+              <span className="text-[11px] font-medium text-text-tertiary">
+                {localize('com_atk_agent_advanced')}
+              </span>
+              <div className="mt-1 flex flex-wrap gap-1.5">
+                {HARD_GATED.map((name) => (
+                  <span
+                    key={name}
+                    title={localize('com_atk_agent_advanced_hint')}
+                    className="inline-flex cursor-not-allowed items-center gap-1 rounded-full border border-dashed border-border-light px-2.5 py-1 text-[11px] text-text-tertiary opacity-70"
+                  >
+                    <Lock size={10} aria-hidden="true" />
+                    {name}
+                  </span>
+                ))}
+              </div>
+              <p className="mt-1 text-[10px] leading-snug text-text-tertiary">
+                {localize('com_atk_agent_advanced_hint')}
+              </p>
             </div>
           </div>
         )}

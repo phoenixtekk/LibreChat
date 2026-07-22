@@ -1,11 +1,12 @@
 import { useEffect, useCallback } from 'react';
-import { useRecoilState, useSetRecoilState } from 'recoil';
+import { useRecoilState, useSetRecoilState, useRecoilValue } from 'recoil';
 import type { RailTab } from './PreviewRail';
 import { CatalogPanel } from './catalog';
 import PreviewRail from './PreviewRail';
 import useAgentStream from './useAgentStream';
 import useComposerHistory from './useComposerHistory';
 import { initTheme } from './theme';
+import { useAuthContext } from '~/hooks';
 import store from '~/store';
 
 /**
@@ -17,11 +18,43 @@ import store from '~/store';
 export default function AnalytikulProvider() {
   const [rail, setRail] = useRecoilState(store.previewRail);
   const setCatalog = useSetRecoilState(store.catalogPanel);
+  const activeSpec = useRecoilValue(store.conversationSpecByIndex(0));
+  const { token } = useAuthContext();
   const stream = useAgentStream();
 
   useEffect(() => {
     initTheme();
   }, []);
+
+  // Self-serve upgrade: a marketing pricing button lands here as ?upgrade=<plan>.
+  // Start a Stripe Checkout (authed) and redirect the browser to it.
+  useEffect(() => {
+    if (!token) {
+      return;
+    }
+    const params = new URLSearchParams(window.location.search);
+    const plan = params.get('upgrade');
+    if (!plan) {
+      return;
+    }
+    const interval = params.get('interval') === 'year' ? 'year' : 'month';
+    params.delete('upgrade');
+    params.delete('interval');
+    const qs = params.toString();
+    window.history.replaceState({}, '', window.location.pathname + (qs ? `?${qs}` : ''));
+    fetch('/api/analytikul/billing/checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ plan, interval }),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { url?: string } | null) => {
+        if (d?.url) {
+          window.location.href = d.url;
+        }
+      })
+      .catch(() => {});
+  }, [token]);
 
   useComposerHistory();
 
@@ -30,6 +63,14 @@ export default function AnalytikulProvider() {
       setRail((prev) => ({ ...prev, open: true }));
     }
   }, [stream.state, setRail]);
+
+  // The "Hermes Agent" spec is the default experience — when it's the active
+  // model, surface the agent console (open the rail on its Agent tab).
+  useEffect(() => {
+    if (activeSpec === 'hermes-agent') {
+      setRail((prev) => ({ ...prev, open: true, tab: 'agent' }));
+    }
+  }, [activeSpec, setRail]);
 
   // Global Ctrl/Cmd+K opens the Discover catalog. Replaces the old
   // hand-rolled CommandPalette (the catalog supersedes its commands).

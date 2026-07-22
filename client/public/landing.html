@@ -53,7 +53,7 @@
   .navlinks a:not(.btn) { color: var(--muted); text-decoration: none; font-size: 14px; transition: color .2s; }
   .navlinks a:not(.btn):hover { color: var(--ink); }
   .btn { font-family: 'Space Grotesk', sans-serif; font-size: 14px; font-weight: 500; letter-spacing: .03em;
-    text-decoration: none; cursor: pointer; padding: 10px 20px; border-radius: 999px; transition: all .22s ease;
+    text-decoration: none; cursor: pointer; padding: 10px 20px; border-radius: 15px; transition: all .22s ease;
     display: inline-flex; align-items: center; gap: 8px; }
   .btn-ghost { color: var(--ink); border: 1px solid var(--line); background: transparent; }
   .btn-ghost:hover { border-color: var(--blue); color: var(--blue-bright); }
@@ -162,6 +162,33 @@
   footer a { color: var(--faint); text-decoration: none; margin-left: 22px; transition: color .2s; }
   footer a:hover { color: var(--ink); }
   @media (max-width: 720px) { .navlinks .hide-sm { display: none; } }
+
+  /* ---- Expansion constellation ---- */
+  section.expand { position: relative; z-index: 3; padding: 3vh clamp(20px,6vw,64px) 4vh; max-width: 1180px; margin: 0 auto; text-align: center; }
+  .expand .kicker { font-family:'Space Grotesk',sans-serif; font-size:12px; letter-spacing:.26em; text-transform:uppercase; color:var(--blue); }
+  .expand h2 { font-family:'Space Grotesk',sans-serif; font-weight:500; font-size:clamp(26px,4vw,40px); margin-top:14px; letter-spacing:-.01em; }
+  .expand .sub2 { color:var(--muted); max-width:56ch; margin:16px auto 0; }
+  .constellation { position:relative; width:100%; max-width:1000px; margin:18px auto 0; }
+  .constellation svg { width:100%; height:auto; display:block; overflow:visible; }
+  .cn-spoke { stroke:rgba(56,210,239,0.20); stroke-width:1; fill:none;
+    stroke-dasharray:var(--len); stroke-dashoffset:var(--len); transition:stroke-dashoffset 1s cubic-bezier(.2,0,0,1); transition-delay:calc(var(--i)*60ms); }
+  .constellation.visible .cn-spoke { stroke-dashoffset:0; }
+  .cn-comet { fill:var(--blue-bright); opacity:0; filter:drop-shadow(0 0 6px rgba(56,210,239,.95)); }
+  .constellation.visible .cn-comet { animation:cometRun 3.4s linear infinite; animation-delay:calc(var(--i)*260ms + .9s); }
+  @keyframes cometRun { 0%{ offset-distance:0%; opacity:0; } 12%{ opacity:1; } 88%{ opacity:1; } 100%{ offset-distance:100%; opacity:0; } }
+  .cn-core-ring { transform-origin:center; animation:corePulse 3.8s ease-in-out infinite; }
+  .cn-core-ring.r2 { animation-duration:5s; }
+  @keyframes corePulse { 0%,100%{ opacity:.35; transform:scale(1); } 50%{ opacity:.85; transform:scale(1.06); } }
+  .cn-core-dot { filter:drop-shadow(0 0 22px rgba(56,210,239,.7)) drop-shadow(0 0 48px rgba(106,50,192,.4)); }
+  .cn-core-label { font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:20px; fill:#eaf6ff; letter-spacing:.01em; }
+  .cn-node { opacity:0; transform:scale(.3); transform-box:fill-box; transform-origin:center;
+    transition:opacity .55s ease, transform .55s cubic-bezier(.2,1.4,.4,1); transition-delay:calc(var(--i)*70ms + .35s); }
+  .constellation.visible .cn-node { opacity:1; transform:scale(1); }
+  .cn-dot { filter:drop-shadow(0 0 9px rgba(56,210,239,.85)); animation:nodePulse 4s ease-in-out infinite; animation-delay:calc(var(--i)*200ms); }
+  @keyframes nodePulse { 0%,100%{ opacity:.85; } 50%{ opacity:1; } }
+  .cn-label { font-family:'Space Grotesk',sans-serif; font-size:14px; fill:var(--ink); }
+  @media (max-width:720px){ .cn-label{ font-size:13px; } .cn-core-label{ font-size:16px; } }
+  @media (prefers-reduced-motion: reduce){ .cn-spoke{ transition:none; } .cn-comet,.cn-core-ring{ animation:none; } .cn-dot{ animation:none; } .cn-node{ transition:none; opacity:1; transform:none; } }
 </style>
 </head>
 <body>
@@ -181,14 +208,14 @@
       <a href="/pricing" class="hide-sm">Pricing</a>
       <a href="/help" class="hide-sm">Docs</a>
       <a href="/chat" class="btn btn-ghost">Sign in</a>
-      <a href="/chat" class="btn btn-blue">Launch app →</a>
+      <a href="/chat" class="btn btn-blue">Chat</a>
     </div>
   </nav>
 
   <header class="hero">
     <span class="eyebrow"><span class="dot"></span> Analytics-native AI workspace</span>
     <div class="wordmark" aria-label="Analytikul AI">
-      <img class="wm-bg" src="/assets/Agartha.png" alt="" aria-hidden="true" />
+      <img class="wm-bg" src="/assets/Agartha.png?v=a24480" alt="" aria-hidden="true" />
       <div class="wm-smoke" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
       <canvas class="wm-stars" id="wmStars" aria-hidden="true"></canvas>
       <h2 class="wm-text">Analytikul AI</h2>
@@ -205,52 +232,107 @@
 
   <div class="agartha-wrap">
     <div class="agartha" id="agartha">
-      <img src="/assets/Agartha.png" alt="" aria-hidden="true" />
+      <img src="/assets/Agartha.png?v=a24480" alt="" aria-hidden="true" />
     </div>
   </div>
 
+  <section class="expand">
+    <div class="kicker">One core, every capability</div>
+    <h2>It starts as a chat box. It expands into everything.</h2>
+    <p class="sub2">From a single core, Analytikul radiates out into the cost, memory, agents, automation, and control a real team runs on — one workspace instead of a dozen tabs.</p>
+    <div class="constellation" id="constellation" role="img" aria-label="Analytikul core expanding out to its capabilities: multi-provider chat, cost analytics, budgets, organizational memory, agents, live traces, sandboxed code, bring your own keys, notes, gateways, scheduling, and security."></div>
+  </section>
+
   <section class="diff" id="features">
     <div class="diff-head">
-      <div class="kicker">Why Analytikul</div>
-      <h2>The operating layer under your AI</h2>
-      <p>Other tools give you a chat box. Analytikul gives you the cost, memory, and control a team actually needs to run on AI — together in one place.</p>
+      <div class="kicker">The full platform</div>
+      <h2>Everything the chat box hides — in one place</h2>
+      <p>Other tools give you a prompt and a reply. Analytikul gives you the cost, memory, agents, automation, and control a team actually needs to run on AI — together in one workspace.</p>
     </div>
     <div class="grid">
       <div class="card">
+        <svg class="ico" viewBox="0 0 24 24" fill="none"><path d="M4 5h12a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2H9l-4 3v-3a2 2 0 0 1-1-2V7a2 2 0 0 1 2-2Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M8 9h6M8 11.5h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+        <h3>Multi-provider chat</h3>
+        <div class="lead">Every model, one workspace.</div>
+        <p>OpenAI, Anthropic, Google, Bedrock, Groq, Mistral, OpenRouter, Ollama — and your own endpoints. Switch models mid-conversation without losing your thread.</p>
+      </div>
+      <div class="card">
         <svg class="ico" viewBox="0 0 24 24" fill="none"><path d="M3 3v18h18" stroke="currentColor" stroke-width="1.5"/><path d="M7 14l3-4 3 2 4-6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        <h3>Cross-provider cost intelligence</h3>
-        <div class="lead">Every model, one bill you can read.</div>
-        <p>See exactly what each user, conversation, and model costs — across every provider — and set budgets that stop overruns before they hit. No more surprise invoices.</p>
+        <h3>Cost &amp; budget intelligence</h3>
+        <div class="lead">See and cap every dollar.</div>
+        <p>Spend broken out by provider, model, user, and conversation — with charts and hard budgets that stop overruns before they reach the invoice.</p>
       </div>
       <div class="card">
         <svg class="ico" viewBox="0 0 24 24" fill="none"><path d="M12 3a4 4 0 0 0-4 4v1a4 4 0 0 0 0 8v1a4 4 0 0 0 8 0v-1a4 4 0 0 0 0-8V7a4 4 0 0 0-4-4Z" stroke="currentColor" stroke-width="1.4"/></svg>
         <h3>Organizational memory</h3>
-        <div class="lead">Your team's knowledge, shared by every agent.</div>
-        <p>What anyone teaches Analytikul is remembered once and recalled everywhere — private to your org. Stop re-explaining context to a tool with amnesia.</p>
+        <div class="lead">Shared knowledge, every agent.</div>
+        <p>Teach Analytikul once and it's recalled everywhere — org-isolated, with source lineage. Stop re-explaining context to a tool with amnesia.</p>
       </div>
       <div class="card">
         <svg class="ico" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="2.4" fill="currentColor"/><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3" stroke="currentColor" stroke-width="1.2"/></svg>
-        <h3>Agent observability</h3>
+        <h3>Agents &amp; live traces</h3>
         <div class="lead">Watch your agents think.</div>
-        <p>Every step, tool call, and token in a live trace with its cost attached — so an agent is never a black box you have to trust blindly.</p>
+        <p>Multi-step agents with a live trace of every step, tool call, token, and cost — so an agent is never a black box. Cancel any run mid-flight.</p>
       </div>
       <div class="card">
-        <svg class="ico" viewBox="0 0 24 24" fill="none"><path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6l8-4Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        <h3>Bring your own keys</h3>
-        <div class="lead">Your keys, your data, your margins.</div>
-        <p>Use any provider's keys directly — encrypted, never marked up, never leaving your control. Switch models freely without re-platforming.</p>
+        <svg class="ico" viewBox="0 0 24 24" fill="none"><path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6l8-4Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M9.5 11.5l1.8 1.8L15 9.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <h3>Sandboxed code execution</h3>
+        <div class="lead">Run code, safely contained.</div>
+        <p>Agents execute code in a fresh, locked-down container per task — gVisor-isolated, no network, dropped privileges. Power without exposing your stack.</p>
       </div>
       <div class="card">
-        <svg class="ico" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="16" rx="3" stroke="currentColor" stroke-width="1.4"/><path d="M3 9h18M8 14h5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
-        <h3>Gateways &amp; scheduling</h3>
-        <div class="lead">Reach your agents anywhere, on any schedule.</div>
-        <p>Message your agents from the channels you already use, and let them run on a schedule — no servers to stand up, no plumbing to maintain.</p>
+        <svg class="ico" viewBox="0 0 24 24" fill="none"><circle cx="8" cy="8" r="3.2" stroke="currentColor" stroke-width="1.4"/><path d="M10.3 10.3 L19 19M16 16l2-2M14 14l2-2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <h3>Bring your own keys &amp; endpoints</h3>
+        <div class="lead">Your keys, your margins.</div>
+        <p>Use any provider's keys directly — encrypted, never marked up. Register your own OpenAI-compatible endpoints, SSRF-validated and visible only to you.</p>
       </div>
       <div class="card">
-        <svg class="ico" viewBox="0 0 24 24" fill="none"><path d="M5 4h14v16l-7-3-7 3V4Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M9 9h6M9 13h4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
-        <h3>One analytics-native workspace</h3>
-        <div class="lead">Chat, notes, and agents — together.</div>
-        <p>Multi-provider chat, a markdown notes studio with AI built in, and your agents — in a single workspace instead of a dozen disconnected tabs.</p>
+        <svg class="ico" viewBox="0 0 24 24" fill="none"><path d="M6 3h9l4 4v14H6V3Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M14 3v5h5M9 13h6M9 16.5h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <h3>Notes studio</h3>
+        <div class="lead">Write, with AI built in.</div>
+        <p>A markdown editor with Enhance, Summarize, and Continue in place, org-sharing, and notes your agents can read and write — metered like any other call.</p>
+      </div>
+      <div class="card">
+        <svg class="ico" viewBox="0 0 24 24" fill="none"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M12 3v18M4 7.5l8 4.5 8-4.5" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
+        <h3>Custom models</h3>
+        <div class="lead">Build a model once, reuse it.</div>
+        <p>Bind a base model to a system prompt, parameters, tools, and knowledge — then pick your custom model from the same place as everything else.</p>
+      </div>
+      <div class="card">
+        <svg class="ico" viewBox="0 0 24 24" fill="none"><path d="M21 4 11 14M21 4l-6.5 17-3.5-7-7-3.5L21 4Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+        <h3>Messaging gateways</h3>
+        <div class="lead">Reach your agents anywhere.</div>
+        <p>Message your agents from Telegram, Slack, and Discord — set up from settings, with no servers to stand up or plumbing to maintain.</p>
+      </div>
+      <div class="card">
+        <svg class="ico" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.4"/><path d="M12 7v5l3.5 2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <h3>Scheduled tasks</h3>
+        <div class="lead">Agents that run on a schedule.</div>
+        <p>Cron-schedule agent runs and let them work while you don't — reports, checks, and routines that fire on their own and land where you need them.</p>
+      </div>
+      <div class="card">
+        <svg class="ico" viewBox="0 0 24 24" fill="none"><path d="M6 3h8l4 4v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><circle cx="10.5" cy="12.5" r="2.4" stroke="currentColor" stroke-width="1.3"/><path d="M12.4 14.4 14 16" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+        <h3>Grounded answers</h3>
+        <div class="lead">Your files and the live web.</div>
+        <p>Chat over your documents with RAG, pull in live web results, generate images, and render rich artifacts — answers tied to real sources.</p>
+      </div>
+      <div class="card">
+        <svg class="ico" viewBox="0 0 24 24" fill="none"><path d="M14 7l3-3a3 3 0 0 1 4 4l-3 3M10 17l-3 3a3 3 0 0 1-4-4l3-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 15l6-6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+        <h3>Connect any tool</h3>
+        <div class="lead">MCP servers &amp; API actions.</div>
+        <p>Extend what agents can do with Model Context Protocol servers and OpenAPI actions — bring your own tools straight into the workspace.</p>
+      </div>
+      <div class="card">
+        <svg class="ico" viewBox="0 0 24 24" fill="none"><rect x="4" y="4" width="16" height="16" rx="4" stroke="currentColor" stroke-width="1.4"/><path d="M10 9a1.6 1.6 0 1 0-1.6 1.6H15.6A1.6 1.6 0 1 0 14 9v6a1.6 1.6 0 1 0 1.6-1.6H8.4A1.6 1.6 0 1 0 10 15V9Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
+        <h3>Command palette &amp; themes</h3>
+        <div class="lead">A keystroke to anything.</div>
+        <p>Ctrl+K jumps to any action. Eight light and dark skins, six accents, a fast Preview Rail, and a workspace that stays out of your way.</p>
+      </div>
+      <div class="card">
+        <svg class="ico" viewBox="0 0 24 24" fill="none"><rect x="5" y="11" width="14" height="9" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M8 11V8a4 4 0 0 1 8 0v3" stroke="currentColor" stroke-width="1.4"/><circle cx="12" cy="15.5" r="1.3" fill="currentColor"/></svg>
+        <h3>Enterprise security</h3>
+        <div class="lead">Secure, isolated, yours.</div>
+        <p>Local, OAuth, SAML, LDAP, and 2FA sign-in, roles and access control, per-user and per-org isolation, and SSRF-guarded outbound calls.</p>
       </div>
     </div>
   </section>
@@ -351,6 +433,42 @@
       requestAnimationFrame(draw);
     }
     if (!matchMedia('(prefers-reduced-motion: reduce)').matches) { draw(); }
+  })();
+
+  // Expansion constellation: a central Analytikul core radiating to its capabilities
+  (function () {
+    const el = document.getElementById('constellation');
+    if (!el) { return; }
+    const feats = ['Chat', 'Cost', 'Budgets', 'Memory', 'Agents', 'Traces', 'Sandbox', 'BYOK', 'Notes', 'Gateways', 'Schedule', 'Security'];
+    const W = 1000, H = 560, cx = 500, cy = 270, rx = 380, ry = 188, N = feats.length;
+    let spokes = '', comets = '', nodes = '';
+    for (let i = 0; i < N; i++) {
+      const ang = (-Math.PI / 2) + (i * 2 * Math.PI / N);
+      const nx = +(cx + Math.cos(ang) * rx).toFixed(1);
+      const ny = +(cy + Math.sin(ang) * ry).toFixed(1);
+      const len = Math.round(Math.hypot(nx - cx, ny - cy));
+      spokes += '<line class="cn-spoke" x1="' + cx + '" y1="' + cy + '" x2="' + nx + '" y2="' + ny + '" style="--len:' + len + ';--i:' + i + '"/>';
+      comets += '<circle class="cn-comet" r="3" cx="0" cy="0" style="offset-path:path(\'M ' + cx + ' ' + cy + ' L ' + nx + ' ' + ny + '\');--i:' + i + '"/>';
+      const co = Math.cos(ang), si = Math.sin(ang);
+      let anchor = 'middle', lx = nx, ly = ny + 5;
+      if (co > 0.25) { anchor = 'start'; lx = nx + 13; }
+      else if (co < -0.25) { anchor = 'end'; lx = nx - 13; }
+      else { ly = ny + (si > 0 ? 19 : -11); }
+      nodes += '<g class="cn-node" style="--i:' + i + '">'
+        + '<circle class="cn-dot" cx="' + nx + '" cy="' + ny + '" r="5.5" fill="#38d2ef"/>'
+        + '<text class="cn-label" x="' + lx + '" y="' + ly + '" text-anchor="' + anchor + '">' + feats[i] + '</text></g>';
+    }
+    const core = '<ellipse class="cn-core-ring r2" cx="' + cx + '" cy="' + cy + '" rx="94" ry="76" fill="none" stroke="rgba(56,210,239,0.16)" stroke-width="1"/>'
+      + '<ellipse class="cn-core-ring" cx="' + cx + '" cy="' + cy + '" rx="72" ry="58" fill="none" stroke="rgba(56,210,239,0.26)" stroke-width="1"/>'
+      + '<ellipse class="cn-core-dot" cx="' + cx + '" cy="' + cy + '" rx="60" ry="47" fill="#0c4a7a"/>'
+      + '<ellipse cx="' + cx + '" cy="' + cy + '" rx="60" ry="47" fill="none" stroke="#38d2ef" stroke-width="1.4"/>'
+      + '<text class="cn-core-label" x="' + cx + '" y="' + (cy + 7) + '" text-anchor="middle">Analytikul</text>';
+    el.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet">'
+      + '<g>' + spokes + '</g><g>' + comets + '</g>' + core + '<g>' + nodes + '</g></svg>';
+    const io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) { if (e.isIntersecting) { el.classList.add('visible'); io.disconnect(); } });
+    }, { threshold: 0.25 });
+    io.observe(el);
   })();
 </script>
 </body>

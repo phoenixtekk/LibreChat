@@ -7,10 +7,12 @@ if (!process.env.LIBRECHAT_CODE_BASEURL) {
   process.env.LIBRECHAT_CODE_BASEURL = 'http://analytikul-hermes-adapter:8001';
 }
 if (!process.env.LIBRECHAT_CODE_API_KEY) {
-  // Some code paths require a non-empty key even though our /exec proxy
-  // ignores it (network isolation handles auth). Stub it so the auth-header
-  // resolver doesn't no-op the call.
-  process.env.LIBRECHAT_CODE_API_KEY = 'hermes-internal';
+  // The bundled code-exec tool sends this as `Authorization: Bearer` to the
+  // adapter's /exec. The adapter now authenticates that route with the shared
+  // INTERNAL_SERVICE_TOKEN (require_internal_or_bearer), so carry the real
+  // token when present; fall back to a stub for local/dev where it's unset.
+  process.env.LIBRECHAT_CODE_API_KEY =
+    process.env.INTERNAL_SERVICE_TOKEN || 'hermes-internal';
 }
 
 const telemetry = require('./telemetry');
@@ -278,37 +280,6 @@ const startServer = async () => {
         res.status(upstream.status).json(await upstream.json());
       } catch (error) {
         logger.error('[analytikul] stripe webhook forward failed', error);
-        res.status(502).json({ error: 'billing unavailable' });
-      }
-    },
-  );
-
-  /* Polar (Merchant of Record) webhook — raw body for standard-webhooks
-   * signature verification, mounted before the JSON parser. Polar authenticates
-   * via its webhook-signature headers, not JWT. */
-  app.post(
-    '/api/analytikul/webhooks/polar',
-    webhookLimiter,
-    express.raw({ type: '*/*', limit: '1mb' }),
-    async (req, res) => {
-      try {
-        const upstream = await fetch(
-          `${process.env.BILLING_SERVICE_URL ?? 'http://localhost:8013'}/webhooks/polar`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'webhook-id': req.headers['webhook-id'] ?? '',
-              'webhook-timestamp': req.headers['webhook-timestamp'] ?? '',
-              'webhook-signature': req.headers['webhook-signature'] ?? '',
-            },
-            body: req.body,
-            signal: AbortSignal.timeout(10000),
-          },
-        );
-        res.status(upstream.status).json(await upstream.json());
-      } catch (error) {
-        logger.error('[analytikul] polar webhook forward failed', error);
         res.status(502).json({ error: 'billing unavailable' });
       }
     },

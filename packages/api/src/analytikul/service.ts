@@ -315,3 +315,104 @@ export async function deleteVaultKey(
   });
   return res.ok;
 }
+
+/* ── Agent Power Tools entitlement policy ──────────────────────────────────────
+ * Two layers gate the highest-risk agent toolsets:
+ *  - HARD_FLOORED: off for EVERYONE regardless of plan, until per-task sandbox/VM
+ *    isolation ships (these run host commands or drive a live desktop).
+ *  - PLAN_GATED: allowed only at/above a minimum plan tier (BYO-credential model).
+ * Replaces the old static global floor in the /agent/run route.
+ */
+export const HARD_FLOORED_TOOLSETS = ['terminal', 'computer_use'] as const;
+
+const TIER_RANK: Record<string, number> = {
+  free: 0,
+  pro: 1,
+  team: 2,
+  business: 3,
+  enterprise: 4,
+};
+
+/** toolset → minimum plan tier required. code_execution/file are Pro+ (sandboxed compute). */
+export const PLAN_GATED_TOOLSETS: Record<string, string> = {
+  code_execution: 'pro',
+  file: 'pro',
+  messaging: 'team',
+  homeassistant: 'team',
+};
+
+/** Toolsets the "Agent Power Tools" add-on unlocks (on a Pro+ base). */
+const ADDON_TOOLSETS = ['messaging', 'homeassistant'];
+
+/**
+ * Toolsets to strip = the hard floor + any plan-gated tool the plan can't reach,
+ * EXCEPT add-on tools when the org holds the Agent Power Tools add-on (Pro+ base).
+ */
+export function forbiddenToolsetsForPlan(
+  plan: string | null | undefined,
+  powerTools = false,
+): string[] {
+  const rank = TIER_RANK[(plan ?? 'free').toLowerCase()] ?? 0;
+  const addonActive = powerTools && rank >= TIER_RANK.pro;
+  const gated = Object.entries(PLAN_GATED_TOOLSETS)
+    .filter(([toolset, minTier]) => {
+      const reaches = rank >= (TIER_RANK[minTier] ?? Number.MAX_SAFE_INTEGER);
+      const viaAddon = addonActive && ADDON_TOOLSETS.includes(toolset);
+      return !reaches && !viaAddon;
+    })
+    .map(([toolset]) => toolset);
+  return [...HARD_FLOORED_TOOLSETS, ...gated];
+}
+
+export interface OrgEntitlements {
+  plan: string;
+  powerTools: boolean;
+}
+
+/** Read an org's plan + add-ons from billing; defaults to free/no-addon (least privilege) on error. */
+export async function getOrgEntitlements(orgId = 'default'): Promise<OrgEntitlements> {
+  try {
+    const res = await fetch(`${BILLING_URL()}/org?orgId=${encodeURIComponent(orgId)}`, {
+      headers: internalHeaders(),
+      signal: AbortSignal.timeout(4000),
+    });
+    if (!res.ok) {
+      return { plan: 'free', powerTools: false };
+    }
+    const body = (await res.json()) as {
+      org?: { plan?: string; addons?: { powerTools?: boolean } } | null;
+    };
+    return {
+      plan: body.org?.plan ?? 'free',
+      powerTools: Boolean(body.org?.addons?.powerTools),
+    };
+  } catch {
+    return { plan: 'free', powerTools: false };
+  }
+}
+
+/** Back-compat thin wrapper. */
+export async function getOrgPlan(orgId = 'default'): Promise<string> {
+  return (await getOrgEntitlements(orgId)).plan;
+}
+
+/** Create a Stripe Checkout session for a plan/add-on via the billing service. */
+export async function createCheckout(args: {
+  orgId: string;
+  plan: string;
+  interval?: string;
+  successUrl: string;
+  cancelUrl: string;
+}): Promise<{ url: string }> {
+  const res = await fetch(`${BILLING_URL()}/checkout/subscription`, {
+    method: 'POST',
+    headers: internalHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(args),
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? `billing checkout failed (${res.status})`);
+  }
+  return (await res.json()) as { url: string };
+}

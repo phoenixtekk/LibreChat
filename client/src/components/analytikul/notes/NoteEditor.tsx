@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useRecoilValue } from 'recoil';
+import { useMediaQuery } from '@librechat/client';
 import { useEditor, EditorContent } from '@tiptap/react';
 import { BubbleMenu } from '@tiptap/react/menus';
 import StarterKit from '@tiptap/starter-kit';
@@ -8,6 +10,9 @@ import TaskItem from '@tiptap/extension-task-item';
 import Placeholder from '@tiptap/extension-placeholder';
 import type { Editor } from '@tiptap/core';
 import { useLocalize, useAuthContext } from '~/hooks';
+import OpenSidebar from '~/components/Chat/Menus/OpenSidebar';
+import { cn } from '~/utils';
+import store from '~/store';
 import { htmlToMarkdown, markdownToHtml } from './markdown';
 import { dayjs } from './time';
 
@@ -31,14 +36,35 @@ const AUTOSAVE_MS = 600;
  * line, undo/redo, bubble formatting toolbar on selection, and AI actions
  * (enhance/summarize/continue) running as metered agent calls.
  */
-export default function NoteEditor() {
+export default function NoteEditor({
+  noteId: propNoteId,
+  embedded = false,
+  onSaved,
+}: { noteId?: string; embedded?: boolean; onSaved?: () => void } = {}) {
   const localize = useLocalize();
   const navigate = useNavigate();
-  const { noteId } = useParams();
+  const params = useParams();
+  const noteId = propNoteId ?? params.noteId;
   const { token } = useAuthContext();
+  // When the sidebar is collapsed on desktop, this full-page note view has no
+  // chat header (where the reopen toggle normally lives), so surface one here —
+  // otherwise the user is stranded with no way back. Mobile already has the
+  // sidebar's own floating drawer toggle.
+  const sidebarExpanded = useRecoilValue(store.sidebarExpanded);
+  const isSmallScreen = useMediaQuery('(max-width: 768px)');
+  const showReopen = !embedded && !sidebarExpanded && !isSmallScreen;
   const [note, setNote] = useState<Note | null>(null);
   const [aiBusy, setAiBusy] = useState<AiAction | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Notes are full width by default (owner request); the toggle can narrow to a
+  // comfortable reading width.
+  const [wide, setWide] = useState(() => localStorage.getItem('atk-note-width') !== 'default');
+  const toggleWide = () =>
+    setWide((prev) => {
+      const next = !prev;
+      localStorage.setItem('atk-note-width', next ? 'wide' : 'default');
+      return next;
+    });
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const noteRef = useRef<Note | null>(null);
   noteRef.current = note;
@@ -97,7 +123,8 @@ export default function NoteEditor() {
         sharedWithOrg: current.sharedWithOrg,
       }),
     });
-  }, [editor, headers]);
+    onSaved?.();
+  }, [editor, headers, onSaved]);
 
   const scheduleSave = useCallback(() => {
     if (saveTimer.current != null) {
@@ -189,7 +216,14 @@ export default function NoteEditor() {
 
   return (
     <div className="flex h-full w-full flex-col overflow-hidden bg-surface-primary text-text-primary">
+     <div
+       className={cn(
+         'mx-auto flex w-full min-h-0 flex-1 flex-col overflow-hidden',
+         wide ? 'max-w-none' : 'max-w-[1180px]',
+       )}
+     >
       <div className="mb-1.5 flex items-center justify-between gap-2 px-3.5 pt-3">
+        {showReopen && <OpenSidebar className="shrink-0" />}
         <input
           value={note.title}
           placeholder={localize('com_atk_notes_title_ph')}
@@ -213,6 +247,27 @@ export default function NoteEditor() {
             onClick={() => editor?.chain().focus().redo().run()}
             path="M15 14h5V9M19.5 13.5A8 8 0 1 0 17 18"
           />
+          <button
+            type="button"
+            aria-pressed={wide}
+            title={localize(wide ? 'com_atk_notes_width_default' : 'com_atk_notes_width_full')}
+            aria-label={localize(wide ? 'com_atk_notes_width_default' : 'com_atk_notes_width_full')}
+            className={cn(
+              'rounded-xl p-1.5 hover:bg-surface-hover',
+              wide ? 'text-text-primary' : 'text-text-secondary',
+            )}
+            onClick={toggleWide}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M9 6L5 12l4 6M15 6l4 6-4 6"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
           {(['enhance', 'summarize', 'continue'] as AiAction[]).map((action) => (
             <button
               key={action}
@@ -245,6 +300,26 @@ export default function NoteEditor() {
       </div>
 
       {error != null && <div className="px-3.5 py-1 text-xs text-text-destructive">{error}</div>}
+
+      {editor != null && (
+        <div className="flex flex-wrap items-center gap-0.5 border-y border-border-light px-2.5 py-1">
+          <BubbleButton active={editor.isActive('heading', { level: 1 })} label="H1" onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} />
+          <BubbleButton active={editor.isActive('heading', { level: 2 })} label="H2" onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} />
+          <BubbleButton active={editor.isActive('heading', { level: 3 })} label="H3" onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} />
+          <span className="mx-1 h-4 w-px bg-border-light" />
+          <BubbleButton active={editor.isActive('bold')} label="B" bold onClick={() => editor.chain().focus().toggleBold().run()} />
+          <BubbleButton active={editor.isActive('italic')} label="I" italic onClick={() => editor.chain().focus().toggleItalic().run()} />
+          <BubbleButton active={editor.isActive('strike')} label="S" strike onClick={() => editor.chain().focus().toggleStrike().run()} />
+          <BubbleButton active={editor.isActive('code')} label="</>" onClick={() => editor.chain().focus().toggleCode().run()} />
+          <span className="mx-1 h-4 w-px bg-border-light" />
+          <BubbleButton active={editor.isActive('bulletList')} label="•" onClick={() => editor.chain().focus().toggleBulletList().run()} />
+          <BubbleButton active={editor.isActive('orderedList')} label="1." onClick={() => editor.chain().focus().toggleOrderedList().run()} />
+          <BubbleButton active={editor.isActive('taskList')} label="☑" onClick={() => editor.chain().focus().toggleTaskList().run()} />
+          <BubbleButton active={editor.isActive('blockquote')} label="❝" onClick={() => editor.chain().focus().toggleBlockquote().run()} />
+          <BubbleButton active={editor.isActive('codeBlock')} label="{ }" onClick={() => editor.chain().focus().toggleCodeBlock().run()} />
+          <BubbleButton active={false} label="―" onClick={() => editor.chain().focus().setHorizontalRule().run()} />
+        </div>
+      )}
 
       <div className="min-h-0 flex-1 overflow-y-auto px-3.5 pb-24 pt-2">
         {editor != null && (
@@ -314,6 +389,7 @@ export default function NoteEditor() {
         )}
         <EditorContent editor={editor} />
       </div>
+     </div>
     </div>
   );
 }
