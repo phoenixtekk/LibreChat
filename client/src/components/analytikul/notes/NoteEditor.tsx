@@ -77,7 +77,15 @@ export default function NoteEditor({
 
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({ link: { openOnClick: false } }),
+      StarterKit.configure({
+        link: {
+          openOnClick: true,
+          autolink: true,
+          linkOnPaste: true,
+          defaultProtocol: 'https',
+          HTMLAttributes: { target: '_blank', rel: 'noopener noreferrer' },
+        },
+      }),
       TaskList,
       TaskItem.configure({ nested: true }),
       Placeholder.configure({ placeholder: localize('com_atk_notes_placeholder') }),
