@@ -10,8 +10,19 @@ export type AgentEventType =
   | 'step'
   | 'cost_event'
   | 'status'
+  | 'permission_request'
   | 'done'
   | 'error';
+
+export interface PermissionRequest {
+  request_id: string;
+  kind: string;
+  tool?: string;
+  path?: string;
+  old_text?: string;
+  new_text?: string;
+  command?: string;
+}
 
 export interface AgentEvent {
   type: AgentEventType;
@@ -32,6 +43,11 @@ export interface AgentEvent {
   final_response?: string;
   message?: string;
   interrupted?: boolean;
+  request_id?: string;
+  path?: string;
+  old_text?: string;
+  new_text?: string;
+  command?: string;
 }
 
 export type AgentRunState = 'idle' | 'starting' | 'running' | 'done' | 'error' | 'cancelled';
@@ -41,6 +57,12 @@ export interface AgentRunOptions {
   disabledToolsets?: string[];
   model?: string;
   provider?: string;
+  /** OpenAI-compatible base URL for a self-hosted / local model (e.g. vLLM, Ollama). */
+  baseUrl?: string;
+  /** Analytikul Coder: project folder (under the workspace root) to run in. */
+  workspace?: string;
+  /** Permission mode: plan | manual | accept_edits | auto | bypass. */
+  permissionMode?: string;
 }
 
 export interface AgentStreamApi {
@@ -52,8 +74,10 @@ export interface AgentStreamApi {
   totalCostUsd: number;
   totalTokens: number;
   taskId: string | null;
+  pendingApproval: PermissionRequest | null;
   run: (message: string, conversationId: string, options?: AgentRunOptions) => Promise<void>;
   cancel: () => Promise<void>;
+  respond: (requestId: string, decision: string) => Promise<void>;
   reset: () => void;
 }
 
@@ -65,6 +89,7 @@ const EVENT_TYPES: AgentEventType[] = [
   'step',
   'cost_event',
   'status',
+  'permission_request',
   'done',
   'error',
 ];
@@ -79,6 +104,7 @@ export default function useAgentStream(): AgentStreamApi {
   const [totalCostUsd, setTotalCostUsd] = useState(0);
   const [totalTokens, setTotalTokens] = useState(0);
   const [taskId, setTaskId] = useState<string | null>(null);
+  const [pendingApproval, setPendingApproval] = useState<PermissionRequest | null>(null);
   const sseRef = useRef<SSE | null>(null);
   const taskRef = useRef<string | null>(null);
 
@@ -94,6 +120,7 @@ export default function useAgentStream(): AgentStreamApi {
     setTotalCostUsd(0);
     setTotalTokens(0);
     setTaskId(null);
+    setPendingApproval(null);
   }, []);
 
   const handleEvent = useCallback((event: AgentEvent) => {
@@ -106,6 +133,16 @@ export default function useAgentStream(): AgentStreamApi {
     } else if (event.type === 'done') {
       setFinalResponse(event.final_response ?? null);
       setState(event.interrupted ? 'cancelled' : 'done');
+    } else if (event.type === 'permission_request') {
+      setPendingApproval({
+        request_id: event.request_id ?? '',
+        kind: event.kind ?? 'edit',
+        tool: event.tool,
+        path: event.path,
+        old_text: event.old_text,
+        new_text: event.new_text,
+        command: event.command,
+      });
     } else if (event.type === 'error') {
       setErrorMessage(event.message ?? 'agent error');
       setState('error');
@@ -168,6 +205,22 @@ export default function useAgentStream(): AgentStreamApi {
     }).catch(() => undefined);
   }, [token]);
 
+  const respond = useCallback(
+    async (requestId: string, decision: string) => {
+      const id = taskRef.current;
+      setPendingApproval(null);
+      if (!id) {
+        return;
+      }
+      await fetch(`/api/analytikul/agent/respond/${encodeURIComponent(id)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ requestId, decision }),
+      }).catch(() => undefined);
+    },
+    [token],
+  );
+
   return {
     state,
     events,
@@ -177,8 +230,10 @@ export default function useAgentStream(): AgentStreamApi {
     totalCostUsd,
     totalTokens,
     taskId,
+    pendingApproval,
     run,
     cancel,
+    respond,
     reset,
   };
 }

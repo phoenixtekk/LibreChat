@@ -19,12 +19,26 @@ services:
       - AGENT_MAX_CONCURRENT=8
       - AGENT_MAX_PER_USER=2
       - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN:-}
+      # Analytikul Coder personal power-mode (self-hosted, single-tenant dev): un-gates
+      # terminal/file/code_execution in sessions.py FORBIDDEN_TOOLSETS. OFF in prod.
+      - POWER_MODE=${POWER_MODE:-true}
+      # Analytikul Coder workspaces: per-project folders under /workspace, bind-mounted
+      # from WORKSPACE_HOST_DIR (<drive>:\Analytikul_Coder) on the host. Git identity +
+      # token (empty until provided) are used for push & deploy.
+      - WORKSPACE_ROOT=/workspace
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      - GIT_AUTHOR_NAME=${GIT_AUTHOR_NAME:-Analytikul Coder}
+      - GIT_AUTHOR_EMAIL=${GIT_AUTHOR_EMAIL:-coder@analytikul.local}
     volumes:
       - hermes-home:/data/hermes
+      - ${WORKSPACE_HOST_DIR}:/workspace
     # Loopback-only: reachable from the host (native backend) and from other
     # compose services by name, but NOT from the LAN / other hosts' containers.
     ports:
-      - "127.0.0.1:8001:8001"
+      # Host 8001 collides with SteelSeries GG SDK (DSEASDK.exe) on this dev box, so
+      # publish on 18001. Container port stays 8001; in-cluster callers use hermes-adapter:8001.
+      # Native backend must set HERMES_ADAPTER_URL=http://localhost:18001 to match.
+      - "127.0.0.1:18001:8001"
     depends_on:
       - redis
 
@@ -77,6 +91,9 @@ services:
       - MEMORY_PG_URI=postgresql://myuser:mypassword@vectordb:5432/mydatabase
       - MODEL_CACHE_DIR=/models
       - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN:-}
+      # Password for the RLS runtime role the memory migration creates; without it the
+      # migration skips role creation then fails referencing memory_rt (crash loop).
+      - MEMORY_RT_PASSWORD=${MEMORY_RT_PASSWORD:-dev_memory_rt}
     volumes:
       - ./services/memory-service:/app
       - embedder-models:/models

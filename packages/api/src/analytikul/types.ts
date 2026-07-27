@@ -6,6 +6,10 @@ export interface AgentRunBody {
   baseUrl?: string;
   enabledToolsets?: string[];
   disabledToolsets?: string[];
+  /** Analytikul Coder: project folder under the workspace root to run in. */
+  workspace?: string;
+  /** Permission mode: plan | manual | accept_edits | auto | bypass. */
+  permissionMode?: string;
 }
 
 export interface AdapterRunRequest {
@@ -19,6 +23,8 @@ export interface AdapterRunRequest {
   base_url: string;
   enabled_toolsets?: string[];
   disabled_toolsets?: string[];
+  workspace?: string;
+  permission_mode?: string;
 }
 
 export interface AgentStreamEvent {

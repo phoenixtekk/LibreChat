@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useLocalize } from '~/hooks';
 import AgentPanel from './AgentPanel';
+import WorkspaceFiles from './WorkspaceFiles';
 import AnalyticsDashboard from './AnalyticsDashboard';
 import OrgMemoryPanel from './OrgMemoryPanel';
 import KeysPanel from './KeysPanel';
@@ -181,12 +182,7 @@ export default function PreviewRail({
               <span>{localize('com_atk_preview_empty')}</span>
             </div>
           ))}
-        {tab === 'files' && (
-          <div className="atk-empty-state">
-            <strong>{localize('com_atk_file_browser')}</strong>
-            <span>{localize('com_atk_files_empty')}</span>
-          </div>
-        )}
+        {tab === 'files' && <WorkspaceFiles />}
       </div>
     </aside>
   );

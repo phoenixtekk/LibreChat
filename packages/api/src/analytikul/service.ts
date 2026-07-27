@@ -64,6 +64,8 @@ export async function startAgentRun(
     base_url: body.baseUrl ?? 'https://openrouter.ai/api/v1',
     enabled_toolsets: body.enabledToolsets,
     disabled_toolsets: body.disabledToolsets,
+    workspace: body.workspace,
+    permission_mode: body.permissionMode,
   };
   const res = await fetch(`${ADAPTER_URL()}/run`, {
     method: 'POST',
@@ -82,6 +84,20 @@ export async function cancelAgentRun(taskId: string): Promise<boolean> {
   const res = await fetch(`${ADAPTER_URL()}/cancel/${encodeURIComponent(taskId)}`, {
     method: 'POST',
     headers: internalHeaders(),
+  });
+  return res.ok;
+}
+
+/** Forward a UI permission decision (allow | deny | always) to a blocked run. */
+export async function respondAgentApproval(
+  taskId: string,
+  requestId: string,
+  decision: string,
+): Promise<boolean> {
+  const res = await fetch(`${ADAPTER_URL()}/respond/${encodeURIComponent(taskId)}`, {
+    method: 'POST',
+    headers: internalHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ request_id: requestId, decision }),
   });
   return res.ok;
 }
@@ -352,6 +368,14 @@ export function forbiddenToolsetsForPlan(
   plan: string | null | undefined,
   powerTools = false,
 ): string[] {
+  // Analytikul Coder — single-tenant personal power-mode (self-hosted, trusted operator):
+  // unlock the full toolset (terminal, file, code_execution) so the agent can build & run
+  // projects like Claude Code, withholding only live-desktop control (computer_use).
+  // OFF by default; MUST never be set on the multi-tenant SaaS. Mirrors FORBIDDEN_TOOLSETS
+  // in services/hermes-runtime/analytikul_adapter/sessions.py.
+  if (process.env.POWER_MODE === 'true') {
+    return ['computer_use'];
+  }
   const rank = TIER_RANK[(plan ?? 'free').toLowerCase()] ?? 0;
   const addonActive = powerTools && rank >= TIER_RANK.pro;
   const gated = Object.entries(PLAN_GATED_TOOLSETS)

@@ -44,6 +44,17 @@ RUN uv pip install --system --no-cache playwright \
 # Provider extras (lazy deps in the runtime; required at run time)
 RUN uv pip install --system --no-cache "anthropic>=0.39.0" "pymongo>=4.10"
 
+# Web-dev + deploy toolchain for Analytikul Coder: Node/npm/pnpm (scaffold, install,
+# build & run web apps) + openssh-client + rsync (push to GitHub over SSH / deploy to
+# a Linux server) — so the agent can drive a local repo → build → push → deploy loop
+# like Claude Code. Placed after the heavy Playwright layer so it stays cache-cheap.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends openssh-client rsync \
+    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
+    && npm install -g pnpm \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN useradd -m -u 10001 agent \
     && mkdir -p /data/hermes/sandboxes \
     && chown -R agent:agent /data/hermes /runtime

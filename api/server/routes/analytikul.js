@@ -5,6 +5,7 @@ const {
   startAgentRun,
   collectAgentRun,
   cancelAgentRun,
+  respondAgentApproval,
   getAgentTools,
   pipeAgentStream,
   createTraceRecorder,
@@ -86,8 +87,17 @@ router.use(generalLimiter);
 
 router.post('/agent/run', agentRunLimiter, async (req, res) => {
   try {
-    const { message, conversationId, model, provider, baseUrl, enabledToolsets, disabledToolsets } =
-      req.body ?? {};
+    const {
+      message,
+      conversationId,
+      model,
+      provider,
+      baseUrl,
+      enabledToolsets,
+      disabledToolsets,
+      workspace,
+      permissionMode,
+    } = req.body ?? {};
     if (!message || !conversationId) {
       return res.status(400).json({ message: 'message and conversationId are required' });
     }
@@ -145,6 +155,8 @@ router.post('/agent/run', agentRunLimiter, async (req, res) => {
         baseUrl: baseUrl ?? process.env.AGENT_DEFAULT_BASE_URL,
         enabledToolsets: safeEnabled,
         disabledToolsets: safeDisabled,
+        workspace,
+        permissionMode,
       },
       ctx,
     );
@@ -346,6 +358,194 @@ function validateModelsField(models) {
   }
   return { ok: true, value: models };
 }
+
+/* List the models an OpenAI-compatible endpoint serves, for the agent model picker.
+ * In POWER_MODE (self-hosted single-tenant) a private/LAN endpoint — e.g. a local
+ * vLLM/Ollama — is allowed; otherwise the SSRF guard refuses private addresses.
+ * Read-only, no persistence: the client calls this to populate a model dropdown. */
+router.get('/agent/models', async (req, res) => {
+  const baseUrl = typeof req.query.baseUrl === 'string' ? req.query.baseUrl.trim() : '';
+  const apiKey = typeof req.query.apiKey === 'string' ? req.query.apiKey : '';
+  if (!baseUrl) {
+    return res.status(400).json({ message: 'baseUrl is required' });
+  }
+  let parsed;
+  try {
+    parsed = new URL(baseUrl);
+  } catch {
+    return res.status(400).json({ message: SSRF_MESSAGES.invalid_url });
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    return res.status(400).json({ message: SSRF_MESSAGES.scheme_blocked });
+  }
+  const powerMode = process.env.POWER_MODE === 'true';
+  const PRIVATE_OK = new Set(['ip_private', 'ip_loopback', 'ip_link_local']);
+  try {
+    const decision = await validateUrl(baseUrl);
+    let resolvedIp = decision.resolvedIp;
+    if (!decision.allowed) {
+      if (!(powerMode && PRIVATE_OK.has(decision.reason))) {
+        return res.status(400).json({
+          message: SSRF_MESSAGES[decision.reason] ?? 'That URL is not allowed.',
+          reason: decision.reason,
+        });
+      }
+      // Trusted self-hosted operator pointing at their own LAN/local endpoint —
+      // resolve the host ourselves so fetchEndpointModels has a pinned IP.
+      if (!resolvedIp) {
+        resolvedIp = require('net').isIP(parsed.hostname)
+          ? parsed.hostname
+          : (await require('dns').promises.lookup(parsed.hostname)).address;
+      }
+    }
+    const models = await fetchEndpointModels(baseUrl, apiKey, resolvedIp);
+    return res.status(200).json({ models: Array.isArray(models) ? models : [] });
+  } catch (error) {
+    logger.warn(`[analytikul] agent model list failed for ${baseUrl}: ${error.message}`);
+    return res.status(502).json({ message: 'Could not reach the endpoint to list models.' });
+  }
+});
+
+/* Analytikul Coder workspace projects: list/create project folders under the host
+ * workspace root (WORKSPACE_HOST_DIR, bind-mounted into the agent as /workspace).
+ * Only project names (single top-level folders) are accepted — no path traversal. */
+const PROJECT_NAME_RE = /^[A-Za-z0-9._-]{1,64}$/;
+
+router.get('/agent/workspaces', async (req, res) => {
+  const hostDir = process.env.WORKSPACE_HOST_DIR || '';
+  if (!hostDir) {
+    return res.status(200).json({ configured: false, hostDir: '', projects: [] });
+  }
+  try {
+    const entries = await require('fs').promises.readdir(hostDir, { withFileTypes: true });
+    const projects = entries
+      .filter((e) => e.isDirectory() && !e.name.startsWith('.'))
+      .map((e) => e.name)
+      .sort();
+    return res.status(200).json({ configured: true, hostDir, projects });
+  } catch (error) {
+    logger.warn(`[analytikul] list workspaces failed: ${error.message}`);
+    return res.status(200).json({ configured: true, hostDir, projects: [] });
+  }
+});
+
+router.post('/agent/workspaces', async (req, res) => {
+  const hostDir = process.env.WORKSPACE_HOST_DIR || '';
+  const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
+  if (!hostDir) {
+    return res.status(400).json({ message: 'No workspace root configured (WORKSPACE_HOST_DIR).' });
+  }
+  if (!PROJECT_NAME_RE.test(name)) {
+    return res.status(400).json({ message: 'Project name must be 1-64 chars: letters, numbers, . _ -' });
+  }
+  try {
+    const target = require('path').join(hostDir, name);
+    await require('fs').promises.mkdir(target, { recursive: true });
+    return res.status(201).json({ name });
+  } catch (error) {
+    logger.warn(`[analytikul] create workspace failed: ${error.message}`);
+    return res.status(500).json({ message: 'Could not create the project folder.' });
+  }
+});
+
+/* Cockpit (M4): read-only workspace file tree + file contents, scoped to a project
+ * folder under the host workspace root. Path traversal is rejected; heavy dirs are
+ * skipped and results are bounded. */
+const COCKPIT_IGNORE = new Set([
+  'node_modules', '.git', '.next', 'dist', 'build', '.cache', '.turbo', '.venv', '__pycache__',
+]);
+
+function cockpitProjectDir(project) {
+  const hostDir = process.env.WORKSPACE_HOST_DIR || '';
+  const name = String(project || 'default').trim();
+  if (!hostDir || !name || name.includes('/') || name.includes('\\') || name === '..') {
+    return null;
+  }
+  return require('path').join(hostDir, name);
+}
+
+router.get('/agent/workspace/tree', async (req, res) => {
+  const root = cockpitProjectDir(req.query.project);
+  if (!root) {
+    return res.status(400).json({ message: 'invalid project' });
+  }
+  const path = require('path');
+  const fsp = require('fs').promises;
+  const entries = [];
+  const MAX = 3000;
+  async function walk(dir, rel, depth) {
+    if (entries.length >= MAX || depth > 8) {
+      return;
+    }
+    let dirents;
+    try {
+      dirents = await fsp.readdir(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    dirents.sort((a, b) =>
+      a.isDirectory() === b.isDirectory() ? a.name.localeCompare(b.name) : a.isDirectory() ? -1 : 1,
+    );
+    for (const e of dirents) {
+      if (entries.length >= MAX) {
+        break;
+      }
+      if (COCKPIT_IGNORE.has(e.name)) {
+        continue;
+      }
+      const childRel = rel ? `${rel}/${e.name}` : e.name;
+      if (e.isDirectory()) {
+        entries.push({ path: childRel, type: 'dir' });
+        await walk(path.join(dir, e.name), childRel, depth + 1);
+      } else if (e.isFile()) {
+        entries.push({ path: childRel, type: 'file' });
+      }
+    }
+  }
+  await walk(root, '', 0);
+  return res.status(200).json({ entries, truncated: entries.length >= MAX });
+});
+
+router.get('/agent/workspace/file', async (req, res) => {
+  const root = cockpitProjectDir(req.query.project);
+  if (!root) {
+    return res.status(400).json({ message: 'invalid project' });
+  }
+  const path = require('path');
+  const target = path.resolve(root, String(req.query.path || ''));
+  if (target !== root && !target.startsWith(root + path.sep)) {
+    return res.status(400).json({ message: 'path outside workspace' });
+  }
+  try {
+    const fsp = require('fs').promises;
+    const stat = await fsp.stat(target);
+    if (!stat.isFile()) {
+      return res.status(400).json({ message: 'not a file' });
+    }
+    if (stat.size > 512 * 1024) {
+      return res.status(413).json({ message: 'file too large to preview', size: stat.size });
+    }
+    const content = await fsp.readFile(target, 'utf-8');
+    return res.status(200).json({ path: String(req.query.path || ''), content, size: stat.size });
+  } catch {
+    return res.status(404).json({ message: 'file not found' });
+  }
+});
+
+// Deliver a permission decision (allow | deny | always) for a paused agent run.
+router.post('/agent/respond/:taskId', async (req, res) => {
+  try {
+    const { requestId, decision } = req.body ?? {};
+    if (!requestId || !['allow', 'deny', 'always'].includes(decision)) {
+      return res.status(400).json({ message: 'requestId and a valid decision are required' });
+    }
+    const ok = await respondAgentApproval(req.params.taskId, requestId, decision);
+    return res.status(ok ? 200 : 404).json({ ok });
+  } catch (error) {
+    logger.error('[analytikul] approval respond failed', error);
+    return res.status(500).json({ message: 'could not deliver decision' });
+  }
+});
 
 router.get('/endpoints', async (req, res) => {
   try {

@@ -1,10 +1,13 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { ChevronDown, Zap, Lock } from 'lucide-react';
 import { useGetModelsQuery } from 'librechat-data-provider/react-query';
 import { useLocalize, useAuthContext } from '~/hooks';
 import { cn } from '~/utils';
 import TraceViewer from './TraceViewer';
+import type { ReactNode } from 'react';
 import type { AgentStreamApi } from './useAgentStream';
 
 /** Maps a Hermes provider name to the LibreChat models-map key, where one exists. */
@@ -12,6 +15,63 @@ const PROVIDER_MODEL_KEY: Record<string, string> = {
   openai: 'openAI',
   anthropic: 'anthropic',
   google: 'google',
+};
+
+/**
+ * Tidy streamed agent text for display: drop lines that are only stray dots
+ * (a lone "." the model emits between thoughts) and collapse runs of blank
+ * lines. Markdown then handles paragraph spacing and fenced code blocks.
+ */
+function normalizeAgentText(text: string): string {
+  return text
+    .split('\n')
+    .filter((line) => !/^[.·…]+$/.test(line.trim()))
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+/**
+ * Markdown renderer for agent output — renders ```fenced``` commands/code in a
+ * shaded box so they stand out from the surrounding narration, and keeps links
+ * safe (new tab + noopener).
+ */
+const AGENT_MD = {
+  p: ({ children }: { children?: ReactNode }) => (
+    <p className="mb-2 leading-relaxed last:mb-0">{children}</p>
+  ),
+  pre: ({ children }: { children?: ReactNode }) => (
+    <pre className="my-2 overflow-x-auto rounded-md border border-border-light bg-surface-secondary p-2.5 font-mono text-[12px] leading-relaxed [&_code]:bg-transparent [&_code]:p-0">
+      {children}
+    </pre>
+  ),
+  code: ({ children }: { children?: ReactNode }) => (
+    <code className="rounded bg-surface-secondary px-1 py-0.5 font-mono text-[12px]">{children}</code>
+  ),
+  ul: ({ children }: { children?: ReactNode }) => (
+    <ul className="mb-2 list-disc space-y-0.5 pl-5">{children}</ul>
+  ),
+  ol: ({ children }: { children?: ReactNode }) => (
+    <ol className="mb-2 list-decimal space-y-0.5 pl-5">{children}</ol>
+  ),
+  li: ({ children }: { children?: ReactNode }) => <li>{children}</li>,
+  h1: ({ children }: { children?: ReactNode }) => (
+    <h3 className="mb-1 mt-2 text-sm font-semibold text-text-primary">{children}</h3>
+  ),
+  h2: ({ children }: { children?: ReactNode }) => (
+    <h3 className="mb-1 mt-2 text-sm font-semibold text-text-primary">{children}</h3>
+  ),
+  h3: ({ children }: { children?: ReactNode }) => (
+    <h4 className="mb-1 mt-2 text-[13px] font-semibold text-text-primary">{children}</h4>
+  ),
+  strong: ({ children }: { children?: ReactNode }) => (
+    <strong className="font-semibold text-text-primary">{children}</strong>
+  ),
+  a: ({ href, children }: { href?: string; children?: ReactNode }) => (
+    <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-400 underline">
+      {children}
+    </a>
+  ),
 };
 
 /**
@@ -42,6 +102,7 @@ const TOOLSETS = [
   'discord',
   'code_execution',
   'file',
+  'terminal',
 ] as const;
 
 /**
@@ -54,14 +115,46 @@ const PLAN_GATED = ['messaging', 'homeassistant'] as const;
  * Hard-floored — run host commands / drive a live desktop. Off for everyone
  * until per-task sandbox/VM isolation ships; shown for transparency only.
  */
-const HARD_GATED = ['terminal', 'computer_use'] as const;
+const HARD_GATED = ['computer_use'] as const;
+
+/** Claude-Code-style permission modes (server enforces; default Plan). */
+const PERMISSION_MODES: { value: string; label: string }[] = [
+  { value: 'plan', label: 'Plan' },
+  { value: 'manual', label: 'Manual' },
+  { value: 'accept_edits', label: 'Accept edits' },
+  { value: 'auto', label: 'Auto' },
+  { value: 'bypass', label: 'Bypass' },
+];
 
 const TIER_RANK: Record<string, number> = { free: 0, pro: 1, team: 2, business: 3, enterprise: 4 };
 
 /** Off by default. */
 const DEFAULT_OFF = new Set<string>([]);
 
-const PROVIDERS = ['', 'openrouter', 'openai', 'anthropic', 'google', 'groq', 'mistral'];
+const PROVIDERS = [
+  '',
+  'openrouter',
+  'openai',
+  'anthropic',
+  'google',
+  'groq',
+  'mistral',
+  // Self-hosted / local (OpenAI-compatible). Hermes maps these to a local endpoint;
+  // pair with a Base URL below. Powered by your own LLM — no cloud key required.
+  'vllm',
+  'ollama',
+  'lmstudio',
+];
+
+/** Providers that talk to a self-hosted endpoint and need an explicit Base URL. */
+const LOCAL_PROVIDERS = new Set(['vllm', 'ollama', 'lmstudio']);
+
+/** Sensible default Base URL per local provider (user can override). */
+const LOCAL_BASE_URL_HINT: Record<string, string> = {
+  vllm: 'http://host:8001/v1',
+  ollama: 'http://host:11434/v1',
+  lmstudio: 'http://127.0.0.1:1234/v1',
+};
 
 /** Agent tab in the Preview Rail: launch tasks, pick tools + model, watch the trace. */
 export default function AgentPanel({ stream }: { stream: AgentStreamApi }) {
@@ -77,6 +170,31 @@ export default function AgentPanel({ stream }: { stream: AgentStreamApi }) {
   );
   const [provider, setProvider] = useState('');
   const [model, setModel] = useState('');
+  const [baseUrl, setBaseUrl] = useState('');
+  const [baseUrlHistory, setBaseUrlHistory] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem('atk_baseurl_history');
+      return raw ? (JSON.parse(raw) as string[]) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [localModels, setLocalModels] = useState<string[]>([]);
+  const [modelsLoading, setModelsLoading] = useState(false);
+  const [workspace, setWorkspace] = useState('default');
+  const [workspaces, setWorkspaces] = useState<string[]>([]);
+  const [wsConfigured, setWsConfigured] = useState(false);
+  const [newProject, setNewProject] = useState('');
+  const [permMode, setPermMode] = useState('plan');
+  const outputRef = useRef<HTMLDivElement>(null);
+
+  // Follow the stream: keep the newest agent output in view as it writes out.
+  useEffect(() => {
+    const el = outputRef.current;
+    if (el != null) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [stream.responseText, stream.finalResponse]);
 
   // Action tools (messaging/homeassistant) unlock at Team+, or via the Agent Power
   // Tools add-on on a Pro+ base.
@@ -122,6 +240,84 @@ export default function AgentPanel({ stream }: { stream: AgentStreamApi }) {
     return modelsMap[PROVIDER_MODEL_KEY[provider] ?? provider] ?? [];
   }, [modelsMap, provider]);
 
+  // Local providers have no LibreChat models map. Fetch the served model list from
+  // the endpoint's OpenAI-compatible /models (via the backend — the browser can't
+  // reach a LAN endpoint cross-origin) and offer it as a dropdown. Debounced on the
+  // Base URL so it refreshes as you type/paste the endpoint.
+  const isLocalProvider = LOCAL_PROVIDERS.has(provider);
+  useEffect(() => {
+    if (!isLocalProvider || !baseUrl.trim()) {
+      setLocalModels([]);
+      return;
+    }
+    let active = true;
+    setModelsLoading(true);
+    const timer = setTimeout(() => {
+      fetch(`/api/analytikul/agent/models?baseUrl=${encodeURIComponent(baseUrl.trim())}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((r) => (r.ok ? r.json() : { models: [] }))
+        .then((d: { models?: string[] }) => {
+          if (!active) {
+            return;
+          }
+          const list = Array.isArray(d.models) ? d.models : [];
+          setLocalModels(list);
+          // Auto-select the served model when none is chosen (or the current one
+          // isn't offered by this endpoint).
+          setModel((cur) => (list.length > 0 && !list.includes(cur) ? list[0] : cur));
+        })
+        .catch(() => {
+          if (active) {
+            setLocalModels([]);
+          }
+        })
+        .finally(() => {
+          if (active) {
+            setModelsLoading(false);
+          }
+        });
+    }, 500);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [isLocalProvider, baseUrl, token]);
+
+  // Analytikul Coder: load the project folders the agent can work in, + create new ones.
+  const loadWorkspaces = useCallback(() => {
+    fetch('/api/analytikul/agent/workspaces', { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => (r.ok ? r.json() : { configured: false, projects: [] }))
+      .then((d: { configured?: boolean; projects?: string[] }) => {
+        setWsConfigured(Boolean(d.configured));
+        const list = Array.isArray(d.projects) ? d.projects : [];
+        setWorkspaces(list);
+        setWorkspace((cur) => (list.includes(cur) ? cur : list[0] ?? 'default'));
+      })
+      .catch(() => undefined);
+  }, [token]);
+  useEffect(() => {
+    loadWorkspaces();
+  }, [loadWorkspaces]);
+  const createProject = () => {
+    const name = newProject.trim();
+    if (!name) {
+      return;
+    }
+    fetch('/api/analytikul/agent/workspaces', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ name }),
+    })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error('create failed'))))
+      .then(() => {
+        setNewProject('');
+        setWorkspace(name);
+        loadWorkspaces();
+      })
+      .catch(() => undefined);
+  };
+
   const busy = stream.state === 'starting' || stream.state === 'running';
 
   const disabledToolsets = useMemo(
@@ -140,15 +336,37 @@ export default function AgentPanel({ stream }: { stream: AgentStreamApi }) {
       return next;
     });
 
+  const rememberBaseUrl = (url: string) => {
+    const v = url.trim();
+    if (!v) {
+      return;
+    }
+    setBaseUrlHistory((prev) => {
+      const next = [v, ...prev.filter((u) => u !== v)].slice(0, 12);
+      try {
+        localStorage.setItem('atk_baseurl_history', JSON.stringify(next));
+      } catch {
+        /* storage unavailable — keep in-memory only */
+      }
+      return next;
+    });
+  };
+
   const submit = () => {
     const trimmed = message.trim();
     if (!trimmed || busy) {
       return;
     }
+    if (LOCAL_PROVIDERS.has(provider) && baseUrl.trim()) {
+      rememberBaseUrl(baseUrl);
+    }
     void stream.run(trimmed, conversationId ?? 'standalone', {
       disabledToolsets,
       model: model.trim() || undefined,
       provider: provider || undefined,
+      baseUrl: LOCAL_PROVIDERS.has(provider) ? baseUrl.trim() || undefined : undefined,
+      workspace: wsConfigured ? workspace : undefined,
+      permissionMode: permMode,
     });
   };
 
@@ -206,6 +424,51 @@ export default function AgentPanel({ stream }: { stream: AgentStreamApi }) {
         </button>
         {showOptions && (
           <div className="border-t border-border-light px-2.5 py-2.5">
+            {wsConfigured && (
+              <div className="mb-2.5">
+                <label className="mb-1 block text-[11px] font-medium text-text-secondary">
+                  Project workspace
+                </label>
+                <select
+                  aria-label="Project workspace"
+                  className="mb-1 w-full rounded-md border border-border-light bg-surface-secondary px-2 py-1 text-xs text-text-primary focus:outline-none"
+                  value={workspace}
+                  onChange={(e) => setWorkspace(e.target.value)}
+                >
+                  {workspaces.length === 0 && <option value="default">default</option>}
+                  {workspaces.map((w) => (
+                    <option key={w} value={w}>
+                      {w}
+                    </option>
+                  ))}
+                </select>
+                <div className="flex items-center gap-2">
+                  <input
+                    aria-label="New project name"
+                    placeholder="new project name…"
+                    className="min-w-0 flex-1 rounded-md border border-border-light bg-surface-secondary px-2 py-1 text-xs text-text-primary placeholder-text-secondary focus:outline-none"
+                    value={newProject}
+                    onChange={(e) => setNewProject(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        createProject();
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="rounded-md border border-border-medium px-2 py-1 text-[11px] text-text-secondary hover:text-text-primary"
+                    onClick={createProject}
+                  >
+                    + New
+                  </button>
+                </div>
+                <p className="mt-1 text-[10px] leading-snug text-text-tertiary">
+                  Agent works in this folder under your Analytikul_Coder workspace.
+                </p>
+              </div>
+            )}
             <div className="mb-1 flex items-center gap-2">
               <select
                 aria-label={localize('com_atk_agent_provider')}
@@ -222,15 +485,17 @@ export default function AgentPanel({ stream }: { stream: AgentStreamApi }) {
                   </option>
                 ))}
               </select>
-              {providerModels.length > 0 ? (
+              {(isLocalProvider ? localModels.length > 0 : providerModels.length > 0) ? (
                 <select
                   aria-label={localize('com_atk_agent_model')}
                   className="min-w-0 flex-1 rounded-md border border-border-light bg-surface-secondary px-2 py-1 text-xs text-text-primary focus:outline-none"
                   value={model}
                   onChange={(e) => setModel(e.target.value)}
                 >
-                  <option value="">{localize('com_atk_agent_model_default')}</option>
-                  {providerModels.map((m) => (
+                  {!isLocalProvider && (
+                    <option value="">{localize('com_atk_agent_model_default')}</option>
+                  )}
+                  {(isLocalProvider ? localModels : providerModels).map((m) => (
                     <option key={m} value={m}>
                       {m}
                     </option>
@@ -239,15 +504,40 @@ export default function AgentPanel({ stream }: { stream: AgentStreamApi }) {
               ) : (
                 <input
                   aria-label={localize('com_atk_agent_model')}
-                  placeholder={localize('com_atk_agent_model_ph')}
+                  placeholder={
+                    isLocalProvider
+                      ? modelsLoading
+                        ? 'Loading models…'
+                        : 'Enter Base URL to load models, or type a model id'
+                      : localize('com_atk_agent_model_ph')
+                  }
                   className="min-w-0 flex-1 rounded-md border border-border-light bg-surface-secondary px-2 py-1 text-xs text-text-primary placeholder-text-secondary focus:outline-none"
                   value={model}
                   onChange={(e) => setModel(e.target.value)}
                 />
               )}
             </div>
+            {LOCAL_PROVIDERS.has(provider) && (
+              <>
+                <input
+                  aria-label="Local model base URL"
+                  list="atk-baseurl-history"
+                  placeholder={`Base URL — ${LOCAL_BASE_URL_HINT[provider] ?? 'http://host:port/v1'}`}
+                  className="mb-1 w-full rounded-md border border-border-light bg-surface-secondary px-2 py-1 text-xs text-text-primary placeholder-text-secondary focus:outline-none"
+                  value={baseUrl}
+                  onChange={(e) => setBaseUrl(e.target.value)}
+                />
+                <datalist id="atk-baseurl-history">
+                  {baseUrlHistory.map((u) => (
+                    <option key={u} value={u} />
+                  ))}
+                </datalist>
+              </>
+            )}
             <p className="mb-2.5 text-[11px] leading-snug text-text-tertiary">
-              {localize('com_atk_agent_model_hint')}
+              {LOCAL_PROVIDERS.has(provider)
+                ? 'Self-hosted model — enter its OpenAI-compatible Base URL and the exact model id. No cloud key is used.'
+                : localize('com_atk_agent_model_hint')}
             </p>
 
             <div className="mb-1.5 flex items-center justify-between">
@@ -345,6 +635,20 @@ export default function AgentPanel({ stream }: { stream: AgentStreamApi }) {
       </div>
 
       <div className="flex items-center gap-2">
+        <select
+          aria-label="Permission mode"
+          title="Plan: read-only · Manual: approve each edit · Accept edits: auto-approve in workspace · Auto/Bypass: autonomous"
+          className="rounded-md border border-border-medium bg-surface-secondary px-2 py-1 text-xs text-text-primary focus:outline-none"
+          value={permMode}
+          onChange={(e) => setPermMode(e.target.value)}
+          disabled={busy}
+        >
+          {PERMISSION_MODES.map((m) => (
+            <option key={m.value} value={m.value}>
+              {m.label}
+            </option>
+          ))}
+        </select>
         <button
           type="button"
           className="rounded-md bg-surface-submit px-3 py-1 text-sm text-white hover:bg-surface-submit-hover disabled:opacity-50"
@@ -380,8 +684,13 @@ export default function AgentPanel({ stream }: { stream: AgentStreamApi }) {
       )}
 
       {(stream.responseText || stream.finalResponse) && (
-        <div className="max-h-48 overflow-y-auto whitespace-pre-wrap rounded-md border border-border-light bg-surface-primary p-2 text-sm text-text-primary">
-          {stream.finalResponse ?? stream.responseText}
+        <div
+          ref={outputRef}
+          className="max-h-64 overflow-y-auto rounded-md border border-border-light bg-surface-primary p-2.5 text-sm text-text-primary"
+        >
+          <ReactMarkdown remarkPlugins={[remarkGfm]} components={AGENT_MD}>
+            {normalizeAgentText(stream.finalResponse ?? stream.responseText)}
+          </ReactMarkdown>
         </div>
       )}
 
@@ -392,6 +701,55 @@ export default function AgentPanel({ stream }: { stream: AgentStreamApi }) {
           totalTokens={stream.totalTokens}
         />
       </div>
+
+      {stream.pendingApproval && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="max-h-[80vh] w-full max-w-lg overflow-auto rounded-lg border border-border-medium bg-surface-primary p-4 shadow-xl">
+            <div className="mb-2 text-sm font-semibold text-text-primary">
+              Approve {stream.pendingApproval.kind === 'edit' ? 'file edit' : stream.pendingApproval.kind}
+              {stream.pendingApproval.tool ? ` · ${stream.pendingApproval.tool}` : ''}
+            </div>
+            {stream.pendingApproval.path && (
+              <div className="mb-2 break-all font-mono text-xs text-text-secondary">
+                {stream.pendingApproval.path}
+              </div>
+            )}
+            {stream.pendingApproval.command && (
+              <pre className="mb-2 overflow-auto rounded bg-surface-secondary p-2 text-xs text-text-primary">
+                {stream.pendingApproval.command}
+              </pre>
+            )}
+            {stream.pendingApproval.new_text != null && (
+              <pre className="mb-3 max-h-64 overflow-auto whitespace-pre-wrap rounded bg-surface-secondary p-2 text-[11px] text-text-primary">
+                {stream.pendingApproval.new_text}
+              </pre>
+            )}
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                className="rounded-md border border-border-medium px-3 py-1 text-sm text-text-secondary hover:bg-surface-hover"
+                onClick={() => void stream.respond(stream.pendingApproval!.request_id, 'deny')}
+              >
+                Deny
+              </button>
+              <button
+                type="button"
+                className="rounded-md border border-border-medium px-3 py-1 text-sm text-text-secondary hover:bg-surface-hover"
+                onClick={() => void stream.respond(stream.pendingApproval!.request_id, 'always')}
+              >
+                Always
+              </button>
+              <button
+                type="button"
+                className="rounded-md bg-surface-submit px-3 py-1 text-sm text-white hover:bg-surface-submit-hover"
+                onClick={() => void stream.respond(stream.pendingApproval!.request_id, 'allow')}
+              >
+                Allow
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

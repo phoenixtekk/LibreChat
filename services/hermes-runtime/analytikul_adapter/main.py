@@ -39,6 +39,60 @@ if not INTERNAL_TOKEN:
     )
 
 
+def _configure_git() -> None:
+    """Analytikul Coder M3: set git identity + a GitHub credential store from env so
+    the agent can `git push` over HTTPS. No-op when GITHUB_TOKEN is unset. The token
+    is written to ~/.git-credentials (mode 600), never into git config args."""
+    import subprocess
+
+    name = os.environ.get("GIT_AUTHOR_NAME", "Analytikul Coder")
+    email = os.environ.get("GIT_AUTHOR_EMAIL", "coder@analytikul.local")
+    token = os.environ.get("GITHUB_TOKEN", "").strip()
+    try:
+        subprocess.run(["git", "config", "--global", "user.name", name], check=False)
+        subprocess.run(["git", "config", "--global", "user.email", email], check=False)
+        subprocess.run(["git", "config", "--global", "init.defaultBranch", "main"], check=False)
+        # Bind-mounted workspaces may have a different owner uid than the agent user.
+        subprocess.run(["git", "config", "--global", "--replace-all", "safe.directory", "*"], check=False)
+        if token:
+            cred_path = os.path.join(os.path.expanduser("~"), ".git-credentials")
+            with open(cred_path, "w", encoding="utf-8") as fh:
+                fh.write(f"https://x-access-token:{token}@github.com\n")
+            os.chmod(cred_path, 0o600)
+            subprocess.run(["git", "config", "--global", "credential.helper", "store"], check=False)
+            logger.info("git credential store configured for github.com push")
+    except Exception:
+        logger.warning("git configuration failed", exc_info=True)
+
+
+def _configure_ssh() -> None:
+    """Analytikul Coder M3: stage a read-only mounted ~/.ssh (at /ssh-host) into the
+    agent's home with strict 600/700 perms so it can ssh/rsync-deploy to a Linux
+    server (SSH refuses lax-perm keys). No-op when /ssh-host is absent."""
+    import shutil
+
+    src = "/ssh-host"
+    if not os.path.isdir(src):
+        return
+    dst = os.path.join(os.path.expanduser("~"), ".ssh")
+    try:
+        os.makedirs(dst, exist_ok=True)
+        for name in os.listdir(src):
+            s = os.path.join(src, name)
+            if os.path.isfile(s):
+                d = os.path.join(dst, name)
+                shutil.copyfile(s, d)
+                os.chmod(d, 0o600)
+        os.chmod(dst, 0o700)
+        logger.info("staged SSH credentials into %s for deploy", dst)
+    except Exception:
+        logger.warning("ssh staging failed", exc_info=True)
+
+
+_configure_git()
+_configure_ssh()
+
+
 def require_internal(x_internal_token: Optional[str] = Header(default=None)) -> None:
     """Reject callers without the shared internal token (enforced when configured).
 
@@ -107,6 +161,11 @@ class RunRequest(BaseModel):
     base_url: str = "https://openrouter.ai/api/v1"
     enabled_toolsets: Optional[List[str]] = None
     disabled_toolsets: Optional[List[str]] = None
+    # Analytikul Coder: project folder under WORKSPACE_ROOT the agent should work in
+    # (e.g. "my-app" -> /workspace/my-app). Empty -> the default project.
+    workspace: Optional[str] = None
+    # Permission mode: plan | manual | accept_edits | auto | bypass (default plan).
+    permission_mode: str = "plan"
 
 
 @app.get("/health")
@@ -157,6 +216,8 @@ async def run(req: RunRequest):
                 base_url=req.base_url,
                 enabled_toolsets=req.enabled_toolsets,
                 disabled_toolsets=req.disabled_toolsets,
+                workspace=req.workspace,
+                permission_mode=req.permission_mode,
             )
         )
         if session.active_task_id is not None:
@@ -172,6 +233,21 @@ async def run(req: RunRequest):
 
     pool.reap_finished()
     return {"task_id": task_id}
+
+
+class RespondRequest(BaseModel):
+    request_id: str
+    decision: str  # allow | deny | always
+
+
+@app.post("/respond/{task_id}", dependencies=PROTECTED)
+async def respond(task_id: str, req: RespondRequest):
+    """Deliver a UI permission decision to a blocked approval requester."""
+    from analytikul_adapter.sessions import resolve_approval
+
+    if not resolve_approval(task_id, req.request_id, req.decision):
+        raise HTTPException(status_code=404, detail="no pending approval for that request")
+    return {"ok": True}
 
 
 @app.get("/stream/{task_id}", dependencies=PROTECTED)
