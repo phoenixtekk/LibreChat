@@ -31,27 +31,32 @@ https://download.docker.com/linux/debian $(. /etc/os-release && echo "$VERSION_C
 RUN pip install --no-cache-dir uv
 
 WORKDIR /runtime
-COPY . .
-RUN uv pip install --system --no-cache -e . \
-    && uv pip install --system --no-cache "fastapi>=0.115" "uvicorn[standard]>=0.30" "redis>=5"
 
-# Playwright Chromium for the browser toolset (heavy layer, cached separately).
-# Browsers go to a world-readable path since the service runs as non-root.
+# ── Heavy, source-INDEPENDENT layers FIRST so a code change (the COPY below) does
+# ── not re-run them. Rebuilds after an edit then only re-run COPY + `pip install -e`.
+
+# Runtime Python deps (pinned explicitly so they don't need the app source).
+RUN uv pip install --system --no-cache \
+    "fastapi>=0.115" "uvicorn[standard]>=0.30" "redis>=5" "anthropic>=0.39.0" "pymongo>=4.10"
+
+# Playwright Chromium for the browser toolset (the heaviest layer). World-readable
+# path since the service runs as non-root.
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
 RUN uv pip install --system --no-cache playwright \
     && playwright install --with-deps chromium
 
-# Provider extras (lazy deps in the runtime; required at run time)
-RUN uv pip install --system --no-cache "anthropic>=0.39.0" "pymongo>=4.10"
-
-# Web-dev + deploy toolchain for Analytikul Coder: Node/npm/pnpm (scaffold, install,
-# build & run web apps) + openssh-client + rsync (push to GitHub over SSH / deploy to
-# a Linux server) — so the agent can drive a local repo → build → push → deploy loop
-# like Claude Code. Placed after the heavy Playwright layer so it stays cache-cheap.
+# Web-dev + deploy toolchain for Analytikul Coder: Node/npm (Debian) + pnpm@9 (pnpm 10
+# requires Node 22; Debian trixie ships Node 20) + openssh-client + rsync — so the agent
+# can scaffold, build, push, and ssh/rsync-deploy a webapp like Claude Code. NodeSource's
+# setup script started 403ing, hence Debian's packages.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends openssh-client rsync nodejs npm \
-    && npm install -g pnpm \
+    && npm install -g pnpm@9 \
     && rm -rf /var/lib/apt/lists/*
+
+# ── App source LAST: only this + the editable install re-run when code changes.
+COPY . .
+RUN uv pip install --system --no-cache -e .
 
 RUN useradd -m -u 10001 agent \
     && mkdir -p /data/hermes/sandboxes \

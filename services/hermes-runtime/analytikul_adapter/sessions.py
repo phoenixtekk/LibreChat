@@ -527,3 +527,5 @@ pool = SessionPool()
 
 def new_task_id() -> str:
     return f"task-{uuid.uuid4().hex[:16]}"
+
+# analytikul coder — build-layer order optimized (heavy deps precede COPY)
