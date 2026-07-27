@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useLocalize } from '~/hooks';
 import AgentPanel from './AgentPanel';
 import WorkspaceFiles from './WorkspaceFiles';
+import TerminalConsole from './TerminalConsole';
 import AnalyticsDashboard from './AnalyticsDashboard';
 import OrgMemoryPanel from './OrgMemoryPanel';
 import KeysPanel from './KeysPanel';
@@ -173,15 +174,7 @@ export default function PreviewRail({
         {tab === 'costs' && <AnalyticsDashboard />}
         {tab === 'memory' && <OrgMemoryPanel />}
         {tab === 'keys' && <KeysPanel />}
-        {tab === 'preview' &&
-          (latestOutput != null ? (
-            <OutputRenderer output={latestOutput} />
-          ) : (
-            <div className="atk-empty-state">
-              <strong>{localize('com_atk_preview_rail')}</strong>
-              <span>{localize('com_atk_preview_empty')}</span>
-            </div>
-          ))}
+        {tab === 'preview' && <TerminalConsole stream={stream} />}
         {tab === 'files' && <WorkspaceFiles />}
       </div>
     </aside>

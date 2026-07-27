@@ -32,6 +32,9 @@ services:
     volumes:
       - hermes-home:/data/hermes
       - ${WORKSPACE_HOST_DIR}:/workspace
+      # M3 deploy: host ~/.ssh mounted read-only; staged to 600 in the agent's home
+      # at startup so it can ssh/rsync-deploy to a Linux server. Single-tenant only.
+      - ${HOME_SSH_DIR:-/dev/null}:/ssh-host:ro
     # Loopback-only: reachable from the host (native backend) and from other
     # compose services by name, but NOT from the LAN / other hosts' containers.
     ports:
