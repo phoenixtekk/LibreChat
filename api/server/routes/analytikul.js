@@ -28,6 +28,7 @@ const {
 } = require('~/models');
 const { fetchEndpointModels } = require('~/server/services/Config/fetchEndpointModels');
 const rateLimit = require('express-rate-limit');
+const { ipKeyGenerator } = require('express-rate-limit');
 const requireJwtAuth = require('~/server/middleware/requireJwtAuth');
 const { AgentTrace, Note, Annotation } = require('~/db/models');
 const mongoose = require('mongoose');
@@ -35,8 +36,12 @@ const mongoose = require('mongoose');
 const router = express.Router();
 
 // Per-route rate limiters. Per-USER (authenticated) is the right key here; IP
-// is a fallback when the request slips in before JWT auth would have run.
-const userKey = (req) => (req.user && req.user.id ? `u:${req.user.id}` : `ip:${req.ip}`);
+// is a fallback when the request slips in before JWT auth would have run. The IP
+// fallback runs through express-rate-limit's ipKeyGenerator so IPv6 clients are
+// keyed by /56 subnet (raw req.ip would let a /64-holder rotate past the limit —
+// ERR_ERL_KEY_GEN_IPV6).
+const userKey = (req) =>
+  req.user && req.user.id ? `u:${req.user.id}` : `ip:${ipKeyGenerator(req.ip)}`;
 // Expensive: every call spawns an agent run (token spend + adapter session).
 const agentRunLimiter = rateLimit({
   windowMs: 60 * 1000,
