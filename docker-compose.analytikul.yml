@@ -63,6 +63,13 @@ services:
     ports:
       - "127.0.0.1:7700:7700"
 
+  # Dev-only: expose the RAG API to the host so the native backend (npm run backend)
+  # can reach it for file-upload embeddings. In-cluster callers still use rag_api:8000.
+  # Native backend must set RAG_API_URL=http://localhost:8000 to match.
+  rag_api:
+    ports:
+      - "127.0.0.1:8000:8000"
+
   analytics-service:
     container_name: analytikul-analytics
     image: node:24-alpine

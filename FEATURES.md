@@ -74,3 +74,34 @@ Internal services (billing 8013 / analytics 8011 / memory 8012 / gateway 8014 / 
   unaffected). Notes search `$regex` is escaped (no ReDoS).
 - **Deploy step:** set `INTERNAL_SERVICE_TOKEN` in prod `.env`, redeploy the whole stack so every
   service shares the token. See `docs/open-issues.md`.
+
+## Analytikul Coder — Deploy (2026-07-28)
+
+A **first-class Deploy** action in the cockpit (Preview Rail **Deploy** tab + chat-header tab
+strip). Ships a workspace project to a fleet server through a *deterministic* routine (NOT
+LLM-improvised): detect app type (static/node/next) → rsync source to `<server>:~/deploys/<project>`
+→ on the server `npm ci && npm run build` (node/next) → start under **pm2** on a live-picked free
+port (Next binds `0.0.0.0` per fleet rules, others `127.0.0.1`) → curl-verify → surface the
+**Cloudflare route** to wire up (canonical `www.`). Progress streams live over the shared SSE
+transport (`status | log | done | error`).
+- **Gated on `POWER_MODE`** (trusted single-tenant posture) — deploy runs shell on production
+  servers, so it's off unless power mode is on. Target server is allow-listed to `linuxg1..6`; all
+  inputs are charset-validated before any SSH.
+- **Files:** adapter `analytikul_adapter/deploy.py` + `POST /deploy`; backend
+  `POST /agent/deploy`, `GET /agent/deploy/stream/:taskId`, `GET /agent/deploy/servers`;
+  service `startDeploy()`; UI `DeployPanel.tsx`. See `docs/analytikul-coder-deploy.md`.
+
+## RAG file-uploads reachable in native dev (2026-07-28)
+
+The `rag_api` + `vectordb` containers run, but the **native** host backend (`npm run backend:dev`)
+couldn't reach them: `RAG_API_URL` was unset and `rag_api` published no host port. Fixed by
+publishing `rag_api` on `127.0.0.1:8000` (compose override) and setting
+`RAG_API_URL=http://localhost:8000` in `.env`. Backend now logs *"RAG API is running and reachable"*
+and file-upload embeddings work in local dev.
+
+## Rate-limit IPv6 hardening (2026-07-28)
+
+The three per-route limiters in `routes/analytikul.js` keyed their IP fallback on raw `req.ip`,
+which `express-rate-limit` v7 rejects for IPv6 (`ERR_ERL_KEY_GEN_IPV6`) — an IPv6 client could
+rotate addresses within a /64 to bypass the cap. Now routed through `ipKeyGenerator` (/56 subnet);
+IPv4 and authenticated (`u:<id>`) keys unchanged.

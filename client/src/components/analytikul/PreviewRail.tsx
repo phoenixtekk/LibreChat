@@ -3,6 +3,7 @@ import { useLocalize } from '~/hooks';
 import AgentPanel from './AgentPanel';
 import WorkspaceFiles from './WorkspaceFiles';
 import TerminalConsole from './TerminalConsole';
+import DeployPanel from './DeployPanel';
 import AnalyticsDashboard from './AnalyticsDashboard';
 import OrgMemoryPanel from './OrgMemoryPanel';
 import KeysPanel from './KeysPanel';
@@ -25,7 +26,7 @@ function readStoredWidth(): number | null {
   }
 }
 
-export type RailTab = 'agent' | 'preview' | 'costs' | 'memory' | 'keys' | 'files';
+export type RailTab = 'agent' | 'preview' | 'costs' | 'memory' | 'keys' | 'files' | 'deploy';
 
 /**
  * Preview Rail — Hermes Desktop's side-by-side output panel. Agent tab launches
@@ -118,6 +119,7 @@ export default function PreviewRail({
     { id: 'memory', label: localize('com_atk_memory') },
     { id: 'keys', label: localize('com_atk_keys') },
     { id: 'files', label: localize('com_atk_files') },
+    { id: 'deploy', label: 'Deploy' },
   ];
 
   return (
@@ -176,6 +178,7 @@ export default function PreviewRail({
         {tab === 'keys' && <KeysPanel />}
         {tab === 'preview' && <TerminalConsole stream={stream} />}
         {tab === 'files' && <WorkspaceFiles />}
+        {tab === 'deploy' && <DeployPanel />}
       </div>
     </aside>
   );

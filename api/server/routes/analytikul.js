@@ -3,6 +3,7 @@ const express = require('express');
 const { logger } = require('@librechat/data-schemas');
 const {
   startAgentRun,
+  startDeploy,
   collectAgentRun,
   cancelAgentRun,
   respondAgentApproval,
@@ -217,6 +218,65 @@ router.post('/agent/cancel/:taskId', async (req, res) => {
   }
   const cancelled = await cancelAgentRun(req.params.taskId);
   res.status(cancelled ? 200 : 404).json({ cancelled });
+});
+
+/* Analytikul Coder — first-class Deploy. Deterministically build+ship a workspace
+ * project to a fleet server under pm2, then surface the Cloudflare route. Gated on
+ * POWER_MODE (personal single-tenant posture): deploy runs shell on production
+ * servers, so it's only exposed in the trusted power-mode setup. */
+const DEPLOY_ENABLED = () => String(process.env.POWER_MODE || '').toLowerCase() === 'true';
+const FLEET_SERVERS = ['linuxg1', 'linuxg2', 'linuxg3', 'linuxg4', 'linuxg5', 'linuxg6'];
+
+router.get('/agent/deploy/servers', (req, res) => {
+  res.status(200).json({ enabled: DEPLOY_ENABLED(), servers: FLEET_SERVERS });
+});
+
+router.post('/agent/deploy', agentRunLimiter, async (req, res) => {
+  if (!DEPLOY_ENABLED()) {
+    return res.status(403).json({ message: 'Deploy is disabled (POWER_MODE off).' });
+  }
+  try {
+    const { workspace, server, domain, subdomain, appType } = req.body ?? {};
+    if (!workspace || !server) {
+      return res.status(400).json({ message: 'workspace and server are required' });
+    }
+    if (!FLEET_SERVERS.includes(server)) {
+      return res.status(400).json({ message: `server must be one of: ${FLEET_SERVERS.join(', ')}` });
+    }
+    const { taskId } = await startDeploy(
+      { workspace, server, domain, subdomain, appType },
+      req.user.id,
+    );
+    if (taskMeta.size >= TASK_META_MAX) {
+      taskMeta.delete(taskMeta.keys().next().value);
+    }
+    taskMeta.set(taskId, { userId: req.user.id, tenantId: tenantOf(req), kind: 'deploy' });
+    res.status(200).json({ taskId });
+  } catch (error) {
+    logger.error('[analytikul] deploy failed', error);
+    const status = error instanceof AdapterError ? error.status : 500;
+    res.status(status).json({ message: error.message ?? 'deploy failed' });
+  }
+});
+
+router.get('/agent/deploy/stream/:taskId', async (req, res) => {
+  const { taskId } = req.params;
+  const meta = taskMeta.get(taskId);
+  if (meta == null || meta.userId !== req.user.id) {
+    return res.status(404).json({ message: 'unknown task' });
+  }
+  try {
+    // Deploy is not an agent run — no trace recorder, just pipe the SSE through.
+    await pipeAgentStream(taskId, res);
+  } catch (error) {
+    logger.error(`[analytikul] deploy stream ${taskId} failed`, error);
+    if (!res.headersSent) {
+      const status = error instanceof AdapterError ? error.status : 500;
+      res.status(status).json({ message: error.message ?? 'stream failed' });
+    } else if (!res.writableEnded) {
+      res.end();
+    }
+  }
 });
 
 router.get('/agent/tools', async (req, res) => {

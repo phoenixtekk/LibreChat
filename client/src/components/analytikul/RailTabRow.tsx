@@ -1,5 +1,5 @@
 import { useRecoilState } from 'recoil';
-import { Bot, Eye, DollarSign, Brain, KeyRound, FileText } from 'lucide-react';
+import { Bot, Eye, DollarSign, Brain, KeyRound, FileText, Rocket } from 'lucide-react';
 import { useLocalize } from '~/hooks';
 import store from '~/store';
 import { cn } from '~/utils';
@@ -18,6 +18,7 @@ const RAIL_TABS: RailTabSpec[] = [
   { tab: 'memory',  labelKey: 'com_atk_memory',  icon: Brain },
   { tab: 'keys',    labelKey: 'com_atk_keys',    icon: KeyRound },
   { tab: 'files',   labelKey: 'com_atk_files',   icon: FileText },
+  { tab: 'deploy',  labelKey: 'Deploy',          icon: Rocket },
 ];
 
 /** Chat-header tab strip — six buttons that open (or refocus) the Preview Rail

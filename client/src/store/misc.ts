@@ -65,7 +65,14 @@ const chatBadges = atomWithLocalStorage<Pick<BadgeItem, 'id'>[]>('chatBadges', [
 ]);
 
 /** Analytikul Preview Rail open/tab state, lifted so the sidebar can open a tab. */
-export type PreviewRailTab = 'agent' | 'preview' | 'costs' | 'memory' | 'keys' | 'files';
+export type PreviewRailTab =
+  | 'agent'
+  | 'preview'
+  | 'costs'
+  | 'memory'
+  | 'keys'
+  | 'files'
+  | 'deploy';
 
 const previewRail = atom<{ open: boolean; tab: PreviewRailTab }>({
   key: 'analytikulPreviewRail',

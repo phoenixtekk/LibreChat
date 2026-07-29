@@ -27,6 +27,29 @@ export interface AdapterRunRequest {
   permission_mode?: string;
 }
 
+/** Analytikul Coder — first-class Deploy: ship a workspace project to a fleet server. */
+export interface DeployBody {
+  /** Project folder under the workspace root to deploy. */
+  workspace: string;
+  /** Target fleet server (linuxg1..linuxg6). */
+  server: string;
+  /** Optional public domain — surfaced as a Cloudflare route to wire up. */
+  domain?: string;
+  /** Optional subdomain (defaults to canonical www. when omitted). */
+  subdomain?: string;
+  /** auto | static | node | next */
+  appType?: string;
+}
+
+export interface AdapterDeployRequest {
+  workspace: string;
+  server: string;
+  domain: string;
+  subdomain: string;
+  app_type: string;
+  user_id: string;
+}
+
 export interface AgentStreamEvent {
   type:
     | 'text_chunk'

@@ -250,6 +250,45 @@ async def respond(task_id: str, req: RespondRequest):
     return {"ok": True}
 
 
+class DeployRequest(BaseModel):
+    # Project folder under WORKSPACE_ROOT to deploy (e.g. "my-app").
+    workspace: str = Field(min_length=1, max_length=64)
+    # Target fleet server — allow-listed to linuxg1..linuxg6 in deploy.py.
+    server: str = Field(min_length=1, max_length=16)
+    # Optional public hostname bits — surfaced as a Cloudflare route (we can't
+    # edit Cloudflare without a token, so the operator wires the route).
+    domain: str = ""
+    subdomain: str = ""
+    # auto | static | node | next
+    app_type: str = "auto"
+    user_id: str = "deploy"
+
+
+@app.post("/deploy", dependencies=PROTECTED)
+async def deploy(req: DeployRequest):
+    """Deterministically build+ship a workspace project to a fleet server under
+    pm2, then surface the Cloudflare route. Returns {task_id}; progress streams
+    over the shared /stream/{task_id} SSE endpoint (status | log | done | error)."""
+    from analytikul_adapter.deploy import start_deploy, DeployError
+
+    try:
+        task_id = start_deploy(
+            workspace=req.workspace,
+            server=req.server,
+            domain=req.domain,
+            subdomain=req.subdomain,
+            app_type=req.app_type,
+            user_id=req.user_id,
+        )
+    except DeployError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        logger.exception("failed to start deploy")
+        raise HTTPException(status_code=500, detail=str(exc))
+    pool.reap_finished()
+    return {"task_id": task_id}
+
+
 @app.get("/stream/{task_id}", dependencies=PROTECTED)
 async def stream(task_id: str):
     bus = pool.get_bus(task_id)

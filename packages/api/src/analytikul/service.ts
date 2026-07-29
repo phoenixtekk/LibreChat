@@ -1,6 +1,12 @@
 import { logger } from '@librechat/data-schemas';
 import type { Response } from 'express';
-import type { AgentRunBody, AdapterRunRequest, AgentStreamEvent } from './types';
+import type {
+  AgentRunBody,
+  AdapterRunRequest,
+  AgentStreamEvent,
+  DeployBody,
+  AdapterDeployRequest,
+} from './types';
 
 const ADAPTER_URL = () => process.env.HERMES_ADAPTER_URL ?? 'http://hermes-adapter:8001';
 const ANALYTICS_URL = () => process.env.ANALYTICS_SERVICE_URL ?? 'http://localhost:8011';
@@ -100,6 +106,35 @@ export async function respondAgentApproval(
     body: JSON.stringify({ request_id: requestId, decision }),
   });
   return res.ok;
+}
+
+/**
+ * Analytikul Coder — first-class Deploy. Kicks off a deterministic build→rsync→pm2
+ * deploy of a workspace project to a fleet server; progress streams over the shared
+ * /stream/{taskId} SSE endpoint (reuse pipeAgentStream). Returns the task id.
+ */
+export async function startDeploy(
+  body: DeployBody,
+  userId: string,
+): Promise<{ taskId: string }> {
+  const payload: AdapterDeployRequest = {
+    workspace: body.workspace,
+    server: body.server,
+    domain: body.domain ?? '',
+    subdomain: body.subdomain ?? '',
+    app_type: body.appType ?? 'auto',
+    user_id: userId,
+  };
+  const res = await fetch(`${ADAPTER_URL()}/deploy`, {
+    method: 'POST',
+    headers: internalHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    throw new AdapterError(res.status, await safeDetail(res));
+  }
+  const data = (await res.json()) as { task_id: string };
+  return { taskId: data.task_id };
 }
 
 export async function getAgentTools(): Promise<unknown> {

@@ -422,6 +422,18 @@ class SessionPool:
             task = self._tasks.get(task_id)
         return task["bus"] if task else None
 
+    def register_bus(self, bus: TaskEventBus, user_id: str = "deploy") -> None:
+        """Register a bus for a non-agent task (e.g. a deterministic deploy) so the
+        shared /stream/{task_id} SSE endpoint and reap_finished treat it like any
+        other task. No session/agent is attached."""
+        with self._lock:
+            self._tasks[bus.task_id] = {
+                "bus": bus,
+                "session_key": None,
+                "user_id": user_id,
+                "started": time.time(),
+            }
+
     def reap_finished(self, max_age_s: int = 3600) -> None:
         now = time.time()
         with self._lock:
