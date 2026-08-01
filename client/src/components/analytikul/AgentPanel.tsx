@@ -244,6 +244,27 @@ export default function AgentPanel({ stream }: { stream: AgentStreamApi }) {
   // the endpoint's OpenAI-compatible /models (via the backend — the browser can't
   // reach a LAN endpoint cross-origin) and offer it as a dropdown. Debounced on the
   // Base URL so it refreshes as you type/paste the endpoint.
+  // Remember a Base URL so it can be re-picked from the Recent dropdown. Saves the
+  // most-recent-first, de-duplicated, capped at 12.
+  const rememberBaseUrl = useCallback((url: string) => {
+    const v = url.trim();
+    if (!v) {
+      return;
+    }
+    setBaseUrlHistory((prev) => {
+      if (prev[0] === v) {
+        return prev;
+      }
+      const next = [v, ...prev.filter((u) => u !== v)].slice(0, 12);
+      try {
+        localStorage.setItem('atk_baseurl_history', JSON.stringify(next));
+      } catch {
+        /* storage unavailable — keep in-memory only */
+      }
+      return next;
+    });
+  }, []);
+
   const isLocalProvider = LOCAL_PROVIDERS.has(provider);
   useEffect(() => {
     if (!isLocalProvider || !baseUrl.trim()) {
@@ -266,6 +287,11 @@ export default function AgentPanel({ stream }: { stream: AgentStreamApi }) {
           // Auto-select the served model when none is chosen (or the current one
           // isn't offered by this endpoint).
           setModel((cur) => (list.length > 0 && !list.includes(cur) ? list[0] : cur));
+          // A URL that actually served models is a "used" value — remember it so it
+          // shows up in the Recent dropdown without needing to run the agent first.
+          if (list.length > 0) {
+            rememberBaseUrl(baseUrl.trim());
+          }
         })
         .catch(() => {
           if (active) {
@@ -282,7 +308,7 @@ export default function AgentPanel({ stream }: { stream: AgentStreamApi }) {
       active = false;
       clearTimeout(timer);
     };
-  }, [isLocalProvider, baseUrl, token]);
+  }, [isLocalProvider, baseUrl, token, rememberBaseUrl]);
 
   // Analytikul Coder: load the project folders the agent can work in, + create new ones.
   const loadWorkspaces = useCallback(() => {
@@ -335,22 +361,6 @@ export default function AgentPanel({ stream }: { stream: AgentStreamApi }) {
       }
       return next;
     });
-
-  const rememberBaseUrl = (url: string) => {
-    const v = url.trim();
-    if (!v) {
-      return;
-    }
-    setBaseUrlHistory((prev) => {
-      const next = [v, ...prev.filter((u) => u !== v)].slice(0, 12);
-      try {
-        localStorage.setItem('atk_baseurl_history', JSON.stringify(next));
-      } catch {
-        /* storage unavailable — keep in-memory only */
-      }
-      return next;
-    });
-  };
 
   const submit = () => {
     const trimmed = message.trim();
@@ -519,14 +529,45 @@ export default function AgentPanel({ stream }: { stream: AgentStreamApi }) {
             </div>
             {LOCAL_PROVIDERS.has(provider) && (
               <>
-                <input
-                  aria-label="Local model base URL"
-                  list="atk-baseurl-history"
-                  placeholder={`Base URL — ${LOCAL_BASE_URL_HINT[provider] ?? 'http://host:port/v1'}`}
-                  className="mb-1 w-full rounded-md border border-border-light bg-surface-secondary px-2 py-1 text-xs text-text-primary placeholder-text-secondary focus:outline-none"
-                  value={baseUrl}
-                  onChange={(e) => setBaseUrl(e.target.value)}
-                />
+                <div className="mb-1 flex items-center gap-1">
+                  <input
+                    aria-label="Local model base URL"
+                    list="atk-baseurl-history"
+                    placeholder={`Base URL — ${LOCAL_BASE_URL_HINT[provider] ?? 'http://host:port/v1'}`}
+                    className="min-w-0 flex-1 rounded-md border border-border-light bg-surface-secondary px-2 py-1 text-xs text-text-primary placeholder-text-secondary focus:outline-none"
+                    value={baseUrl}
+                    onChange={(e) => setBaseUrl(e.target.value)}
+                  />
+                  {baseUrlHistory.length > 0 && (
+                    <select
+                      aria-label="Recent base URLs"
+                      title="Pick a recently-used Base URL"
+                      className="max-w-[8rem] shrink-0 rounded-md border border-border-light bg-surface-secondary px-1.5 py-1 text-xs text-text-secondary focus:outline-none"
+                      value=""
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (v === '__clear__') {
+                          setBaseUrlHistory([]);
+                          try {
+                            localStorage.removeItem('atk_baseurl_history');
+                          } catch {
+                            /* storage unavailable */
+                          }
+                        } else if (v) {
+                          setBaseUrl(v);
+                        }
+                      }}
+                    >
+                      <option value="">Recent ▾</option>
+                      {baseUrlHistory.map((u) => (
+                        <option key={u} value={u}>
+                          {u}
+                        </option>
+                      ))}
+                      <option value="__clear__">Clear recent…</option>
+                    </select>
+                  )}
+                </div>
                 <datalist id="atk-baseurl-history">
                   {baseUrlHistory.map((u) => (
                     <option key={u} value={u} />
