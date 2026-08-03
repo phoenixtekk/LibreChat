@@ -116,6 +116,10 @@ Say **"Hey Amy"**, wait for "How can I help you, Lacy?", then ask.
   which site it came from.
 - Then: **"Pull that up on my computer."** — the page opens in your browser. Also works: "show me that",
   "open that", "bring it up".
+- Want the **search results page** instead of one site? **"Show me a search for Crestwell Travel Services."**
+  She opens the results in your browser so you can pick. Add "using google" for Google instead.
+- Naming something new always searches fresh: "Pull up Crestwell Travel Services" looks that up rather
+  than reopening the last thing. Pointing words — "that", "it", "the second one" — reuse the last search.
 - Want a different result? **"Open the second one."** · "Show me the third one." · "Open the last one."
 - She remembers the last handful of links until she's restarted, so you can come back to them a bit later.
 - Other ways to start a search: "look up …", "google …", "find me …", "find out about …".

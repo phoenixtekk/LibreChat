@@ -4,7 +4,7 @@ Search goes through the self-hosted SearXNG on linuxg3 — no API key, no rate
 limit, and the query never reaches a commercial search account.
 """
 import os
-from urllib.parse import urlparse
+from urllib.parse import quote_plus, urlparse
 
 import requests
 
@@ -12,6 +12,23 @@ SEARX = os.environ.get("AIBOX_SEARX", "http://192.168.166.161:8080")
 BRIDGE = os.environ.get("AIBOX_BRIDGE", "http://127.0.0.1:8824")
 RESULT_COUNT = int(os.environ.get("AIBOX_SEARCH_RESULTS", "5"))
 SNIPPET_CHARS = 320
+
+
+# Where "show me a search for X" sends the browser. Defaults to our own SearXNG
+# so the query stays off a commercial search account; say "google" to override.
+SERP_ENGINES = {
+    "searxng": SEARX + "/search?q={q}",
+    "google": "https://www.google.com/search?q={q}",
+    "duckduckgo": "https://duckduckgo.com/?q={q}",
+    "bing": "https://www.bing.com/search?q={q}",
+}
+DEFAULT_SERP = os.environ.get("AIBOX_SERP", "searxng")
+
+
+def serp_url(query, engine=None):
+    """A search RESULTS page for the query — not one of the results."""
+    template = SERP_ENGINES.get(engine or DEFAULT_SERP, SERP_ENGINES["searxng"])
+    return template.format(q=quote_plus(query))
 
 
 def domain(url):

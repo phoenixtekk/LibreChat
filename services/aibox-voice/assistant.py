@@ -42,9 +42,12 @@ SYSTEM = ("You are Aigartha, Lacy's local voice assistant on the AiBox. "
           "Answer briefly and conversationally — 1 to 3 sentences, plain spoken text, "
           "no markdown or lists, since your reply is read aloud.")
 
-SEARCH_SYSTEM = ("You answer questions out loud using web search results. "
-                 "1 to 3 short spoken sentences, no markdown, no lists, never read out URLs. "
-                 "If the results conflict or don't cover it, say so briefly.")
+SEARCH_SYSTEM = (
+    "You answer questions out loud using web search results. "
+    "1 to 3 short spoken sentences, no markdown, no lists, never read out URLs. "
+    "Then on a final line write 'SOURCE: <number>' naming the single numbered result you "
+    "actually relied on. If the results do not really answer the question, reply with "
+    "exactly: NOTHING FOUND")
 
 # Questions that need to actually look, rather than reason from memory.
 VISUAL_PATTERNS = [
@@ -64,10 +67,31 @@ SEARCH_TRIGGERS = (
     r"what does the internet say about "
 )
 
+# "show me a search for X" — open the RESULTS PAGE, not one of the results.
+# Requires an open/show verb before the word "search", so a plain
+# "search for X" still gets a spoken answer instead of a browser window.
+SHOW_SEARCH = re.compile(
+    r"\b(?:show me|open|open up|pull up|bring up|do|run|give me|start)\b.{0,40}?\bsearch\b")
+
+# Noise to drop before reading the query out of a spoken sentence.
+DEVICE_PHRASE = re.compile(r"\s*\bon (?:my|the) (?:computer|screen|pc|desktop|monitor|laptop)\b")
+ENGINE_PHRASE = re.compile(r"\busing (?:google|duck ?duck ?go|bing|searx\w*)\b.*$")
+
+# Whatever follows "open"/"pull up". If it names a thing rather than pointing at
+# an earlier result, it's a new subject and must trigger a fresh search —
+# otherwise "pull up <new thing>" silently reopens the last link.
+OPEN_SUBJECT = re.compile(r"\b(?:pull up|pull|open up|open|show me|bring up|bring)\s+(.+)$")
+POINTS_BACK = re.compile(
+    r"^(?:that\b|it\b|this\b|these\b|those\b|them\b|up\b|again\b|"
+    r"the (?:first|second|third|fourth|fifth|last|one|link|page|site|website|result)\b|"
+    r"(?:first|second|third|fourth|fifth|last)\b|number \w+)")
+
 # Send the current link to the desktop.
 OPEN_PATTERNS = [
     r"\bon (?:my|the) (?:computer|screen|pc|desktop|monitor|laptop)\b",
-    r"\bpull (?:that|it|this|them|those) up\b", r"\bpull up (?:that|it|the)\b",
+    # "pull up" is unambiguously a show-me-something command, so it stands alone;
+    # "open"/"show me" must stay narrow or they swallow "open your eyes".
+    r"\bpull (?:that|it|this|them|those) up\b", r"\bpull up\b",
     r"\bshow me (?:that|it|this|the (?:first|second|third|fourth|fifth))\b",
     r"\bopen (?:that|it|this|the (?:first|second|third|fourth|fifth|link|page|site))\b",
     r"\bbring (?:that|it) up\b",
@@ -83,7 +107,10 @@ ORDINALS = [
 
 DIRECTIONS = {"left": "left", "right": "right", "up": "up", "down": "down"}
 
-last_results = []   # most recent search hits, so a follow-up can act on them
+last_results = []      # most recent search hits, so a follow-up can act on them
+last_query = ""        # what produced them, for "show me the search results"
+last_results_at = 0.0  # when — stale hits must never be opened silently
+RESULTS_TTL = 900      # seconds a remembered result set stays openable
 
 
 def eyes_call(path, params=None, timeout=240):
@@ -186,40 +213,132 @@ def pick_result(text):
     return last_results[0]
 
 
-def handle_search(question):
-    query = extract_query(question)
-    if len(query) < 3:
-        return None
-    global last_results
-    say("Let me look that up.")
+def remember(query, results):
+    global last_results, last_query, last_results_at
+    last_results, last_query, last_results_at = results, query, time.time()
+
+
+def results_are_fresh():
+    return bool(last_results) and (time.time() - last_results_at) <= RESULTS_TTL
+
+
+def run_search(query):
+    """Search and remember the hits. Returns [] on failure or no results."""
     try:
         results = web.search(query)
     except Exception as e:
         print(f"[search] failed: {e}", flush=True)
-        return "I couldn't reach the search service."
+        return []
+    remember(query, results)
+    return results
+
+
+def parse_answer(raw, results):
+    """Split the spoken answer from the source the model says it used.
+
+    Returns (answer, source). answer is None when the model found nothing —
+    better to admit that than to narrate whatever the snippets happened to say.
+    """
+    if "NOTHING FOUND" in raw.upper():
+        return None, None
+    source = None
+    cite = re.search(r"SOURCE:\s*(\d+)", raw, re.I)
+    if cite:
+        index = int(cite.group(1)) - 1
+        if 0 <= index < len(results):
+            source = results[index]
+        raw = raw[:cite.start()]
+    return raw.strip(), source
+
+
+def handle_search(question):
+    query = extract_query(question)
+    if len(query) < 3:
+        return None
+    say("Let me look that up.")
+    results = run_search(query)
     if not results:
-        last_results = []
         return f"I didn't find anything for {query}."
-    last_results = results
     try:
-        answer = llm(SEARCH_SYSTEM,
-                     f"Question: {query}\n\nSearch results:\n{web.sources_block(results)}\n\n"
-                     "Answer the question.")
+        raw = llm(SEARCH_SYSTEM,
+                  f"Question: {query}\n\nSearch results:\n{web.sources_block(results)}\n\n"
+                  "Answer the question.")
     except Exception:
-        answer = results[0]["title"]
-    return f"{answer} That's from {results[0]['domain']}."
+        return f"{results[0]['title']}. That's from {results[0]['domain']}."
+    answer, source = parse_answer(raw, results)
+    if not answer:
+        return f"I couldn't find anything solid about {query}."
+    return f"{answer} That's from {source['domain']}." if source else answer
+
+
+def clean_spoken(text):
+    return ENGINE_PHRASE.sub("", DEVICE_PHRASE.sub(" ", text)).strip()
+
+
+def search_page_query(text):
+    """The thing to search for in 'show me a search for X'."""
+    match = re.search(r"\bfor\s+(.+)$", clean_spoken(text))
+    if match:
+        query = match.group(1).strip(" ?.,")
+        if len(query) >= 3:
+            return query
+    return last_query
+
+
+def new_subject(text):
+    """A fresh thing to look up in "pull up X", or "" if X points at an old result."""
+    explicit = extract_query(text)
+    if len(explicit) >= 3:
+        return explicit
+    match = OPEN_SUBJECT.search(text)
+    if not match:
+        return ""
+    subject = match.group(1).strip(" ?.,")
+    if POINTS_BACK.match(subject) or len(subject) < 3:
+        return ""
+    return subject
+
+
+def preferred_engine(text):
+    if re.search(r"\bgoogle\b", text):
+        return "google"
+    if re.search(r"\bduck ?duck ?go\b", text):
+        return "duckduckgo"
+    return None
+
+
+def open_url(url, spoken):
+    return spoken if web.open_on_desktop(url) else "I couldn't reach your computer to open that."
 
 
 def handle_desktop_command(text):
-    """Open a remembered link on the Windows desktop."""
+    """Put something on the Windows desktop: a results page, or one result."""
+    if SHOW_SEARCH.search(text):
+        query = search_page_query(text)
+        if not query:
+            return "What would you like me to search for?"
+        return open_url(web.serp_url(query, preferred_engine(text)),
+                        f"Opening a search for {query} on your computer.")
+
     if not any(re.search(p, text) for p in OPEN_PATTERNS):
         return None
+
+    # An open command carrying its own subject means search THAT — never reopen
+    # whatever happened to be found last time.
+    fresh = new_subject(clean_spoken(text))
+    if fresh:
+        results = run_search(fresh)
+        if not results:
+            return f"I didn't find anything for {fresh}."
+        return open_url(results[0]["url"], f"Opening {results[0]['domain']} on your computer.")
+
+    if not results_are_fresh():
+        return "I don't have a recent search to open. Ask me to search for something first."
+
     chosen = pick_result(text)
     if not chosen:
-        return "I don't have a link to open yet. Ask me to search for something first."
-    if not web.open_on_desktop(chosen["url"]):
-        return "I couldn't reach your computer to open that."
-    return f"Opening {chosen['domain']} on your computer."
+        return "I don't have that one. Ask me to search for something first."
+    return open_url(chosen["url"], f"Opening {chosen['domain']} on your computer.")
 
 
 def handle_camera_command(text):

@@ -101,6 +101,25 @@ Full reference: **`docs/aibox-search-desktop.md`**.
 - ⚠️ Installer must set the token ACL **by SID** — a bare `%USERNAME%` grant with `/inheritance:r` locked the
   owner out of `token.txt` (hit and fixed 2026-08-02).
 
+### Round-2 fixes (2026-08-02, after owner testing)
+- 🐛 **"Stuck opening amazon.jobs".** Any phrase containing "on my computer" matched the open-a-link patterns,
+  which run **before** search, so it reopened stale `last_results[0]` and never re-searched. Fix: a command that
+  **names its own subject** (`new_subject()` / `POINTS_BACK`) forces a **fresh search**; only pointing words
+  ("that", "it", "the second one") reuse remembered links, and those now **expire after 15 min** (`RESULTS_TTL`)
+  instead of silently opening something old.
+- 🐛 **Wrong source attribution.** The answer always cited `results[0]` even when the content came from other
+  results — it told the owner accurate Crestwell facts "from amazon.jobs". Fix: the model now emits
+  `SOURCE: <n>`; only that result is cited, and **no source is named if it doesn't cite one**. It replies
+  `NOTHING FOUND` (→ "I couldn't find anything solid about X") rather than narrating irrelevant snippets.
+- ✅ **New intent: "show me a search for X"** → opens the **results PAGE** (`web.serp_url`), default the
+  self-hosted SearXNG, or Google if the owner says "using google". Distinct from "pull that up" (one site).
+  Requires a show/open verb before "search", so a plain "search for X" still just answers out loud.
+- ✅ **`pull up` broadened** to stand alone; `open`/`show me` deliberately kept narrow — broadening them
+  swallows **"open your eyes"** (verified it still resumes the camera).
+- ✅ **TTS first-word clipping fixed**: `say.sh` pads **400 ms of leading silence** (`AIBOX_LEAD_MS`) + 0.25 s
+  tail via ffmpeg — the SP92 wakes slowly and ate the start of every utterance.
+- Regression net: 17-case router precedence test covering camera/search/desktop/chat (all pass).
+
 ## On-screen visualizer (browser) — done
 Glowing ring bottom-right that pulses while TTS plays (component `client/src/components/analytikul/VoiceVisualizer.tsx`, mounted in `AnalytikulProvider`). v1 is playback-driven; v2 (amplitude-reactive) pending.
 

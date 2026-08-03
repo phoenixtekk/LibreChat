@@ -69,10 +69,25 @@ token **and** come from `BRIDGE_ALLOWED_CIDR` (default `192.168.166.0/24`).
 
 | Phrase | Result |
 |---|---|
-| "search for X" / "look up X" / "google X" / "find me X" | Search + spoken answer |
-| "pull that up on my computer" / "show me that" / "open that" | Opens the top link |
-| "open the second one" / "show me the third one" / "open the last one" | Opens that link |
-| "pull up number two" | Opens link #2 |
+| "search for X" / "look up X" / "google X" / "find me X" | Search + **spoken answer**, no browser |
+| **"show me a search for X"** / "open a search for X" / "show me the search results for X" | Opens the **results page** in the browser |
+| "…using google" | Same, but on Google instead of SearXNG |
+| "pull that up on my computer" / "show me that" / "open that" | Opens the **top result** |
+| "open the second one" / "show me the third one" / "open the last one" | Opens that result |
+| **"pull up X"** (a subject, not "that") | Searches X fresh, opens its top result |
+
+### Three behaviours, deliberately distinct
+
+- **"search for X"** — Amy answers out loud. Nothing opens.
+- **"show me a search for X"** — the *results page* opens, so you choose. Use this
+  when you want to browse rather than be told.
+- **"pull that up"** — opens the *one site* the answer came from.
+
+> A command that names its own subject always triggers a **fresh search**.
+> "Pull up Crestwell Travel Services" searches that and opens its top hit; it
+> never reopens whatever was found earlier. Only pointing words — "that", "it",
+> "the second one" — reuse the remembered results, and those expire after 15
+> minutes rather than opening something stale.
 
 > **Command precedence** (in `respond()`): desktop hand-off → search → camera →
 > visual → plain chat. This ordering is load-bearing: **"look up the weather" is
@@ -140,12 +155,18 @@ page Amy hands over, so only install it where that's wanted.
 | Agent log: `Access to the path 'token.txt' is denied` | ACL locked the owner out — re-run the installer (it grants by SID). |
 | `rejected` climbing in `/health` | Wrong token or a poller outside the allowed CIDR. |
 | "I don't have a link to open yet." | No search yet this session — links are remembered in the assistant process and reset on restart. |
+| "I don't have a recent search to open." | The remembered results aged out (15 min). Search again. |
+| Opens the same wrong page repeatedly | Was the pre-fix stale-link bug (2026-08-02): any phrase containing "on my computer" reused result #1 without re-searching. Fixed — a named subject now forces a fresh search. |
+| Amy names a source that clearly isn't where the answer came from | Was fixed 2026-08-02: the answer now carries `SOURCE: <n>` from the model and only that result is cited; if it cites nothing, Amy names no source. |
 | Search says it can't reach the service | SearXNG on linuxg3:8080 is down. |
 
 ## Known limits
 
 - Remembered links live **in memory** in the assistant process — a restart of
   `aigartha` clears them.
+- Amy cites the result the model says it used (`SOURCE: <n>`); if the model does
+  not name one, she gives no attribution rather than guessing. If the snippets
+  don't cover the question she says so instead of narrating whatever they said.
 - Amy answers from **search snippets**, not the full page. Fine for facts and
   headlines; she can be thin on detail buried inside an article. Reading the top
   page before answering is a config change away, at +3–8 s per search.
