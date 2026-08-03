@@ -86,3 +86,23 @@ Verified interactively against the Vite dev client (:3090) proxying the Docker b
 
 ## Deliberate deviations from the plan
 - LibreChat internal npm package names (`librechat-data-provider`, `@librechat/*`) are **kept** rather than renamed to `@analytikul/*`: a mechanical rename would touch hundreds of upstream files and destroy upstream mergeability. Branding happens at the UI/config level (M1). New packages use the `@analytikul/*` scope.
+
+## AiBox voice assistant — Amy (host-level, outside the web platform)
+Runs on the AiBox host itself (systemd), not in the Analytikul containers. Full reference: [`docs/aibox-eyes.md`](aibox-eyes.md).
+- ✅ Always-on wake-word assistant "Hey Amy" — SP92 speakerphone, faster-whisper STT, Ollama llama3, Piper TTS (Amy voice) — service `aigartha`
+- ✅ **Always-on eyes (2026-08-02)**: OBSBOT Tiny USB gimbal camera, continuous 2 fps capture in tmpfs, motion-triggered scene descriptions via local `qwen2.5vl:7b` on CT200 — service `amy-eyes`, API on `127.0.0.1:8823`
+- ✅ **Ambient awareness**: the cached room description is injected into Amy's system prompt every turn, so she knows what she is looking at at zero added latency
+- ✅ **Live visual Q&A**: visual questions ("what do you see", "how many people are here", "what am I holding") send the current frame to the vision model — ~3.5 s round trip
+- ✅ **Camera control by voice**: "look left/right/up/down", "look straight ahead", "look at the &lt;saved spot&gt;", "remember this spot as X" — pan ±130°, tilt ±90°
+- ✅ **Room scan**: "look around the room" sweeps 5 positions, describes each, and speaks a condensed summary (~25 s)
+- ✅ **Privacy switch**: "close your eyes" stops the capture process outright and releases the device (camera light goes out); "open your eyes" restores. Nothing is ever recorded to disk; no frame leaves the box
+- 📋 Not enabled: proactive greeting when someone enters the room; face recognition (Amy describes people, does not identify them)
+
+### Amy — web search + desktop hand-off (2026-08-02)
+Full reference: [`docs/aibox-search-desktop.md`](aibox-search-desktop.md).
+- ✅ **Web search by voice**: "search for X" / "look up X" / "google X" → self-hosted **SearXNG** (linuxg3:8080), spoken 1–3 sentence answer naming the top source (~2 s). No API key, no rate limit, query never hits a commercial search account
+- ✅ **Remembers the top 5 links** from the last search for follow-up commands
+- ✅ **"Pull that up on my computer"** → opens the page in the browser on the Windows desktop (`DESKTOP-ADMIN`); also "show me that", "open that", "open the second one", "pull up number two"
+- ✅ **Desk bridge** (`amy-deskbridge`, port 8824): token-authenticated long-poll queue; `/open` is localhost-only, pollers restricted by token + CIDR, http(s)-only at both ends
+- ✅ **Windows session agent**: PowerShell long-poller in the interactive logon session (autostarts at logon), so the browser window is always visible — SSH-launched browsers land in an invisible session
+- 📋 Limits: remembered links are in-process (cleared on restart); answers come from search snippets, not full page text; single desktop target

@@ -106,3 +106,29 @@ ssh linuxg6 'cd ~/analytikul && git pull --ff-only && APP_DIR=$HOME/analytikul b
 ## Troubleshooting
 - **Containers unhealthy on first boot**: check `docker compose logs api`; most common cause is a missing/els-corrupted `.env`.
 - **Hermes adapter 404 on /run**: expected before M2 — only `/health` and `/tools` exist.
+
+## AiBox voice assistant + camera (host services)
+Two systemd services on the AiBox host (`ai` / 192.168.166.168), both `enabled` and `Restart=always`:
+- **`aigartha`** — the "Hey Amy" voice assistant (`/opt/voice/assistant.py`, log `/opt/voice/assistant.log`)
+- **`amy-eyes`** — always-on vision + gimbal control (`/opt/voice/eyes/eyes.py`, log `/opt/voice/eyes/eyes.log`, API `127.0.0.1:8823`)
+
+Camera: OBSBOT Tiny on `/dev/video0` (pan ±130°, tilt ±90°, zoom 0–100). Vision model `qwen2.5vl:7b`
+on CT200 Ollama. Frames live only in tmpfs (`/run/amy-eyes/`) and are never written to disk.
+
+**Voice tuning** (`/opt/voice/voice.conf`, re-read on every utterance — no restart needed):
+`/opt/voice/setvoice.sh <jarvis|ryan|amy|lacy>` picks the voice; `/opt/voice/setspeed.sh <scale>` sets speaking
+speed via Piper's `--length-scale` (**lower = faster**; currently **0.79**). Each script rewrites only its own key.
+
+Health / restart / tuning knobs / troubleshooting: **[`docs/aibox-eyes.md`](aibox-eyes.md)**.
+Source of truth for both services is `services/aibox-voice/` in this repo — deploy with `scp` + `systemctl restart`.
+
+### Amy web search + desktop hand-off
+Third host service **`amy-deskbridge`** (`/opt/voice/deskbridge.py`, port **8824**, log `/opt/voice/deskbridge.log`)
+queues URLs for the Windows agent at `%LOCALAPPDATA%\AmyBridge` (autostarts at logon). Search goes to the
+self-hosted **SearXNG on linuxg3:8080**.
+
+⚠️ `/opt/voice/bridge.token` (and the matching `token.txt` on the desktop) is a **credential** — it lets a
+caller make that workstation open web pages. Never commit or publish it; rotate with `openssl rand -hex 32`
+plus a re-run of `install-amy-bridge.ps1`.
+
+Details, API, security model, and troubleshooting: **[`docs/aibox-search-desktop.md`](aibox-search-desktop.md)**.

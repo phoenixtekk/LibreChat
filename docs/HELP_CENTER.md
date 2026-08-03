@@ -90,3 +90,35 @@ feature. (Sections are added as features ship; see FEATURES.md for status.)
 - **Messaging platforms & scheduled tasks** (M4): connect Telegram/Slack/Discord and schedule
   recurring agent jobs from Settings — no server required.
 - **Plans & billing** (M4): Free, Pro, and Team plans; bring your own keys or buy credits.
+
+## Talking to Amy (AiBox voice assistant)
+Amy listens on the speakerphone and now has a camera, so she can see the room as well as hear it.
+Say **"Hey Amy"**, wait for "How can I help you, Lacy?", then ask.
+
+**Ask about what she can see**
+- "What do you see?" · "How many people are in the room?" · "What am I holding?"
+- "What colour is this?" · "Describe the room."
+- Ordinary questions still go to the language model as before — she only looks when the question needs it.
+
+**Move the camera**
+- "Look left." · "Look right 60 degrees." · "Look up." · "Look straight ahead."
+- "Look around the room." — she pans across the room and summarises what's there (takes about 25 seconds; she'll say "Let me take a look around" first).
+- "Remember this spot as the door." — then later, "Look at the door."
+
+**Privacy**
+- "Close your eyes." — the camera genuinely switches off; its indicator light goes out and capture stops.
+- "Open your eyes." — turns it back on.
+- Nothing is recorded. A single frame is held in memory and overwritten twice a second, and all
+  image understanding happens on your own hardware — no image ever leaves the AiBox.
+
+### Asking Amy to search, and putting it on your screen
+- "Hey Amy, search for the best mechanical keyboards." — she searches and answers out loud, and tells you
+  which site it came from.
+- Then: **"Pull that up on my computer."** — the page opens in your browser. Also works: "show me that",
+  "open that", "bring it up".
+- Want a different result? **"Open the second one."** · "Show me the third one." · "Open the last one."
+- She remembers the last handful of links until she's restarted, so you can come back to them a bit later.
+- Other ways to start a search: "look up …", "google …", "find me …", "find out about …".
+
+> Tip: "look up the weather" searches the web, but a bare "look up" tilts the camera up — the difference is
+> whether you give her something to look up.
