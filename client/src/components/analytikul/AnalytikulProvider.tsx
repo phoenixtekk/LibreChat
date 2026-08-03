@@ -3,6 +3,7 @@ import { useRecoilState, useSetRecoilState, useRecoilValue } from 'recoil';
 import type { RailTab } from './PreviewRail';
 import { CatalogPanel } from './catalog';
 import PreviewRail from './PreviewRail';
+import VoiceVisualizer from './VoiceVisualizer';
 import useAgentStream from './useAgentStream';
 import useComposerHistory from './useComposerHistory';
 import { initTheme } from './theme';
@@ -102,6 +103,7 @@ export default function AnalytikulProvider() {
   return (
     <>
       <CatalogPanel />
+      <VoiceVisualizer />
       <PreviewRail
         open={rail.open}
         onClose={() => setRail((prev) => ({ ...prev, open: false }))}
