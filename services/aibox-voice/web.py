@@ -4,11 +4,16 @@ Search goes through the self-hosted SearXNG on linuxg3 — no API key, no rate
 limit, and the query never reaches a commercial search account.
 """
 import os
+import re
 from urllib.parse import quote_plus, urlparse
 
 import requests
 
+# Queries go straight to the box on the LAN (fast, no external hop); links we
+# hand the browser use the public HTTPS host — same SearXNG instance, but no
+# "Not secure" warning and it carries Lacy's saved preferences.
 SEARX = os.environ.get("AIBOX_SEARX", "http://192.168.166.161:8080")
+SEARX_PUBLIC = os.environ.get("AIBOX_SEARX_PUBLIC", "https://search.analytikul.ai")
 BRIDGE = os.environ.get("AIBOX_BRIDGE", "http://127.0.0.1:8824")
 RESULT_COUNT = int(os.environ.get("AIBOX_SEARCH_RESULTS", "5"))
 SNIPPET_CHARS = 320
@@ -17,7 +22,7 @@ SNIPPET_CHARS = 320
 # Where "show me a search for X" sends the browser. Defaults to our own SearXNG
 # so the query stays off a commercial search account; say "google" to override.
 SERP_ENGINES = {
-    "searxng": SEARX + "/search?q={q}",
+    "searxng": SEARX_PUBLIC + "/search?q={q}&language=auto&safesearch=0",
     "google": "https://www.google.com/search?q={q}",
     "duckduckgo": "https://duckduckgo.com/?q={q}",
     "bing": "https://www.bing.com/search?q={q}",
@@ -36,11 +41,22 @@ def domain(url):
     return host[4:] if host.startswith("www.") else host
 
 
+def relevance(result, terms):
+    haystack = f"{result['title']} {result['content']} {result['url']}".lower()
+    return sum(1 for term in terms if term in haystack)
+
+
 def search(query, count=RESULT_COUNT):
-    """Top results from SearXNG as {title, url, content, domain}."""
+    """Top results from SearXNG as {title, url, content, domain}.
+
+    Results are re-ordered by how many query terms they actually mention. The
+    upstream engines occasionally degrade and return wholly unrelated pages;
+    without this, one of those can land at position 1 and become both the spoken
+    answer's source and whatever "pull that up" opens.
+    """
     response = requests.get(
         f"{SEARX}/search",
-        params={"q": query, "format": "json", "safesearch": "0"},
+        params={"q": query, "format": "json", "safesearch": "0", "language": "en-US"},
         timeout=25,
     )
     response.raise_for_status()
@@ -55,9 +71,13 @@ def search(query, count=RESULT_COUNT):
             "content": (item.get("content") or "").strip()[:SNIPPET_CHARS],
             "domain": domain(url),
         })
-        if len(results) >= count:
+        if len(results) >= max(count * 4, 20):
             break
-    return results
+
+    terms = re.findall(r"[a-z0-9]{3,}", query.lower())
+    if terms:
+        results.sort(key=lambda r: -relevance(r, terms))   # stable: ties keep engine order
+    return results[:count]
 
 
 def sources_block(results):

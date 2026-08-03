@@ -117,7 +117,8 @@ on CT200 Ollama. Frames live only in tmpfs (`/run/amy-eyes/`) and are never writ
 
 **Voice tuning** (`/opt/voice/voice.conf`, re-read on every utterance — no restart needed):
 `/opt/voice/setvoice.sh <jarvis|ryan|amy|lacy>` picks the voice; `/opt/voice/setspeed.sh <scale>` sets speaking
-speed via Piper's `--length-scale` (**lower = faster**; currently **0.79**). Each script rewrites only its own key.
+speed: `setspeed.sh <length-scale> [sentence-silence] [noise-w]` (**lower = faster**; currently **0.72 / 0.10 / 0.8**,
+about 21% faster than the 0.9 default with half the pause between sentences). Each script rewrites only its own key.
 `AIBOX_LEAD_MS` (default **400**) pads silence onto the front of every utterance — the SP92 wakes slowly and
 swallows the first word without it; `AIBOX_TAIL_S` (0.25) guards the tail.
 

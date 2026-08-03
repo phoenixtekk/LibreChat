@@ -3,7 +3,11 @@
 CONF="/opt/voice/voice.conf"; [ -f "$CONF" ] && . "$CONF"
 VOICE="${AIBOX_VOICE:-en_GB-alan-medium}"; CARD="${AIBOX_CARD:-3}"
 # Piper's length-scale is INVERSE to speed: lower = faster. 1.0 is the model default.
-SCALE="${AIBOX_LENGTH_SCALE:-0.82}"
+SCALE="${AIBOX_LENGTH_SCALE:-0.72}"
+# Gap after each sentence (piper default 0.2s) and phoneme-width variability
+# (default 0.8) — lower values tighten the delivery.
+SILENCE="${AIBOX_SENTENCE_SILENCE:-0.10}"
+NOISE_W="${AIBOX_NOISE_W:-0.8}"
 # The SP92 takes a moment to wake when playback starts and eats the beginning
 # of the audio, so pad silence onto the front (and a little onto the tail).
 LEAD_MS="${AIBOX_LEAD_MS:-400}"
@@ -14,7 +18,9 @@ tmp="$(mktemp --suffix=.wav)"
 if [ "$VOICE" = "lacy" ] || [ "$VOICE" = "xtts" ]; then
   COQUI_TOS_AGREED=1 /opt/voice/venv/bin/python /opt/voice/xtts_say.py "$text" "$tmp" >/dev/null 2>&1
 else
-  printf "%s" "$text" | /opt/voice/venv/bin/piper -m "$VOICE" --length-scale "$SCALE" --data-dir /opt/voice/models -f "$tmp" 2>/dev/null
+  printf "%s" "$text" | /opt/voice/venv/bin/piper -m "$VOICE" --data-dir /opt/voice/models \
+    --length-scale "$SCALE" --sentence-silence "$SILENCE" --noise-w-scale "$NOISE_W" \
+    -f "$tmp" 2>/dev/null
 fi
 
 if [ "${LEAD_MS:-0}" -gt 0 ] 2>/dev/null; then

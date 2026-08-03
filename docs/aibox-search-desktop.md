@@ -42,6 +42,7 @@ survives the desktop's IP changing.
 | Path | What it is |
 |---|---|
 | `/opt/voice/web.py` | SearXNG client + desktop hand-off client |
+| — | Queries hit `192.168.166.161:8080` (LAN, fast); browser links use `https://search.analytikul.ai` (same instance, HTTPS, saved preferences) |
 | `/opt/voice/deskbridge.py` | The queue — token-auth long-poll API on **:8824** |
 | `/opt/voice/bridge.token` | Shared secret (chmod 600). **Treat as a credential.** |
 | `/opt/voice/deskbridge.log` | Bridge log (queued / delivered / rejected) |
@@ -159,11 +160,15 @@ page Amy hands over, so only install it where that's wanted.
 | Opens the same wrong page repeatedly | Was the pre-fix stale-link bug (2026-08-02): any phrase containing "on my computer" reused result #1 without re-searching. Fixed — a named subject now forces a fresh search. |
 | Amy names a source that clearly isn't where the answer came from | Was fixed 2026-08-02: the answer now carries `SOURCE: <n>` from the model and only that result is cited; if it cites nothing, Amy names no source. |
 | Search says it can't reach the service | SearXNG on linuxg3:8080 is down. |
+| Unrelated results (e.g. Chinese Q&A pages) appear | An upstream engine degraded — Bing intermittently returns off-topic pages for thin queries (seen 2026-08-02: 92 results instead of 6,790). Not a config difference between the LAN and public URLs — they are the **same instance**. Results are now re-ranked by query-term overlap so junk can't take position 1. |
 
 ## Known limits
 
 - Remembered links live **in memory** in the assistant process — a restart of
   `aigartha` clears them.
+- Upstream engines are flaky in a way nothing local can fix — sometimes only
+  Bing answers, sometimes only DuckDuckGo. Relevance re-ranking limits the
+  damage but a bad minute upstream is still a bad minute.
 - Amy cites the result the model says it used (`SOURCE: <n>`); if the model does
   not name one, she gives no attribution rather than guessing. If the snippets
   don't cover the question she says so instead of narrating whatever they said.
