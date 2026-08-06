@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { ChevronDown, Zap, Lock, Folder, History } from 'lucide-react';
+import { ChevronDown, Zap, Lock, Folder, History, GitBranch } from 'lucide-react';
 import { useGetModelsQuery } from 'librechat-data-provider/react-query';
 import { useLocalize, useAuthContext } from '~/hooks';
 import { cn } from '~/utils';
@@ -315,6 +315,60 @@ export default function AgentPanel({ stream }: { stream: AgentStreamApi }) {
     () => (lastTrace?.steps ?? []).filter((s) => s.type === 'tool_start' || s.tool).length,
     [lastTrace],
   );
+
+  // Git strip for the active project on the bridge (branch · +N −N · Commit).
+  type BridgeFsResp = {
+    isRepo?: boolean;
+    branch?: string;
+    added?: number;
+    removed?: number;
+    dirty?: number;
+    ok?: boolean;
+    error?: string;
+  };
+  const [gitStatus, setGitStatus] = useState<BridgeFsResp | null>(null);
+  const [committing, setCommitting] = useState(false);
+  const bridgeFsCall = useCallback(
+    async (op: string, extra: Record<string, string> = {}): Promise<BridgeFsResp> => {
+      const r = await fetch('/api/analytikul/bridge/fs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ op, project: workspace.trim() || 'default', ...extra }),
+      });
+      return (await r.json().catch(() => ({}))) as BridgeFsResp;
+    },
+    [token, workspace],
+  );
+  const refreshGit = useCallback(() => {
+    if (execTarget !== 'bridge') {
+      setGitStatus(null);
+      return;
+    }
+    bridgeFsCall('git-status')
+      .then((d) => setGitStatus(typeof d.isRepo === 'boolean' ? d : null))
+      .catch(() => setGitStatus(null));
+  }, [execTarget, bridgeFsCall]);
+  useEffect(() => {
+    refreshGit();
+  }, [refreshGit]);
+  useEffect(() => {
+    if (stream.state === 'done') {
+      refreshGit();
+    }
+  }, [stream.state, refreshGit]);
+  const commitProject = useCallback(async () => {
+    const msg = window.prompt('Commit message', 'Analytikul Coder changes');
+    if (msg == null) {
+      return;
+    }
+    setCommitting(true);
+    try {
+      await bridgeFsCall('git-commit', { message: msg });
+      refreshGit();
+    } finally {
+      setCommitting(false);
+    }
+  }, [bridgeFsCall, refreshGit]);
 
   // Follow the stream: keep the newest agent output in view as it writes out.
   useEffect(() => {
@@ -922,6 +976,44 @@ export default function AgentPanel({ stream }: { stream: AgentStreamApi }) {
           </div>
         )}
       </div>
+
+      {execTarget === 'bridge' && gitStatus && (
+        <div className="flex items-center gap-2 rounded-md border border-border-light bg-surface-secondary px-2.5 py-1.5 text-[11px]">
+          {gitStatus.isRepo ? (
+            <>
+              <span className="flex items-center gap-1 text-text-secondary" title="Current branch">
+                <GitBranch size={12} aria-hidden="true" /> {gitStatus.branch || 'HEAD'}
+              </span>
+              <span className="font-mono">
+                <span className="text-green-500">+{gitStatus.added ?? 0}</span>{' '}
+                <span className="text-red-500">−{gitStatus.removed ?? 0}</span>
+              </span>
+              <button
+                type="button"
+                className="ml-auto rounded-md border border-border-medium px-2 py-0.5 text-[11px] text-text-primary hover:bg-surface-hover disabled:opacity-50"
+                onClick={commitProject}
+                disabled={committing || (gitStatus.dirty ?? 0) === 0}
+              >
+                {committing ? 'Committing…' : `Commit changes${gitStatus.dirty ? ` (${gitStatus.dirty})` : ''}`}
+              </button>
+            </>
+          ) : (
+            <>
+              <span className="flex items-center gap-1 text-text-tertiary">
+                <GitBranch size={12} aria-hidden="true" /> not a git repo
+              </span>
+              <button
+                type="button"
+                className="ml-auto rounded-md border border-border-medium px-2 py-0.5 text-[11px] text-text-primary hover:bg-surface-hover disabled:opacity-50"
+                onClick={commitProject}
+                disabled={committing}
+              >
+                {committing ? 'Initializing…' : 'Init + commit'}
+              </button>
+            </>
+          )}
+        </div>
+      )}
 
       <div className="flex items-center gap-2">
         <select

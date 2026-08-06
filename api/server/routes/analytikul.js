@@ -805,9 +805,9 @@ router.post('/bridge/pair', (req, res) => {
 
 // Files tab → the user's paired bridge: list projects / tree / read a file on their machine.
 router.post('/bridge/fs', async (req, res) => {
-  const { op, project, path: relPath } = req.body ?? {};
-  if (!['projects', 'tree', 'read'].includes(op)) {
-    return res.status(400).json({ error: 'op must be projects|tree|read' });
+  const { op, project, path: relPath, message } = req.body ?? {};
+  if (!['projects', 'tree', 'read', 'git-status', 'git-commit'].includes(op)) {
+    return res.status(400).json({ error: 'unknown op' });
   }
   if (!bridgeUserPaired(req.user.id)) {
     return res.status(409).json({ error: 'no paired bridge' });
@@ -819,7 +819,7 @@ router.post('/bridge/fs', async (req, res) => {
       resolve(JSON.stringify({ error: 'bridge did not respond' }));
     }, BRIDGE_FS_TIMEOUT_MS);
     bridgeFsPending.set(requestId, { resolve, timer });
-    bridgeDeliver(req.user.id, { kind: 'fs', request_id: requestId, op, project, path: relPath });
+    bridgeDeliver(req.user.id, { kind: 'fs', request_id: requestId, op, project, path: relPath, message });
   });
   try {
     return res.status(200).json(JSON.parse(result));

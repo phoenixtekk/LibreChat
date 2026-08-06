@@ -248,6 +248,53 @@ function fsHandle(bin, op, project, relPath) {
   }
 }
 
+// ---- git status / commit for the active project -----------------------------------------
+
+async function gitHandle(bin, op, project, message) {
+  try {
+    const { base } = resolveInProject(bin, project, '.');
+    if (op === 'git-status') {
+      const branchR = await runExec(base, 'git rev-parse --abbrev-ref HEAD');
+      if (branchR.exitCode !== 0) {
+        return JSON.stringify({ isRepo: false });
+      }
+      const branch = branchR.stdout.trim();
+      const diffR = await runExec(base, 'git diff HEAD --numstat');
+      let added = 0;
+      let removed = 0;
+      for (const line of (diffR.stdout || '').split('\n')) {
+        const m = line.trim().match(/^(\d+|-)\s+(\d+|-)\s+/);
+        if (m) {
+          if (m[1] !== '-') added += Number(m[1]);
+          if (m[2] !== '-') removed += Number(m[2]);
+        }
+      }
+      const statusR = await runExec(base, 'git status --porcelain');
+      const dirty = (statusR.stdout || '').split('\n').filter((l) => l.trim()).length;
+      return JSON.stringify({ isRepo: true, branch, added, removed, dirty });
+    }
+    if (op === 'git-commit') {
+      const inside = await runExec(base, 'git rev-parse --is-inside-work-tree');
+      if (inside.exitCode !== 0) {
+        await runExec(base, 'git init');
+      }
+      await runExec(base, 'git add -A');
+      const msg = String(message || 'Analytikul Coder commit').replace(/["\r\n]/g, "'").slice(0, 200);
+      const commitR = await runExec(
+        base,
+        `git -c user.email=coder@analytikul.ai -c user.name="Analytikul Coder" commit -m "${msg}"`,
+      );
+      return JSON.stringify({
+        ok: commitR.exitCode === 0,
+        output: `${commitR.stdout}${commitR.stderr}`.slice(0, 2000),
+      });
+    }
+    return JSON.stringify({ error: `unknown git op ${op}` });
+  } catch (e) {
+    return JSON.stringify({ error: e instanceof Error ? e.message : String(e) });
+  }
+}
+
 // ---- outbound long-poll loop ------------------------------------------------------------
 
 async function pollOnce(bin) {
@@ -262,7 +309,11 @@ async function pollOnce(bin) {
   for (const d of dispatches) {
     let result;
     if (d.kind === 'fs') {
-      result = fsHandle(bin, d.op, d.project, d.path);
+      if (d.op === 'git-status' || d.op === 'git-commit') {
+        result = await gitHandle(bin, d.op, d.project, d.message);
+      } else {
+        result = fsHandle(bin, d.op, d.project, d.path);
+      }
       console.log(`  ↳ fs:${d.op} (${d.project || '-'})`);
     } else {
       result = await executeTool(bin, d.tool, d.args, d.project, d.permissionMode);
