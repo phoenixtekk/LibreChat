@@ -1,8 +1,8 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { ChevronDown, Zap, Lock } from 'lucide-react';
+import { ChevronDown, Zap, Lock, Folder } from 'lucide-react';
 import { useGetModelsQuery } from 'librechat-data-provider/react-query';
 import { useLocalize, useAuthContext } from '~/hooks';
 import { cn } from '~/utils';
@@ -186,7 +186,110 @@ export default function AgentPanel({ stream }: { stream: AgentStreamApi }) {
   const [wsConfigured, setWsConfigured] = useState(false);
   const [newProject, setNewProject] = useState('');
   const [permMode, setPermMode] = useState('plan');
+  const [execTarget, setExecTarget] = useState<'container' | 'bridge'>(
+    () => (localStorage.getItem('atk_exec_target') as 'container' | 'bridge') || 'container',
+  );
+  const [pairCode, setPairCode] = useState('');
+  const [pairing, setPairing] = useState(false);
+  const [pairError, setPairError] = useState('');
   const outputRef = useRef<HTMLDivElement>(null);
+
+  // Analytikul Coder: remember the project folder chosen for each conversation, so
+  // reopening a chat lands back in its folder (Claude-Code-Desktop behaviour).
+  useEffect(() => {
+    if (!conversationId) {
+      return;
+    }
+    const saved = localStorage.getItem(`atk_ws_${conversationId}`);
+    if (saved) {
+      setWorkspace(saved);
+    }
+  }, [conversationId]);
+  useEffect(() => {
+    if (conversationId) {
+      localStorage.setItem(`atk_ws_${conversationId}`, workspace);
+    }
+  }, [workspace, conversationId]);
+
+  const pairMachine = useCallback(async () => {
+    setPairing(true);
+    setPairError('');
+    try {
+      const res = await fetch('/api/analytikul/bridge/pair', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        throw new Error(`pair failed (${res.status})`);
+      }
+      const data = (await res.json()) as { code: string };
+      setPairCode(data.code);
+    } catch (e) {
+      setPairError(e instanceof Error ? e.message : 'pairing failed');
+    } finally {
+      setPairing(false);
+    }
+  }, [token]);
+
+  // Recent agent sessions (one per conversation), grouped by project folder — the
+  // Claude-Code-Desktop-style switcher for getting back into previous work.
+  const navigate = useNavigate();
+  type SessionRow = {
+    conversationId: string;
+    lastActivity: string;
+    model: string;
+    status: string;
+    final: string;
+    runs: number;
+  };
+  const [sessions, setSessions] = useState<SessionRow[]>([]);
+  const [showSessions, setShowSessions] = useState(false);
+  const loadSessions = useCallback(() => {
+    fetch('/api/analytikul/agent/sessions', { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => (r.ok ? r.json() : { sessions: [] }))
+      .then((d: { sessions?: SessionRow[] }) => setSessions(Array.isArray(d.sessions) ? d.sessions : []))
+      .catch(() => undefined);
+  }, [token]);
+  useEffect(() => {
+    loadSessions();
+  }, [loadSessions]);
+  useEffect(() => {
+    if (stream.state === 'done') {
+      loadSessions();
+    }
+  }, [stream.state, loadSessions]);
+  const sessionGroups = useMemo(() => {
+    const groups: Record<string, SessionRow[]> = {};
+    for (const s of sessions) {
+      if (s.conversationId === conversationId) {
+        continue;
+      }
+      let proj = 'default';
+      try {
+        proj = localStorage.getItem(`atk_ws_${s.conversationId}`) || 'default';
+      } catch {
+        proj = 'default';
+      }
+      (groups[proj] ||= []).push(s);
+    }
+    return groups;
+  }, [sessions, conversationId]);
+  const sessionCount = useMemo(
+    () => Object.values(sessionGroups).reduce((n, arr) => n + arr.length, 0),
+    [sessionGroups],
+  );
+  const relTime = (iso: string) => {
+    const then = new Date(iso).getTime();
+    if (!then) {
+      return '';
+    }
+    const mins = Math.round((Date.now() - then) / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.round(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    return `${Math.round(hrs / 24)}d ago`;
+  };
 
   // Follow the stream: keep the newest agent output in view as it writes out.
   useEffect(() => {
@@ -375,8 +478,9 @@ export default function AgentPanel({ stream }: { stream: AgentStreamApi }) {
       model: model.trim() || undefined,
       provider: provider || undefined,
       baseUrl: LOCAL_PROVIDERS.has(provider) ? baseUrl.trim() || undefined : undefined,
-      workspace: wsConfigured ? workspace : undefined,
+      workspace: wsConfigured || execTarget === 'bridge' ? workspace.trim() || 'default' : undefined,
       permissionMode: permMode,
+      execTarget,
     });
   };
 
@@ -415,6 +519,51 @@ export default function AgentPanel({ stream }: { stream: AgentStreamApi }) {
           }
         }}
       />
+
+      {sessionCount > 0 && (
+        <div className="rounded-lg border border-border-light">
+          <button
+            type="button"
+            className="flex w-full items-center justify-between px-2.5 py-1.5 text-xs font-medium text-text-secondary"
+            aria-expanded={showSessions}
+            onClick={() => setShowSessions((prev) => !prev)}
+          >
+            <span>Recent sessions · {sessionCount}</span>
+            <ChevronDown
+              size={14}
+              className={cn('transition-transform', showSessions ? '' : '-rotate-90')}
+              aria-hidden="true"
+            />
+          </button>
+          {showSessions && (
+            <div className="max-h-64 overflow-auto border-t border-border-light px-1.5 py-1.5">
+              {Object.entries(sessionGroups).map(([proj, rows]) => (
+                <div key={proj} className="mb-2 last:mb-0">
+                  <div className="flex items-center gap-1 px-1 pb-1 text-[10px] font-medium uppercase tracking-wide text-text-tertiary">
+                    <Folder size={10} aria-hidden="true" /> {proj}
+                  </div>
+                  {rows.map((s) => (
+                    <button
+                      key={s.conversationId}
+                      type="button"
+                      onClick={() => navigate(`/c/${s.conversationId}`)}
+                      className="flex w-full flex-col rounded px-2 py-1 text-left hover:bg-surface-hover"
+                    >
+                      <span className="truncate text-[11px] text-text-primary">
+                        {s.final?.trim() || 'Agent session'}
+                      </span>
+                      <span className="text-[10px] text-text-tertiary">
+                        {relTime(s.lastActivity)} · {s.model || 'model'} · {s.runs} run
+                        {s.runs === 1 ? '' : 's'}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="rounded-lg border border-border-light">
         <button
@@ -479,6 +628,56 @@ export default function AgentPanel({ stream }: { stream: AgentStreamApi }) {
                 </p>
               </div>
             )}
+            <div className="mb-2.5 rounded-md border border-border-light p-2">
+              <label className="flex items-center gap-2 text-[11px] font-medium text-text-secondary">
+                <input
+                  type="checkbox"
+                  checked={execTarget === 'bridge'}
+                  onChange={(e) => {
+                    const v = e.target.checked ? 'bridge' : 'container';
+                    setExecTarget(v);
+                    localStorage.setItem('atk_exec_target', v);
+                  }}
+                />
+                Build on my machine (local bridge)
+              </label>
+              {execTarget === 'bridge' && (
+                <div className="mt-2 flex flex-col gap-1.5">
+                  <input
+                    aria-label="Project folder"
+                    className="w-full rounded-md border border-border-light bg-surface-secondary px-2 py-1 text-xs text-text-primary focus:outline-none"
+                    value={workspace}
+                    onChange={(e) => setWorkspace(e.target.value)}
+                    placeholder="project folder name"
+                  />
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      className="rounded-md border border-border-medium px-2 py-1 text-[11px] text-text-secondary hover:text-text-primary disabled:opacity-50"
+                      onClick={pairMachine}
+                      disabled={pairing}
+                    >
+                      {pairing ? 'Pairing…' : 'Pair this machine'}
+                    </button>
+                    {pairError && <span className="text-[10px] text-red-500">{pairError}</span>}
+                  </div>
+                  {pairCode && (
+                    <div className="rounded-md bg-surface-secondary p-2 text-[10px] leading-relaxed text-text-secondary">
+                      <p className="mb-1">On this PC, open a terminal in the Analytikul-One repo and run:</p>
+                      <code className="block select-all whitespace-pre-wrap break-all rounded bg-surface-primary px-2 py-1 text-[10px] text-text-primary">
+                        set CODER_BRIDGE_PAIR={pairCode}&& node services/coder-bridge/bridge.mjs
+                      </code>
+                      <p className="mt-1">
+                        Builds land in <code>Analytikul_AI_Bin\{workspace || 'default'}</code>. Code valid 24h.
+                      </p>
+                    </div>
+                  )}
+                  <p className="text-[10px] leading-snug text-text-tertiary">
+                    The bridge dials out to Analytikul — no browser-to-localhost, nothing to expose.
+                  </p>
+                </div>
+              )}
+            </div>
             <div className="mb-1 flex items-center gap-2">
               <select
                 aria-label={localize('com_atk_agent_provider')}

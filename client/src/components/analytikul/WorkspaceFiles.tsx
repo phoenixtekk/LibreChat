@@ -25,31 +25,64 @@ export default function WorkspaceFiles() {
 
   const authHeaders = useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
 
+  // In "Build on my machine" mode the files live on the user's PC, so read them
+  // from the paired bridge over the dial-out relay instead of the container workspace.
+  const bridgeMode = useMemo(() => {
+    try {
+      return localStorage.getItem('atk_exec_target') === 'bridge';
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const bridgeFs = useCallback(
+    async (op: string, extra: Record<string, string> = {}) => {
+      const r = await fetch('/api/analytikul/bridge/fs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
+        body: JSON.stringify({ op, ...extra }),
+      });
+      return (await r.json().catch(() => ({}))) as {
+        projects?: string[];
+        entries?: TreeEntry[];
+        content?: string;
+        error?: string;
+      };
+    },
+    [authHeaders],
+  );
+
   // Load the list of projects once.
   useEffect(() => {
-    fetch('/api/analytikul/agent/workspaces', { headers: authHeaders })
-      .then((r) => (r.ok ? r.json() : { projects: [] }))
-      .then((d: { projects?: string[] }) => {
-        const list = Array.isArray(d.projects) ? d.projects : [];
+    const load = bridgeMode
+      ? bridgeFs('projects').then((d) => (Array.isArray(d.projects) ? d.projects : []))
+      : fetch('/api/analytikul/agent/workspaces', { headers: authHeaders })
+          .then((r) => (r.ok ? r.json() : { projects: [] }))
+          .then((d: { projects?: string[] }) => (Array.isArray(d.projects) ? d.projects : []));
+    load
+      .then((list) => {
         setProjects(list);
         setProject((cur) => cur || list[0] || 'default');
       })
       .catch(() => undefined);
-  }, [authHeaders]);
+  }, [authHeaders, bridgeMode, bridgeFs]);
 
   const loadTree = useCallback(() => {
     if (!project) {
       return;
     }
     setLoadingTree(true);
-    fetch(`/api/analytikul/agent/workspace/tree?project=${encodeURIComponent(project)}`, {
-      headers: authHeaders,
-    })
-      .then((r) => (r.ok ? r.json() : { entries: [] }))
-      .then((d: { entries?: TreeEntry[] }) => setEntries(Array.isArray(d.entries) ? d.entries : []))
+    const p = bridgeMode
+      ? bridgeFs('tree', { project }).then((d) => (Array.isArray(d.entries) ? d.entries : []))
+      : fetch(`/api/analytikul/agent/workspace/tree?project=${encodeURIComponent(project)}`, {
+          headers: authHeaders,
+        })
+          .then((r) => (r.ok ? r.json() : { entries: [] }))
+          .then((d: { entries?: TreeEntry[] }) => (Array.isArray(d.entries) ? d.entries : []));
+    p.then((entries) => setEntries(entries))
       .catch(() => setEntries([]))
       .finally(() => setLoadingTree(false));
-  }, [project, authHeaders]);
+  }, [project, authHeaders, bridgeMode, bridgeFs]);
 
   useEffect(() => {
     loadTree();
@@ -63,23 +96,30 @@ export default function WorkspaceFiles() {
       setSelected(path);
       setFileError(null);
       setContent('');
-      fetch(
-        `/api/analytikul/agent/workspace/file?project=${encodeURIComponent(
-          project,
-        )}&path=${encodeURIComponent(path)}`,
-        { headers: authHeaders },
-      )
-        .then(async (r) => {
-          if (!r.ok) {
-            const body = (await r.json().catch(() => null)) as { message?: string } | null;
-            throw new Error(body?.message ?? `error ${r.status}`);
-          }
-          return r.json();
-        })
-        .then((d: { content?: string }) => setContent(d.content ?? ''))
-        .catch((e: Error) => setFileError(e.message));
+      const p = bridgeMode
+        ? bridgeFs('read', { project, path }).then((d) => {
+            if (d.error) {
+              throw new Error(d.error);
+            }
+            return d.content ?? '';
+          })
+        : fetch(
+            `/api/analytikul/agent/workspace/file?project=${encodeURIComponent(
+              project,
+            )}&path=${encodeURIComponent(path)}`,
+            { headers: authHeaders },
+          )
+            .then(async (r) => {
+              if (!r.ok) {
+                const body = (await r.json().catch(() => null)) as { message?: string } | null;
+                throw new Error(body?.message ?? `error ${r.status}`);
+              }
+              return r.json();
+            })
+            .then((d: { content?: string }) => d.content ?? '');
+      p.then((c) => setContent(c)).catch((e: Error) => setFileError(e.message));
     },
-    [project, authHeaders],
+    [project, authHeaders, bridgeMode, bridgeFs],
   );
 
   const depthOf = (p: string) => (p.match(/\//g)?.length ?? 0);

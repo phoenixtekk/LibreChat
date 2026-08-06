@@ -166,6 +166,8 @@ class RunRequest(BaseModel):
     workspace: Optional[str] = None
     # Permission mode: plan | manual | accept_edits | auto | bypass (default plan).
     permission_mode: str = "plan"
+    # Where file/terminal tools run: "container" (default) or "bridge" (the user's PC).
+    exec_target: str = "container"
 
 
 @app.get("/health")
@@ -197,6 +199,10 @@ def tools():
 @app.post("/run", dependencies=PROTECTED)
 async def run(req: RunRequest):
     api_key = req.api_key or os.environ.get("AGENT_DEFAULT_API_KEY", "")
+    # Self-hosted / local OpenAI-compatible providers (ollama/vllm/lmstudio) need no cloud
+    # key; the OpenAI SDK still wants a non-empty placeholder string.
+    if not api_key and (req.provider or "").lower() in {"ollama", "vllm", "lmstudio"}:
+        api_key = "sk-local"
     if not api_key:
         raise HTTPException(status_code=400, detail="no API key: pass api_key or set AGENT_DEFAULT_API_KEY")
 
@@ -218,6 +224,7 @@ async def run(req: RunRequest):
                 disabled_toolsets=req.disabled_toolsets,
                 workspace=req.workspace,
                 permission_mode=req.permission_mode,
+                exec_target=req.exec_target,
             )
         )
         if session.active_task_id is not None:
@@ -248,6 +255,20 @@ async def respond(task_id: str, req: RespondRequest):
     if not resolve_approval(task_id, req.request_id, req.decision):
         raise HTTPException(status_code=404, detail="no pending approval for that request")
     return {"ok": True}
+
+
+class ToolResultRequest(BaseModel):
+    request_id: str
+    result: str
+
+
+@app.post("/tool_result/{task_id}", dependencies=PROTECTED)
+async def tool_result(task_id: str, req: ToolResultRequest):
+    """Deliver a bridge (client-side) tool result to a blocked agent run."""
+    from analytikul_adapter.client_exec import resolve_result
+
+    resolved = resolve_result(task_id, req.request_id, req.result)
+    return {"ok": bool(resolved), "task_id": task_id}
 
 
 class DeployRequest(BaseModel):

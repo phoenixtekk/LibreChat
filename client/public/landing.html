@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Analytikul Coder — Surface what's hidden</title>
+<title>Analytikul Ai — Surface what's hidden</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500&display=swap" rel="stylesheet" />
@@ -82,7 +82,7 @@
   h1 .glow { color: var(--blue-bright); text-shadow: 0 0 38px rgba(56,210,239,.45); }
 
   .wordmark { position: relative; display: flex; align-items: center; justify-content: center;
-    width: 100%; margin: 2px 0 6px; isolation: isolate; }
+    width: 100%; margin: 2px 0 26px; isolation: isolate; }
   .wordmark .wm-bg { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
     width: min(620px, 88vw); aspect-ratio: 16 / 9; object-fit: cover; opacity: .24; z-index: 0; pointer-events: none;
     filter: saturate(1.12) contrast(1.04);
@@ -214,11 +214,11 @@
 
   <header class="hero">
     <span class="eyebrow"><span class="dot"></span> Analytics-native AI workspace</span>
-    <div class="wordmark" aria-label="Analytikul Coder">
+    <div class="wordmark" aria-label="Analytikul Ai">
       <img class="wm-bg" src="/assets/Agartha.png?v=a24480" alt="" aria-hidden="true" />
       <div class="wm-smoke" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
       <canvas class="wm-stars" id="wmStars" aria-hidden="true"></canvas>
-      <h2 class="wm-text">Analytikul Coder</h2>
+      <h2 class="wm-text">Analytikul Ai</h2>
     </div>
     <div class="hero-divider" aria-hidden="true"><span></span></div>
     <h1>Surface What's <span class="glow">Hidden</span>.</h1>
@@ -399,7 +399,7 @@
   addEventListener('scroll', shine, { passive: true });
   addEventListener('resize', shine); shine();
 
-  // Swirling stars around the "Analytikul Coder" wordmark
+  // Swirling stars around the "Analytikul Ai" wordmark
   (function () {
     const wc = document.getElementById('wmStars');
     if (!wc) { return; }

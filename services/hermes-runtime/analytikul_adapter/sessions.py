@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import os
 import sys
+import json
 import time
 import uuid
 import logging
@@ -50,6 +51,21 @@ FORBIDDEN_TOOLSETS = frozenset(
     if _POWER_MODE
     else {"terminal", "computer_use", "messaging", "homeassistant"}
 )
+
+# Valid client-side execution targets.
+EXEC_TARGETS = {"container", "bridge"}
+
+
+def _forbidden_toolsets_for(exec_target: str) -> frozenset:
+    """Return the non-overridable toolset floor for a run's execution target.
+
+    Bridge runs execute file/terminal tools on the user's OWN machine (via a bridge
+    process), so the container-sandbox reason for stripping 'terminal' does not apply
+    and it is unlocked. Only live-desktop control (computer_use) stays floored. Container
+    runs keep the standard floor unchanged."""
+    if exec_target == "bridge":
+        return (FORBIDDEN_TOOLSETS - {"terminal"}) | frozenset({"computer_use"})
+    return FORBIDDEN_TOOLSETS
 
 # Analytikul Coder: the bind-mounted host folder (<drive>:\Analytikul_Coder) that
 # holds per-project workspaces. Each run works in WORKSPACE_ROOT/<project>.
@@ -178,6 +194,7 @@ class AgentSession:
     active_task_id: Optional[str] = None
     cwd: Optional[str] = None
     permission_mode: str = "plan"
+    exec_target: str = "container"
     lock: threading.Lock = field(default_factory=threading.Lock)
 
 
@@ -223,10 +240,12 @@ class SessionPool:
         disabled_toolsets: Optional[list] = None,
         workspace: Optional[str] = None,
         permission_mode: str = "plan",
+        exec_target: str = "container",
     ) -> AgentSession:
         self._evict_idle()
         cwd = resolve_workspace_cwd(workspace)
         mode = permission_mode if permission_mode in PERMISSION_MODES else "plan"
+        target = exec_target if exec_target in EXEC_TARGETS else "container"
         key = self._key(tenant_id, user_id, conversation_id)
         with self._lock:
             session = self._sessions.get(key)
@@ -234,6 +253,7 @@ class SessionPool:
                 session.last_used = time.time()
                 session.cwd = cwd
                 session.permission_mode = mode
+                session.exec_target = target
                 return session
 
             from run_agent import AIAgent
@@ -243,13 +263,16 @@ class SessionPool:
             # regardless of what the caller supplied.
             # Plan mode strips execution toolsets (the agent may still read/plan);
             # edits are denied by the approval requester bound in _run.
+            # Bridge runs execute file/terminal on the user's own machine, so the
+            # container-sandbox floor doesn't strip 'terminal' (computer_use stays floored).
+            _forbidden = _forbidden_toolsets_for(target)
             _mode_disabled = _PLAN_DISABLED_TOOLSETS if mode == "plan" else frozenset()
             safe_enabled = (
-                [t for t in enabled_toolsets if t not in FORBIDDEN_TOOLSETS and t not in _mode_disabled]
+                [t for t in enabled_toolsets if t not in _forbidden and t not in _mode_disabled]
                 if enabled_toolsets is not None
                 else None
             )
-            safe_disabled = sorted(set(disabled_toolsets or []) | FORBIDDEN_TOOLSETS | _mode_disabled)
+            safe_disabled = sorted(set(disabled_toolsets or []) | _forbidden | _mode_disabled)
 
             # Seed the terminal/file tools' initial working directory to this project's
             # workspace (Hermes reads TERMINAL_CWD at agent init — mirrors the cron
@@ -285,6 +308,7 @@ class SessionPool:
                 agent=agent,
                 cwd=cwd,
                 permission_mode=mode,
+                exec_target=target,
             )
             self._sessions[key] = session
             logger.info("created agent session %s (model=%s)", key, model)
@@ -346,6 +370,33 @@ class SessionPool:
                 )
             except Exception:
                 logger.warning("could not bind edit approval requester")
+        # Bind the client (bridge) tool executor: file/terminal tool calls are handed
+        # to a bridge on the user's PC over the SSE bus instead of running in-container.
+        _exec_token = None
+        if session.exec_target == "bridge":
+            try:
+                from analytikul_adapter import client_exec
+
+                def _client_tool_executor(tool_name: str, args: dict) -> str:
+                    request_id = uuid.uuid4().hex[:12]
+                    ev = client_exec.open_result(bus.task_id, request_id)
+                    try:
+                        bus.emit(
+                            "tool_dispatch",
+                            {"request_id": request_id, "tool": tool_name, "args": args},
+                        )
+                        if not ev.wait(timeout=1200):
+                            return json.dumps({"error": "bridge timeout"}, ensure_ascii=False)
+                        result = client_exec.read_result(bus.task_id, request_id)
+                        if result is None:
+                            return json.dumps({"error": "bridge timeout"}, ensure_ascii=False)
+                        return result
+                    finally:
+                        client_exec.forget_task(bus.task_id)
+
+                _exec_token = client_exec.set_client_tool_executor(_client_tool_executor)
+            except Exception:
+                logger.warning("could not bind client tool executor")
         wired = _wire_callbacks(agent, bus, session)
         memory.register_task_context(
             bus.task_id,
@@ -380,6 +431,14 @@ class SessionPool:
                     from acp_adapter.edit_approval import reset_edit_approval_requester
 
                     reset_edit_approval_requester(_approval_token)
+                except Exception:
+                    pass
+            if _exec_token is not None:
+                try:
+                    from analytikul_adapter import client_exec
+
+                    client_exec.reset_client_tool_executor(_exec_token)
+                    client_exec.forget_task(bus.task_id)
                 except Exception:
                     pass
             _clear_approvals(bus.task_id)

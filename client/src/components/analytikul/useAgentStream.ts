@@ -11,6 +11,7 @@ export type AgentEventType =
   | 'cost_event'
   | 'status'
   | 'permission_request'
+  | 'tool_dispatch'
   | 'done'
   | 'error';
 
@@ -63,6 +64,8 @@ export interface AgentRunOptions {
   workspace?: string;
   /** Permission mode: plan | manual | accept_edits | auto | bypass. */
   permissionMode?: string;
+  /** Where file/terminal tools run: 'container' (default) or 'bridge' (this machine). */
+  execTarget?: 'container' | 'bridge';
 }
 
 export interface AgentStreamApi {

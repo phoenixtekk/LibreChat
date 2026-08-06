@@ -7,6 +7,7 @@ const {
   collectAgentRun,
   cancelAgentRun,
   respondAgentApproval,
+  sendAgentToolResult,
   getAgentTools,
   pipeAgentStream,
   createTraceRecorder,
@@ -74,6 +75,156 @@ const generalLimiter = rateLimit({
 const taskMeta = new Map();
 const TASK_META_MAX = 1000;
 
+// --- Analytikul Coder: local-bridge relay ------------------------------------------
+// Browsers block a public HTTPS site from calling a service on the user's machine, so
+// the bridge dials OUT and long-polls here. When a run with exec_target=bridge emits a
+// `tool_dispatch` event, we hand it to that user's paired bridge and post its result
+// back to the agent. Registry is in-process (single app instance).
+const crypto = require('node:crypto');
+const fsMod = require('node:fs');
+const BRIDGE_CODE_TTL_MS = 365 * 24 * 60 * 60 * 1000; // long-lived device pairing
+const BRIDGE_POLL_MS = 25_000;
+const BRIDGE_TOOL_TIMEOUT_MS = 20 * 60 * 1000;
+const BRIDGE_FS_TIMEOUT_MS = 20_000;
+const BRIDGE_TOKENS_FILE = process.env.BRIDGE_TOKENS_FILE || '/app/api/logs/.bridge-tokens.json';
+const bridgeCodes = new Map(); // code -> { userId, expires }
+const bridgeQueue = new Map(); // userId -> [dispatch,...] awaiting delivery
+const bridgeWaiter = new Map(); // userId -> { res, timer } parked long-poll
+const bridgePending = new Map(); // request_id -> { taskId, userId, timer }  (tool results)
+const bridgeFsPending = new Map(); // request_id -> { resolve, timer }  (Files-tab queries)
+
+// Persist pairings so they survive an app restart (written to a mounted volume).
+const saveBridgeCodes = () => {
+  try {
+    const obj = {};
+    for (const [code, rec] of bridgeCodes.entries()) obj[code] = rec;
+    fsMod.writeFileSync(BRIDGE_TOKENS_FILE, JSON.stringify(obj), { mode: 0o600 });
+  } catch (e) {
+    logger.warn(`[analytikul] could not persist bridge tokens: ${e.message}`);
+  }
+};
+const loadBridgeCodes = () => {
+  try {
+    const obj = JSON.parse(fsMod.readFileSync(BRIDGE_TOKENS_FILE, 'utf8'));
+    const now = Date.now();
+    for (const [code, rec] of Object.entries(obj)) {
+      if (rec && rec.expires > now) bridgeCodes.set(code, rec);
+    }
+  } catch {
+    /* no persisted tokens yet */
+  }
+};
+loadBridgeCodes();
+
+const bridgeUserForCode = (code) => {
+  const rec = code ? bridgeCodes.get(code) : null;
+  if (!rec) return null;
+  if (rec.expires < Date.now()) {
+    bridgeCodes.delete(code);
+    return null;
+  }
+  return rec.userId;
+};
+const bridgeUserPaired = (userId) => {
+  for (const rec of bridgeCodes.values()) {
+    if (rec.userId === userId && rec.expires >= Date.now()) return true;
+  }
+  return false;
+};
+const bridgeDeliver = (userId, dispatch) => {
+  const waiter = bridgeWaiter.get(userId);
+  if (waiter) {
+    clearTimeout(waiter.timer);
+    bridgeWaiter.delete(userId);
+    if (!waiter.res.writableEnded) waiter.res.status(200).json({ dispatches: [dispatch] });
+    return;
+  }
+  const q = bridgeQueue.get(userId) || [];
+  q.push(dispatch);
+  bridgeQueue.set(userId, q);
+};
+function relayToolDispatch(meta, taskId, event) {
+  const requestId = event.request_id;
+  if (!requestId) return;
+  const finish = (result) => {
+    const p = bridgePending.get(requestId);
+    if (p) {
+      clearTimeout(p.timer);
+      bridgePending.delete(requestId);
+    }
+    sendAgentToolResult(taskId, requestId, result).catch(() => undefined);
+  };
+  if (!bridgeUserPaired(meta.userId)) {
+    return finish(JSON.stringify({ error: 'no paired bridge — start the local bridge and pair it' }));
+  }
+  const timer = setTimeout(
+    () => finish(JSON.stringify({ error: 'bridge did not respond in time' })),
+    BRIDGE_TOOL_TIMEOUT_MS,
+  );
+  bridgePending.set(requestId, { taskId, userId: meta.userId, timer });
+  bridgeDeliver(meta.userId, {
+    request_id: requestId,
+    tool: event.tool,
+    args: event.args || {},
+    project: meta.workspace || 'default',
+    permissionMode: meta.permissionMode || 'auto',
+  });
+}
+
+// Bridge long-polls for the next tool call(s). Auth = pairing code (NOT a JWT), so this
+// is registered before requireJwtAuth below.
+router.get('/bridge/poll', (req, res) => {
+  const code = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  const userId = bridgeUserForCode(code);
+  if (!userId) return res.status(401).json({ error: 'unpaired' });
+  const q = bridgeQueue.get(userId);
+  if (q && q.length) {
+    bridgeQueue.delete(userId);
+    return res.status(200).json({ dispatches: q });
+  }
+  const prev = bridgeWaiter.get(userId);
+  if (prev) {
+    clearTimeout(prev.timer);
+    bridgeWaiter.delete(userId);
+    if (!prev.res.writableEnded) prev.res.status(204).end();
+  }
+  const timer = setTimeout(() => {
+    bridgeWaiter.delete(userId);
+    if (!res.writableEnded) res.status(204).end();
+  }, BRIDGE_POLL_MS);
+  bridgeWaiter.set(userId, { res, timer });
+  res.on('close', () => {
+    clearTimeout(timer);
+    if (bridgeWaiter.get(userId)?.res === res) bridgeWaiter.delete(userId);
+  });
+});
+
+// Bridge posts a tool result back. Auth = pairing code.
+router.post('/bridge/result', express.json({ limit: '8mb' }), (req, res) => {
+  const code = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  const userId = bridgeUserForCode(code);
+  if (!userId) return res.status(401).json({ error: 'unpaired' });
+  const { request_id: requestId, result } = req.body ?? {};
+  if (!requestId || typeof result !== 'string') {
+    return res.status(400).json({ message: 'request_id and a string result are required' });
+  }
+  const p = bridgePending.get(requestId);
+  if (p && p.userId === userId) {
+    clearTimeout(p.timer);
+    bridgePending.delete(requestId);
+    sendAgentToolResult(p.taskId, requestId, result).catch(() => undefined);
+    return res.status(200).json({ ok: true });
+  }
+  const f = bridgeFsPending.get(requestId);
+  if (f) {
+    clearTimeout(f.timer);
+    bridgeFsPending.delete(requestId);
+    f.resolve(result);
+    return res.status(200).json({ ok: true });
+  }
+  return res.status(404).json({ ok: false });
+});
+
 // Shared secret for calls into the internal services (billing/analytics/memory/gateway).
 const INTERNAL_TOKEN = process.env.INTERNAL_SERVICE_TOKEN || '';
 const internalHeaders = (extra = {}) =>
@@ -103,6 +254,7 @@ router.post('/agent/run', agentRunLimiter, async (req, res) => {
       disabledToolsets,
       workspace,
       permissionMode,
+      execTarget,
     } = req.body ?? {};
     if (!message || !conversationId) {
       return res.status(400).json({ message: 'message and conversationId are required' });
@@ -163,6 +315,7 @@ router.post('/agent/run', agentRunLimiter, async (req, res) => {
         disabledToolsets: safeDisabled,
         workspace,
         permissionMode,
+        execTarget: execTarget === 'bridge' ? 'bridge' : 'container',
       },
       ctx,
     );
@@ -175,6 +328,9 @@ router.post('/agent/run', agentRunLimiter, async (req, res) => {
       conversationId,
       model: model ?? process.env.AGENT_DEFAULT_MODEL ?? '',
       provider: provider ?? process.env.AGENT_DEFAULT_PROVIDER ?? 'openrouter',
+      workspace,
+      permissionMode,
+      execTarget: execTarget === 'bridge' ? 'bridge' : 'container',
     });
     res.status(200).json({ taskId });
   } catch (error) {
@@ -199,7 +355,14 @@ router.get('/agent/stream/:taskId', async (req, res) => {
       model: meta.model,
       provider: meta.provider,
     });
-    await pipeAgentStream(taskId, res, recorder.onEvent);
+    // Server-side bridge relay: hand any tool_dispatch to the user's paired local bridge.
+    const onEvent = (event) => {
+      recorder.onEvent(event);
+      if (event && event.type === 'tool_dispatch') {
+        relayToolDispatch(meta, taskId, event);
+      }
+    };
+    await pipeAgentStream(taskId, res, onEvent);
   } catch (error) {
     logger.error(`[analytikul] stream ${taskId} failed`, error);
     if (!res.headersSent) {
@@ -609,6 +772,59 @@ router.post('/agent/respond/:taskId', async (req, res) => {
   } catch (error) {
     logger.error('[analytikul] approval respond failed', error);
     return res.status(500).json({ message: 'could not deliver decision' });
+  }
+});
+
+// Return a client-executed (bridge) tool result to a run paused on tool_dispatch.
+router.post('/agent/tool_result/:taskId', async (req, res) => {
+  const meta = taskMeta.get(req.params.taskId);
+  if (meta == null || meta.userId !== req.user.id) {
+    return res.status(404).json({ message: 'unknown task' });
+  }
+  try {
+    const { requestId, result } = req.body ?? {};
+    if (!requestId || typeof result !== 'string') {
+      return res.status(400).json({ message: 'requestId and a string result are required' });
+    }
+    const ok = await sendAgentToolResult(req.params.taskId, requestId, result);
+    return res.status(ok ? 200 : 404).json({ ok });
+  } catch (error) {
+    logger.error('[analytikul] tool_result deliver failed', error);
+    return res.status(500).json({ message: 'could not deliver tool result' });
+  }
+});
+
+// Pair the current (logged-in) user with a local bridge: returns a one-time code the
+// user pastes into the bridge process, authenticating it as this user thereafter.
+router.post('/bridge/pair', (req, res) => {
+  const code = crypto.randomBytes(18).toString('hex');
+  bridgeCodes.set(code, { userId: req.user.id, expires: Date.now() + BRIDGE_CODE_TTL_MS });
+  saveBridgeCodes();
+  res.status(200).json({ code, server: process.env.APP_URL || '' });
+});
+
+// Files tab → the user's paired bridge: list projects / tree / read a file on their machine.
+router.post('/bridge/fs', async (req, res) => {
+  const { op, project, path: relPath } = req.body ?? {};
+  if (!['projects', 'tree', 'read'].includes(op)) {
+    return res.status(400).json({ error: 'op must be projects|tree|read' });
+  }
+  if (!bridgeUserPaired(req.user.id)) {
+    return res.status(409).json({ error: 'no paired bridge' });
+  }
+  const requestId = crypto.randomBytes(9).toString('hex');
+  const result = await new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      bridgeFsPending.delete(requestId);
+      resolve(JSON.stringify({ error: 'bridge did not respond' }));
+    }, BRIDGE_FS_TIMEOUT_MS);
+    bridgeFsPending.set(requestId, { resolve, timer });
+    bridgeDeliver(req.user.id, { kind: 'fs', request_id: requestId, op, project, path: relPath });
+  });
+  try {
+    return res.status(200).json(JSON.parse(result));
+  } catch {
+    return res.status(200).json({ error: 'invalid bridge response' });
   }
 });
 
@@ -1168,6 +1384,42 @@ router.get('/agent/traces/:conversationId', async (req, res) => {
   } catch (error) {
     logger.error('[analytikul] traces failed', error);
     res.status(500).json({ message: 'failed to load traces' });
+  }
+});
+
+// List the user's recent agent sessions (one row per conversation). The client
+// groups these by project folder for a Claude-Code-Desktop-style session switcher.
+router.get('/agent/sessions', async (req, res) => {
+  try {
+    const rows = await AgentTrace.aggregate([
+      { $match: { user: req.user.id } },
+      { $sort: { startedAt: -1 } },
+      {
+        $group: {
+          _id: '$conversationId',
+          lastActivity: { $first: '$startedAt' },
+          model: { $first: '$model' },
+          status: { $first: '$status' },
+          final: { $first: '$finalResponse' },
+          runs: { $sum: 1 },
+        },
+      },
+      { $sort: { lastActivity: -1 } },
+      { $limit: 40 },
+    ]);
+    res.status(200).json({
+      sessions: rows.map((s) => ({
+        conversationId: s._id,
+        lastActivity: s.lastActivity,
+        model: s.model,
+        status: s.status,
+        final: typeof s.final === 'string' ? s.final.slice(0, 120) : '',
+        runs: s.runs,
+      })),
+    });
+  } catch (error) {
+    logger.error('[analytikul] sessions failed', error);
+    res.status(500).json({ message: 'failed to load sessions' });
   }
 });
 

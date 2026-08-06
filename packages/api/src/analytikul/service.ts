@@ -72,6 +72,7 @@ export async function startAgentRun(
     disabled_toolsets: body.disabledToolsets,
     workspace: body.workspace,
     permission_mode: body.permissionMode,
+    exec_target: body.execTarget,
   };
   const res = await fetch(`${ADAPTER_URL()}/run`, {
     method: 'POST',
@@ -104,6 +105,20 @@ export async function respondAgentApproval(
     method: 'POST',
     headers: internalHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ request_id: requestId, decision }),
+  });
+  return res.ok;
+}
+
+/** Return a client-executed (bridge) tool result to a run blocked in tool_dispatch. */
+export async function sendAgentToolResult(
+  taskId: string,
+  requestId: string,
+  result: string,
+): Promise<boolean> {
+  const res = await fetch(`${ADAPTER_URL()}/tool_result/${encodeURIComponent(taskId)}`, {
+    method: 'POST',
+    headers: internalHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ request_id: requestId, result }),
   });
   return res.ok;
 }

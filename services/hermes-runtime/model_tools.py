@@ -1077,6 +1077,18 @@ def handle_function_call(
             if function_name in {"write_file", "patch"}:
                 return json.dumps({"error": "Edit approval denied: approval guard failed"}, ensure_ascii=False)
 
+        # Analytikul: in local-workspace (bridge) mode, file/terminal tools run on
+        # the user's machine. The executor is bound via ContextVar only for bridge
+        # runs, so all other paths are unaffected when it is unset.
+        try:
+            from analytikul_adapter.client_exec import maybe_execute_on_client
+
+            _client_exec_result = maybe_execute_on_client(function_name, function_args)
+            if _client_exec_result is not None:
+                return _client_exec_result
+        except Exception as _client_exec_err:
+            logger.debug("client exec guard error: %s", _client_exec_err)
+
         # Notify the read-loop tracker when a non-read/search tool runs,
         # so the *consecutive* counter resets (reads after other work are fine).
         if function_name not in _READ_SEARCH_TOOLS:

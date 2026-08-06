@@ -10,6 +10,8 @@ export interface AgentRunBody {
   workspace?: string;
   /** Permission mode: plan | manual | accept_edits | auto | bypass. */
   permissionMode?: string;
+  /** Where file/terminal tools execute: 'container' (default) or 'bridge' (user's machine). */
+  execTarget?: string;
 }
 
 export interface AdapterRunRequest {
@@ -25,6 +27,7 @@ export interface AdapterRunRequest {
   disabled_toolsets?: string[];
   workspace?: string;
   permission_mode?: string;
+  exec_target?: string;
 }
 
 /** Analytikul Coder — first-class Deploy: ship a workspace project to a fleet server. */
