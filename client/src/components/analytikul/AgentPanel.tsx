@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { ChevronDown, Zap, Lock, Folder } from 'lucide-react';
+import { ChevronDown, Zap, Lock, Folder, History } from 'lucide-react';
 import { useGetModelsQuery } from 'librechat-data-provider/react-query';
 import { useLocalize, useAuthContext } from '~/hooks';
 import { cn } from '~/utils';
@@ -291,6 +291,31 @@ export default function AgentPanel({ stream }: { stream: AgentStreamApi }) {
     return `${Math.round(hrs / 24)}d ago`;
   };
 
+  // Restore the previous run into the rail when reopening a conversation.
+  type TraceRow = {
+    finalResponse?: string;
+    status?: string;
+    startedAt?: string;
+    steps?: { type: string; tool?: string }[];
+  };
+  const [lastTrace, setLastTrace] = useState<TraceRow | null>(null);
+  useEffect(() => {
+    if (!conversationId) {
+      setLastTrace(null);
+      return;
+    }
+    fetch(`/api/analytikul/agent/traces/${encodeURIComponent(conversationId)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => (r.ok ? r.json() : { traces: [] }))
+      .then((d: { traces?: TraceRow[] }) => setLastTrace(Array.isArray(d.traces) ? d.traces[0] ?? null : null))
+      .catch(() => setLastTrace(null));
+  }, [conversationId, token, stream.state]);
+  const lastTraceTools = useMemo(
+    () => (lastTrace?.steps ?? []).filter((s) => s.type === 'tool_start' || s.tool).length,
+    [lastTrace],
+  );
+
   // Follow the stream: keep the newest agent output in view as it writes out.
   useEffect(() => {
     const el = outputRef.current;
@@ -504,6 +529,15 @@ export default function AgentPanel({ stream }: { stream: AgentStreamApi }) {
             {localize('com_atk_agent_subtitle')}
           </span>
         </div>
+        {execTarget === 'bridge' && (
+          <span
+            className="ml-auto flex items-center gap-1 rounded-md border border-border-light bg-surface-secondary px-2 py-1 text-[10px] text-text-secondary"
+            title="Active build folder on your machine"
+          >
+            <Folder size={11} aria-hidden="true" />
+            <span className="max-w-[130px] truncate">{workspace || 'default'}</span>
+          </span>
+        )}
       </div>
 
       <textarea
@@ -519,6 +553,21 @@ export default function AgentPanel({ stream }: { stream: AgentStreamApi }) {
           }
         }}
       />
+
+      {lastTrace && stream.events.length === 0 && (
+        <div className="rounded-lg border border-border-light bg-surface-secondary p-2.5">
+          <div className="mb-1 flex items-center gap-1 text-[10px] font-medium uppercase tracking-wide text-text-tertiary">
+            <History size={11} aria-hidden="true" /> Last run · {relTime(lastTrace.startedAt || '')}
+            {lastTrace.status && lastTrace.status !== 'done' ? ` · ${lastTrace.status}` : ''}
+          </div>
+          <div className="line-clamp-3 whitespace-pre-wrap text-[11px] text-text-primary">
+            {lastTrace.finalResponse?.trim() || '(no summary recorded)'}
+          </div>
+          <div className="mt-1 text-[10px] text-text-tertiary">
+            {lastTraceTools} tool step{lastTraceTools === 1 ? '' : 's'}
+          </div>
+        </div>
+      )}
 
       {sessionCount > 0 && (
         <div className="rounded-lg border border-border-light">
