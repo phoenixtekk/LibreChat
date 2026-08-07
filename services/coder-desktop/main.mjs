@@ -12,7 +12,10 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const APP_URL = process.env.ANALYTIKUL_URL || 'https://analytikul.ai';
-const BRIDGE = path.join(__dirname, '..', 'coder-bridge', 'bridge.mjs');
+// Dev: sibling package. Packaged: bundled under resources/ via extraResources.
+const BRIDGE = app.isPackaged
+  ? path.join(process.resourcesPath, 'coder-bridge', 'bridge.mjs')
+  : path.join(__dirname, '..', 'coder-bridge', 'bridge.mjs');
 const CONFIG_PATH = path.join(os.homedir(), '.analytikul-coder-bridge.json');
 
 let bridgeProc = null;

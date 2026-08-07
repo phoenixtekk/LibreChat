@@ -1009,85 +1009,97 @@ export default function AgentPanel({ stream }: { stream: AgentStreamApi }) {
         )}
       </div>
 
-      {execTarget === 'bridge' && gitStatus && (
-        <div className="flex items-center gap-2 rounded-md border border-border-light bg-surface-secondary px-2.5 py-1.5 text-[11px]">
-          {gitStatus.isRepo ? (
-            <>
-              <span className="flex items-center gap-1 text-text-secondary" title="Current branch">
-                <GitBranch size={12} aria-hidden="true" /> {gitStatus.branch || 'HEAD'}
-              </span>
-              <span className="font-mono">
-                <span className="text-green-500">+{gitStatus.added ?? 0}</span>{' '}
-                <span className="text-red-500">−{gitStatus.removed ?? 0}</span>
-              </span>
-              <button
-                type="button"
-                className="ml-auto rounded-md border border-border-medium px-2 py-0.5 text-[11px] text-text-primary hover:bg-surface-hover disabled:opacity-50"
-                onClick={commitProject}
-                disabled={committing || (gitStatus.dirty ?? 0) === 0}
-              >
-                {committing ? 'Committing…' : `Commit changes${gitStatus.dirty ? ` (${gitStatus.dirty})` : ''}`}
-              </button>
-            </>
-          ) : (
-            <>
-              <span className="flex items-center gap-1 text-text-tertiary">
-                <GitBranch size={12} aria-hidden="true" /> not a git repo
-              </span>
-              <button
-                type="button"
-                className="ml-auto rounded-md border border-border-medium px-2 py-0.5 text-[11px] text-text-primary hover:bg-surface-hover disabled:opacity-50"
-                onClick={commitProject}
-                disabled={committing}
-              >
-                {committing ? 'Initializing…' : 'Init + commit'}
-              </button>
-            </>
+      {/* Unified bottom command bar (Claude-Code-Desktop style). */}
+      <div className="rounded-lg border border-border-medium bg-surface-primary">
+        {execTarget === 'bridge' && gitStatus && (
+          <div className="flex items-center gap-2 border-b border-border-light px-2.5 py-1.5 text-[11px]">
+            {gitStatus.isRepo ? (
+              <>
+                <span className="flex items-center gap-1 text-text-secondary" title="Current branch">
+                  <GitBranch size={12} aria-hidden="true" /> {gitStatus.branch || 'HEAD'}
+                </span>
+                <span className="font-mono">
+                  <span className="text-green-500">+{gitStatus.added ?? 0}</span>{' '}
+                  <span className="text-red-500">−{gitStatus.removed ?? 0}</span>
+                </span>
+                <button
+                  type="button"
+                  className="ml-auto rounded-md border border-border-medium px-2 py-0.5 text-[11px] text-text-primary hover:bg-surface-hover disabled:opacity-50"
+                  onClick={commitProject}
+                  disabled={committing || (gitStatus.dirty ?? 0) === 0}
+                >
+                  {committing ? 'Committing…' : `Commit changes${gitStatus.dirty ? ` (${gitStatus.dirty})` : ''}`}
+                </button>
+              </>
+            ) : (
+              <>
+                <span className="flex items-center gap-1 text-text-tertiary">
+                  <GitBranch size={12} aria-hidden="true" /> not a git repo
+                </span>
+                <button
+                  type="button"
+                  className="ml-auto rounded-md border border-border-medium px-2 py-0.5 text-[11px] text-text-primary hover:bg-surface-hover disabled:opacity-50"
+                  onClick={commitProject}
+                  disabled={committing}
+                >
+                  {committing ? 'Initializing…' : 'Init + commit'}
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
+        <div className="flex flex-wrap items-center gap-2 p-2">
+          <select
+            aria-label="Permission mode"
+            title="Plan: read-only · Manual: approve each edit · Accept edits: auto-approve in workspace · Auto/Bypass: autonomous"
+            className="rounded-full border border-border-medium bg-surface-secondary px-2.5 py-1 text-xs text-text-primary focus:outline-none"
+            value={permMode}
+            onChange={(e) => setPermMode(e.target.value)}
+            disabled={busy}
+          >
+            {PERMISSION_MODES.map((m) => (
+              <option key={m.value} value={m.value}>
+                {m.label}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={() => setShowOptions(true)}
+            className="flex items-center gap-1 rounded-full border border-border-light bg-surface-secondary px-2.5 py-1 text-xs text-text-secondary hover:text-text-primary"
+            title="Model — click to change in Tools & model"
+          >
+            <span className="max-w-[150px] truncate">{model.trim() || provider || 'default model'}</span>
+            <ChevronDown size={12} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className="ml-auto rounded-md bg-surface-submit px-3 py-1 text-sm text-white hover:bg-surface-submit-hover disabled:opacity-50"
+            onClick={submit}
+            disabled={busy || message.trim() === ''}
+          >
+            {busy ? localize('com_atk_running') : localize('com_atk_run_agent')}
+          </button>
+          {busy && (
+            <button
+              type="button"
+              className="rounded-md bg-surface-destructive px-3 py-1 text-sm text-white hover:bg-surface-destructive-hover"
+              onClick={() => void stream.cancel()}
+            >
+              {localize('com_atk_cancel')}
+            </button>
+          )}
+          {stream.state !== 'idle' && !busy && (
+            <button
+              type="button"
+              className="rounded-md border border-border-medium px-3 py-1 text-sm text-text-secondary hover:bg-surface-hover"
+              onClick={stream.reset}
+            >
+              {localize('com_atk_clear')}
+            </button>
           )}
         </div>
-      )}
-
-      <div className="flex items-center gap-2">
-        <select
-          aria-label="Permission mode"
-          title="Plan: read-only · Manual: approve each edit · Accept edits: auto-approve in workspace · Auto/Bypass: autonomous"
-          className="rounded-md border border-border-medium bg-surface-secondary px-2 py-1 text-xs text-text-primary focus:outline-none"
-          value={permMode}
-          onChange={(e) => setPermMode(e.target.value)}
-          disabled={busy}
-        >
-          {PERMISSION_MODES.map((m) => (
-            <option key={m.value} value={m.value}>
-              {m.label}
-            </option>
-          ))}
-        </select>
-        <button
-          type="button"
-          className="rounded-md bg-surface-submit px-3 py-1 text-sm text-white hover:bg-surface-submit-hover disabled:opacity-50"
-          onClick={submit}
-          disabled={busy || message.trim() === ''}
-        >
-          {busy ? localize('com_atk_running') : localize('com_atk_run_agent')}
-        </button>
-        {busy && (
-          <button
-            type="button"
-            className="rounded-md bg-surface-destructive px-3 py-1 text-sm text-white hover:bg-surface-destructive-hover"
-            onClick={() => void stream.cancel()}
-          >
-            {localize('com_atk_cancel')}
-          </button>
-        )}
-        {stream.state !== 'idle' && !busy && (
-          <button
-            type="button"
-            className="rounded-md border border-border-medium px-3 py-1 text-sm text-text-secondary hover:bg-surface-hover"
-            onClick={stream.reset}
-          >
-            {localize('com_atk_clear')}
-          </button>
-        )}
       </div>
 
       {stream.errorMessage != null && (

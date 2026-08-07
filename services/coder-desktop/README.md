@@ -22,11 +22,20 @@ npm start
 
 Point it at a different origin with `ANALYTIKUL_URL=https://localhost:3090 npm start`.
 
-## Package an installer
+## Package
 
 ```bash
-npm run dist       # electron-builder -> Windows nsis / mac dmg / linux AppImage
+npm run dist       # electron-builder -> dist/win-unpacked (portable app + bundled bridge)
 ```
+
+`npm run dist` produces a **portable** build under `dist/win-unpacked/` (run
+`Analytikul Coder.exe` directly — no install). The bridge is bundled at
+`resources/coder-bridge/` and started in-process.
+
+**Signed NSIS installer:** building a `.exe` installer needs electron-builder to extract its
+`winCodeSign` cache, which contains macOS symlinks Windows can only create with elevated rights.
+Enable **Settings → Privacy & security → For developers → Developer Mode** (or run the build as
+Administrator), then set `win.target` back to `"nsis"` and re-run `npm run dist`.
 
 ## Roadmap (next)
 

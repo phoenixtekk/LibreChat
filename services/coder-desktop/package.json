@@ -13,15 +13,18 @@
     "electron": "^33.2.0",
     "electron-builder": "^25.1.8"
   },
-  "build": {
+    "build": {
     "appId": "ai.analytikul.coder",
     "productName": "Analytikul Coder",
     "files": [
       "main.mjs",
-      "../coder-bridge/**/*"
+      "preload.cjs"
     ],
-    "win": { "target": "nsis" },
-    "mac": { "target": "dmg" },
-    "linux": { "target": "AppImage" }
+    "extraResources": [
+      { "from": "../coder-bridge", "to": "coder-bridge" }
+    ],
+    "win": { "target": "dir" },
+    "mac": { "target": "dir" },
+    "linux": { "target": "dir" }
   }
 }
