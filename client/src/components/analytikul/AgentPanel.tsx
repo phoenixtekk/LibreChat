@@ -10,6 +10,12 @@ import TraceViewer from './TraceViewer';
 import type { ReactNode } from 'react';
 import type { AgentStreamApi } from './useAgentStream';
 
+declare global {
+  interface Window {
+    analytikulDesktop?: { isDesktop?: boolean; pair?: (code: string) => Promise<boolean> };
+  }
+}
+
 /** Maps a Hermes provider name to the LibreChat models-map key, where one exists. */
 const PROVIDER_MODEL_KEY: Record<string, string> = {
   openai: 'openAI',
@@ -230,6 +236,26 @@ export default function AgentPanel({ stream }: { stream: AgentStreamApi }) {
       setPairing(false);
     }
   }, [token]);
+
+  // In the Electron desktop shell, pair automatically: fetch a code from the logged-in
+  // session and hand it to the bundled bridge — no manual step at all.
+  const isDesktop = typeof window !== 'undefined' && !!window.analytikulDesktop?.isDesktop;
+  useEffect(() => {
+    if (!isDesktop || !window.analytikulDesktop?.pair) {
+      return;
+    }
+    fetch('/api/analytikul/bridge/pair', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { code?: string } | null) => {
+        if (d?.code) {
+          void window.analytikulDesktop?.pair?.(d.code);
+        }
+      })
+      .catch(() => undefined);
+  }, [isDesktop, token]);
 
   // Recent agent sessions (one per conversation), grouped by project folder — the
   // Claude-Code-Desktop-style switcher for getting back into previous work.
@@ -753,18 +779,24 @@ export default function AgentPanel({ stream }: { stream: AgentStreamApi }) {
                     onChange={(e) => setWorkspace(e.target.value)}
                     placeholder="project folder name"
                   />
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      className="rounded-md border border-border-medium px-2 py-1 text-[11px] text-text-secondary hover:text-text-primary disabled:opacity-50"
-                      onClick={pairMachine}
-                      disabled={pairing}
-                    >
-                      {pairing ? 'Pairing…' : 'Pair this machine'}
-                    </button>
-                    {pairError && <span className="text-[10px] text-red-500">{pairError}</span>}
-                  </div>
-                  {pairCode && (
+                  {isDesktop ? (
+                    <p className="text-[10px] leading-snug text-text-tertiary">
+                      Paired automatically by the desktop app — the bridge is bundled and running.
+                    </p>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        className="rounded-md border border-border-medium px-2 py-1 text-[11px] text-text-secondary hover:text-text-primary disabled:opacity-50"
+                        onClick={pairMachine}
+                        disabled={pairing}
+                      >
+                        {pairing ? 'Pairing…' : 'Pair this machine'}
+                      </button>
+                      {pairError && <span className="text-[10px] text-red-500">{pairError}</span>}
+                    </div>
+                  )}
+                  {!isDesktop && pairCode && (
                     <div className="rounded-md bg-surface-secondary p-2 text-[10px] leading-relaxed text-text-secondary">
                       <p className="mb-1">On this PC, open a terminal in the Analytikul-One repo and run:</p>
                       <code className="block select-all whitespace-pre-wrap break-all rounded bg-surface-primary px-2 py-1 text-[10px] text-text-primary">
