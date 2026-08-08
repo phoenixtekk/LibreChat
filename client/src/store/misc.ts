@@ -64,6 +64,41 @@ const chatBadges = atomWithLocalStorage<Pick<BadgeItem, 'id'>[]>('chatBadges', [
   // { id: '2' },
 ]);
 
+/** Analytikul Preview Rail open/tab state, lifted so the sidebar can open a tab. */
+export type PreviewRailTab =
+  | 'agent'
+  | 'preview'
+  | 'costs'
+  | 'memory'
+  | 'keys'
+  | 'files'
+  | 'deploy';
+
+const previewRail = atom<{ open: boolean; tab: PreviewRailTab }>({
+  key: 'analytikulPreviewRail',
+  default: { open: false, tab: 'agent' },
+});
+
+/** Annotations panel — the second column that slides out from the left sidebar.
+ *  `conversationId` = which conversation's annotations to show. */
+const annotationsPanel = atom<{ open: boolean; conversationId: string | null }>({
+  key: 'analytikulAnnotationsPanel',
+  default: { open: false, conversationId: null },
+});
+
+/** Bumped after every create/update/delete so the sidebar tree + panel re-fetch
+ *  (the Analytikul data layer is plain fetch + useEffect, not React Query). */
+const annotationsChangedAt = atom<number>({
+  key: 'analytikulAnnotationsChangedAt',
+  default: 0,
+});
+
+/** Feature Catalog (Discover) panel — slide-out from the right. */
+const catalogPanel = atom<{ open: boolean }>({
+  key: 'analytikulCatalogPanel',
+  default: { open: false },
+});
+
 export default {
   hideBannerHint,
   messageAttachmentsMap,
@@ -71,4 +106,8 @@ export default {
   queriesEnabled,
   isEditingBadges,
   chatBadges,
+  previewRail,
+  annotationsPanel,
+  annotationsChangedAt,
+  catalogPanel,
 };

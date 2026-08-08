@@ -18,6 +18,7 @@ import ConversationStarters from './Input/ConversationStarters';
 import { useGetMessagesByConvoId } from '~/data-provider';
 import MessagesView from './Messages/MessagesView';
 import Presentation from './Presentation';
+import AnnotateSelectionPopover from '~/components/analytikul/annotations/AnnotateSelectionPopover';
 import ProjectLandingChip from './ProjectLandingChip';
 import ChatForm from './Input/ChatForm';
 import Landing from './Landing';
@@ -125,6 +126,9 @@ function ChatView({ index = 0, project }: { index?: number; project?: TChatProje
                 </div>
                 {isLandingPage && <Footer />}
               </>
+              {conversationId && conversationId !== Constants.NEW_CONVO && (
+                <AnnotateSelectionPopover conversationId={conversationId} />
+              )}
             </div>
           </Presentation>
         </AddedChatContext.Provider>

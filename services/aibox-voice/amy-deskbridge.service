@@ -1,0 +1,16 @@
+[Unit]
+Description=Amy desk bridge (hands URLs to Lacy's desktop)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/voice
+ExecStart=/opt/voice/venv/bin/python /opt/voice/deskbridge.py
+Restart=always
+RestartSec=5
+StandardOutput=append:/opt/voice/deskbridge.log
+StandardError=append:/opt/voice/deskbridge.log
+
+[Install]
+WantedBy=multi-user.target

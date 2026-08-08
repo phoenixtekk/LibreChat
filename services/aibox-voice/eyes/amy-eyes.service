@@ -1,0 +1,16 @@
+[Unit]
+Description=Amy's eyes (AiBox always-on vision + PTZ)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/voice/eyes
+ExecStart=/opt/voice/venv/bin/python /opt/voice/eyes/eyes.py
+Restart=always
+RestartSec=5
+StandardOutput=append:/opt/voice/eyes/eyes.log
+StandardError=append:/opt/voice/eyes/eyes.log
+
+[Install]
+WantedBy=multi-user.target

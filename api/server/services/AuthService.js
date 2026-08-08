@@ -19,6 +19,7 @@ const {
   isEmailDomainAllowed,
   shouldUseSecureCookie,
   resolveAppConfigForUser,
+  createCrmContact,
 } = require('@librechat/api');
 const {
   findUser,
@@ -388,6 +389,10 @@ const registerUser = async (user, additionalData = {}) => {
 
     const newUser = await createUser(newUserData, appConfig.balance, disableTTL, true);
     newUserId = newUser._id;
+    // Analytikul: push the new signup to the CRM (Dolibarr) as a prospect for marketing
+    // nurture. Fire-and-forget + internally fail-soft so it can neither delay the response
+    // nor throw (a throw here would roll back into the catch and delete the new user).
+    void createCrmContact({ email, name, source: 'signup' });
     if (emailEnabled && !newUser.emailVerified) {
       await sendVerificationEmail({
         _id: newUserId,

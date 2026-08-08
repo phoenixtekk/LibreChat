@@ -1,0 +1,176 @@
+# Analytikul services layered on top of the upstream LibreChat compose stack.
+# Upstream docker-compose.yml is never edited (upstream-drift rule).
+# Included via COMPOSE_FILE=docker-compose.yml:docker-compose.analytikul.yml in .env
+# (upstream gitignores docker-compose.override.yml, so that name can't be tracked).
+
+services:
+  hermes-adapter:
+    container_name: analytikul-hermes-adapter
+    build:
+      context: ./services/hermes-runtime
+      dockerfile: analytikul_adapter/Dockerfile
+    restart: always
+    environment:
+      - REDIS_URI=redis://redis:6379/0
+      - AGENT_DEFAULT_API_KEY=${AGENT_DEFAULT_API_KEY:-}
+      - MEMORY_SERVICE_URL=http://memory-service:8012
+      - MONGO_URI=mongodb://mongodb:27017/LibreChat
+      - AGENT_IDLE_TTL_S=600
+      - AGENT_MAX_CONCURRENT=8
+      - AGENT_MAX_PER_USER=2
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN:-}
+      # Analytikul Coder personal power-mode (self-hosted, single-tenant dev): un-gates
+      # terminal/file/code_execution in sessions.py FORBIDDEN_TOOLSETS. OFF in prod.
+      - POWER_MODE=${POWER_MODE:-true}
+      # Analytikul Coder workspaces: per-project folders under /workspace, bind-mounted
+      # from WORKSPACE_HOST_DIR (<drive>:\Analytikul_Coder) on the host. Git identity +
+      # token (empty until provided) are used for push & deploy.
+      - WORKSPACE_ROOT=/workspace
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      - GIT_AUTHOR_NAME=${GIT_AUTHOR_NAME:-Analytikul Coder}
+      - GIT_AUTHOR_EMAIL=${GIT_AUTHOR_EMAIL:-coder@analytikul.local}
+    volumes:
+      - hermes-home:/data/hermes
+      - ${WORKSPACE_HOST_DIR}:/workspace
+      # M3 deploy: host ~/.ssh mounted read-only; staged to 600 in the agent's home
+      # at startup so it can ssh/rsync-deploy to a Linux server. Single-tenant only.
+      - ${HOME_SSH_DIR:-/dev/null}:/ssh-host:ro
+    # Loopback-only: reachable from the host (native backend) and from other
+    # compose services by name, but NOT from the LAN / other hosts' containers.
+    ports:
+      # Host 8001 collides with SteelSeries GG SDK (DSEASDK.exe) on this dev box, so
+      # publish on 18001. Container port stays 8001; in-cluster callers use hermes-adapter:8001.
+      # Native backend must set HERMES_ADAPTER_URL=http://localhost:18001 to match.
+      - "127.0.0.1:18001:8001"
+    depends_on:
+      - redis
+
+  redis:
+    container_name: analytikul-redis
+    image: redis:7-alpine
+    restart: always
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+
+  # Dev-only: expose Mongo/Meili to the host so the backend can run natively
+  # (npm run backend) against the compose services. Localhost-bound only.
+  mongodb:
+    ports:
+      - "127.0.0.1:27017:27017"
+
+  meilisearch:
+    ports:
+      - "127.0.0.1:7700:7700"
+
+  # Dev-only: expose the RAG API to the host so the native backend (npm run backend)
+  # can reach it for file-upload embeddings. In-cluster callers still use rag_api:8000.
+  # Native backend must set RAG_API_URL=http://localhost:8000 to match.
+  rag_api:
+    ports:
+      - "127.0.0.1:8000:8000"
+
+  analytics-service:
+    container_name: analytikul-analytics
+    image: node:24-alpine
+    restart: always
+    working_dir: /app
+    command: sh -c "npm install --omit=dev --no-audit --no-fund && node src/index.js"
+    environment:
+      - ANALYTICS_PORT=8011
+      - REDIS_URI=redis://redis:6379/0
+      - ANALYTICS_PG_URI=postgresql://myuser:mypassword@vectordb:5432/mydatabase
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN:-}
+    volumes:
+      - ./services/analytics-service:/app
+    ports:
+      - "127.0.0.1:8011:8011"
+    depends_on:
+      - redis
+      - vectordb
+
+  memory-service:
+    container_name: analytikul-memory
+    # bookworm (glibc), not alpine: onnxruntime-node (transformers.js) has no musl build
+    image: node:24-bookworm-slim
+    restart: always
+    working_dir: /app
+    command: sh -c "npm install --omit=dev --no-audit --no-fund && node src/index.js"
+    environment:
+      - MEMORY_PORT=8012
+      - MEMORY_PG_URI=postgresql://myuser:mypassword@vectordb:5432/mydatabase
+      - MODEL_CACHE_DIR=/models
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN:-}
+      # Password for the RLS runtime role the memory migration creates; without it the
+      # migration skips role creation then fails referencing memory_rt (crash loop).
+      - MEMORY_RT_PASSWORD=${MEMORY_RT_PASSWORD:-dev_memory_rt}
+    volumes:
+      - ./services/memory-service:/app
+      - embedder-models:/models
+    ports:
+      - "127.0.0.1:8012:8012"
+    depends_on:
+      - vectordb
+
+  billing-service:
+    container_name: analytikul-billing
+    image: node:24-alpine
+    restart: always
+    working_dir: /app
+    command: sh -c "npm install --omit=dev --no-audit --no-fund && node src/index.js"
+    environment:
+      - BILLING_PORT=8013
+      - BILLING_PG_URI=postgresql://myuser:mypassword@vectordb:5432/mydatabase
+      - MONGO_URI=mongodb://mongodb:27017/LibreChat
+      - ANALYTIKUL_VAULT_KEY=${ANALYTIKUL_VAULT_KEY:-}
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN:-}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}
+      - STRIPE_PRICE_PRO=${STRIPE_PRICE_PRO:-}
+      - STRIPE_PRICE_PRO_YEAR=${STRIPE_PRICE_PRO_YEAR:-}
+      - STRIPE_PRICE_TEAM=${STRIPE_PRICE_TEAM:-}
+      - STRIPE_PRICE_TEAM_YEAR=${STRIPE_PRICE_TEAM_YEAR:-}
+      - STRIPE_PRICE_POWERTOOLS=${STRIPE_PRICE_POWERTOOLS:-}
+      - PLAN_CREDIT_GRANT_PRO=${PLAN_CREDIT_GRANT_PRO:-0}
+      - PLAN_CREDIT_GRANT_TEAM=${PLAN_CREDIT_GRANT_TEAM:-0}
+    volumes:
+      - ./services/billing-service:/app
+    ports:
+      - "127.0.0.1:8013:8013"
+    depends_on:
+      - vectordb
+      - mongodb
+
+  gateway-service:
+    container_name: analytikul-gateway
+    image: python:3.11-slim
+    restart: always
+    working_dir: /app
+    command: sh -c "pip install --no-cache-dir -q fastapi 'uvicorn[standard]' apscheduler requests psycopg2-binary && uvicorn main:app --host 0.0.0.0 --port 8014"
+    environment:
+      - GATEWAY_PG_URI=postgresql://myuser:mypassword@vectordb:5432/mydatabase
+      - HERMES_ADAPTER_URL=http://hermes-adapter:8001
+      - AGENT_DEFAULT_PROVIDER=${AGENT_DEFAULT_PROVIDER:-anthropic}
+      - AGENT_DEFAULT_MODEL=${AGENT_DEFAULT_MODEL:-}
+      - AGENT_DEFAULT_BASE_URL=${AGENT_DEFAULT_BASE_URL:-https://api.anthropic.com}
+      - AGENT_DEFAULT_API_KEY=${AGENT_DEFAULT_API_KEY:-}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN:-}
+    volumes:
+      - ./services/gateway-service:/app
+    ports:
+      - "127.0.0.1:8014:8014"
+    depends_on:
+      - vectordb
+      - hermes-adapter
+
+  # Pass the internal service token to the Node backend (defined in upstream
+  # docker-compose.yml). Merges into the upstream `api` service definition.
+  api:
+    environment:
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN:-}
+
+volumes:
+  embedder-models:
+  hermes-home:
+  redis-data:

@@ -67,6 +67,7 @@
   --markdown-font-size: 1rem;
 }
 html {
+  color-scheme: light;
   --brand-purple: #ab68ff;
   --presentation: var(--white);
   --text-primary: var(--gray-800);
@@ -130,12 +131,13 @@ html {
   --switch-unchecked: 0 0% 58%;
 }
 .dark {
+  color-scheme: dark;
   --brand-purple: #ab68ff;
   --presentation: var(--gray-800);
   --text-primary: var(--gray-100);
   --text-secondary: var(--gray-300);
   --text-secondary-alt: var(--gray-400);
-  --text-tertiary: var(--gray-500);
+  --text-tertiary: var(--gray-400);
   --text-warning: var(--amber-500);
   --text-destructive: var(--red-600);
   --header-primary: var(--gray-700);
@@ -203,9 +205,10 @@ html {
   --border-xheavy: rgba(0, 0, 0, 0.25);
 }
 .gizmo.dark {
+  color-scheme: dark;
   --text-primary: var(--gray-100);
   --text-secondary: var(--gray-300);
-  --text-tertiary: var(--gizmo-gray-500);
+  --text-tertiary: var(--gray-400);
   --surface-primary: var(--gray-900);
   --surface-secondary: var(--gray-800);
   --surface-tertiary: var(--gray-700);

@@ -13,6 +13,7 @@ import react from 'eslint-plugin-react';
 import jest from 'eslint-plugin-jest';
 import globals from 'globals';
 import js from '@eslint/js';
+import analytikul from './eslint-rules/no-hardcoded-color.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -23,6 +24,16 @@ const compat = new FlatCompat({
 });
 
 export default [
+  {
+    ignores: ['services/hermes-runtime/**'],
+  },
+  {
+    files: ['client/src/components/analytikul/**/*.{ts,tsx,js,jsx}'],
+    plugins: { analytikul },
+    rules: {
+      'analytikul/no-hardcoded-color': 'error',
+    },
+  },
   {
     ignores: [
       'client/dist/**/*',

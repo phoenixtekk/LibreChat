@@ -1,0 +1,30 @@
+{
+  "name": "@analytikul/coder-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Analytikul Coder desktop shell — a native window for the Analytikul web app that bundles and auto-starts the local bridge.",
+  "type": "module",
+  "main": "main.mjs",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --publish never"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+    "build": {
+    "appId": "ai.analytikul.coder",
+    "productName": "Analytikul Coder",
+    "files": [
+      "main.mjs",
+      "preload.cjs"
+    ],
+    "extraResources": [
+      { "from": "../coder-bridge", "to": "coder-bridge" }
+    ],
+    "win": { "target": "dir" },
+    "mac": { "target": "dir" },
+    "linux": { "target": "dir" }
+  }
+}

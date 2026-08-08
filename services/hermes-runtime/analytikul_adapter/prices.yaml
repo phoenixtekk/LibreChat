@@ -1,0 +1,34 @@
+# Analytikul price table — USD per 1M tokens. Hot-reloaded on change (mtime check).
+# Keys match model ids (full "provider/model" or bare model name); trailing * = prefix match.
+# Update from provider pricing pages; the analytics dashboard flags unpriced models.
+
+claude-opus-4-8:
+  input: 15.0
+  output: 75.0
+claude-sonnet-4-6:
+  input: 3.0
+  output: 15.0
+claude-haiku-4-5*:
+  input: 0.8
+  output: 4.0
+gpt-5.5:
+  input: 10.0
+  output: 30.0
+gpt-5.4*:
+  input: 10.0
+  output: 30.0
+gpt-4o*:
+  input: 2.5
+  output: 10.0
+gemini-3.1-pro*:
+  input: 3.5
+  output: 14.0
+deepseek*:
+  input: 0.27
+  output: 1.1
+llama*:
+  input: 0.0
+  output: 0.0
+qwen*:
+  input: 0.0
+  output: 0.0

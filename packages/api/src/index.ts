@@ -77,3 +77,6 @@ export * from './rum/proxy';
 export type * from './mcp/types';
 export type * from './flow/types';
 export type * from './types';
+export * from './analytikul';
+/* SSRF mitigation — used by BYOK user-defined endpoints (2a) */
+export * from './security/ssrf';

@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Analytikul — Pricing</title>
+<meta name="description" content="Simple, competitive pricing for the Analytikul Coder workspace. Start free, scale to Pro and Team, or go Enterprise with self-hosting and SSO." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500&display=swap" rel="stylesheet" />
+<style>
+  :root{--bg:#04060c;--ink:#eaf1f8;--muted:#93a0b8;--faint:#525d75;--blue:#18a8da;--blue-bright:#38d2ef;--violet:#6a32c0;--line:rgba(56,178,224,0.16);--card:rgba(255,255,255,0.022);}
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{background:var(--bg);color:var(--ink);font-family:'Inter',system-ui,sans-serif;font-weight:300;line-height:1.7;overflow-x:hidden;-webkit-font-smoothing:antialiased;}
+  .matter{position:fixed;inset:0;z-index:0;pointer-events:none;background:radial-gradient(40vw 40vw at 18% 14%,rgba(24,108,170,.10),transparent 70%),radial-gradient(46vw 46vw at 82% 26%,rgba(106,50,192,.10),transparent 70%),radial-gradient(50vw 40vw at 50% 92%,rgba(24,168,218,.06),transparent 72%);}
+  main{position:relative;z-index:2;}
+  nav{display:flex;align-items:center;justify-content:space-between;padding:20px clamp(20px,6vw,64px);position:sticky;top:0;z-index:20;backdrop-filter:blur(9px);background:linear-gradient(to bottom,rgba(4,6,12,.72),rgba(4,6,12,0));}
+  .brand{display:flex;align-items:center;gap:12px;font-family:'Space Grotesk',sans-serif;text-decoration:none;color:var(--ink);}
+  .brand img{width:34px;height:34px;display:block;filter:drop-shadow(0 0 14px rgba(24,168,218,.45));}
+  .brand .word{font-size:19px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;}
+  .brand .word b{color:var(--blue-bright);font-weight:600;}
+  .navlinks{display:flex;align-items:center;gap:28px;}
+  .navlinks a:not(.btn){color:var(--muted);text-decoration:none;font-size:14px;transition:color .2s;}
+  .navlinks a:not(.btn):hover{color:var(--ink);}
+  .navlinks a.active{color:var(--blue-bright);}
+  .btn{font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:500;letter-spacing:.03em;text-decoration:none;cursor:pointer;padding:7px 20px;border-radius:5px;transition:all .22s ease;display:inline-flex;align-items:center;gap:8px;}
+  .btn-ghost{color:var(--ink);border:1px solid var(--line);background:transparent;}
+  .btn-ghost:hover{border-color:var(--blue);color:var(--blue-bright);}
+  .btn-blue{color:#021019;background:linear-gradient(180deg,var(--blue-bright),var(--blue));font-weight:700;}
+  .btn-blue:hover{box-shadow:0 8px 34px rgba(24,168,218,.32);transform:translateY(-1px);}
+  .btn-full{width:100%;justify-content:center;}
+  @media (max-width:720px){.navlinks .hide-sm{display:none;}}
+  .wrap{max-width:1160px;margin:0 auto;padding:0 clamp(20px,5vw,48px);}
+  .hero{text-align:center;padding:8vh 0 3vh;}
+  .eyebrow{display:inline-block;font-family:'Space Grotesk',sans-serif;font-size:12px;letter-spacing:.26em;text-transform:uppercase;color:var(--blue-bright);border:1px solid var(--line);border-radius:999px;padding:7px 16px;margin-bottom:24px;background:rgba(24,168,218,.05);}
+  h1{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:clamp(36px,5.5vw,60px);line-height:1.05;letter-spacing:-.02em;}
+  h1 .glow{color:var(--blue-bright);text-shadow:0 0 38px rgba(56,210,239,.45);}
+  .sub{margin:20px auto 0;max-width:56ch;color:var(--muted);font-size:clamp(15px,2vw,18px);}
+  .note{margin-top:14px;font-size:13px;color:var(--faint);}
+  .billtoggle{display:flex;justify-content:center;gap:6px;margin:2.5vh auto 0;padding:5px;border:1px solid var(--line);border-radius:999px;width:max-content;background:var(--card);}
+  .bt-opt{font-family:'Space Grotesk',sans-serif;font-size:14px;color:var(--muted);background:transparent;border:none;cursor:pointer;padding:8px 18px;border-radius:999px;transition:all .2s;display:inline-flex;align-items:center;gap:8px;}
+  .bt-opt.active{background:linear-gradient(180deg,var(--blue-bright),var(--blue));color:#021019;font-weight:700;}
+  .bt-save{font-size:11px;letter-spacing:.04em;color:var(--blue-bright);}
+  .bt-opt.active .bt-save{color:#021019;opacity:.8;}
+  .tiers{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:18px;margin:5vh 0 3vh;align-items:stretch;}
+  .tier{border:1px solid var(--line);background:var(--card);border-radius:20px;padding:28px 24px;display:flex;flex-direction:column;}
+  .tier.feature{border-color:var(--blue);box-shadow:0 0 50px rgba(24,168,218,.12);position:relative;}
+  .tier .badge{position:absolute;top:-11px;left:50%;transform:translateX(-50%);background:linear-gradient(180deg,var(--blue-bright),var(--blue));color:#021019;font-family:'Space Grotesk',sans-serif;font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;padding:4px 14px;border-radius:999px;}
+  .tier h3{font-family:'Space Grotesk',sans-serif;font-size:20px;font-weight:600;}
+  .tier .price{font-family:'Space Grotesk',sans-serif;font-size:40px;font-weight:600;margin:14px 0 2px;letter-spacing:-.02em;}
+  .tier .price small{font-size:14px;font-weight:400;color:var(--muted);letter-spacing:0;}
+  .tier .tag{color:var(--muted);font-size:14px;min-height:42px;}
+  .tier ul{list-style:none;margin:18px 0 24px;flex:1;}
+  .tier li{position:relative;padding:6px 0 6px 24px;font-size:14px;color:var(--ink);border-top:1px solid rgba(255,255,255,.04);}
+  .tier li:first-child{border-top:none;}
+  .tier li::before{content:"✓";position:absolute;left:0;color:var(--blue-bright);font-size:13px;}
+  .tier li.off{color:var(--faint);}
+  .tier li.off::before{content:"–";color:var(--faint);}
+  h2{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:clamp(22px,3vw,30px);text-align:center;margin:6vh 0 4px;}
+  .faq{max-width:760px;margin:0 auto 6vh;}
+  .faq details{border:1px solid var(--line);background:var(--card);border-radius:14px;padding:4px 18px;margin-top:12px;}
+  .faq summary{cursor:pointer;padding:14px 0;font-family:'Space Grotesk',sans-serif;font-size:15px;list-style:none;}
+  .faq summary::-webkit-details-marker{display:none;}
+  .faq details p{color:var(--muted);font-size:14px;padding:0 0 16px;}
+  footer{border-top:1px solid var(--line);padding:40px clamp(20px,6vw,64px);color:var(--faint);font-size:13px;position:relative;z-index:2;}
+  .fbar{display:flex;flex-wrap:wrap;gap:18px;justify-content:space-between;align-items:center;max-width:1160px;margin:0 auto;}
+  .fbrand{display:flex;align-items:center;gap:10px;font-family:'Space Grotesk',sans-serif;color:var(--muted);}
+  .fbrand img{width:22px;height:22px;}
+  .flinks{display:flex;gap:20px;flex-wrap:wrap;}
+  .flinks a{color:var(--muted);text-decoration:none;}
+  .flinks a:hover{color:var(--ink);}
+</style>
+</head>
+<body>
+<div class="matter"></div>
+<main>
+  <nav>
+    <a class="brand" href="/"><img src="/assets/Alogo2.png" alt="Analytikul" /><span class="word">Analy<b>tikul</b></span></a>
+    <div class="navlinks">
+      <a href="/features" class="hide-sm">Features</a>
+      <a href="/pricing" class="hide-sm active">Pricing</a>
+      <a href="/help" class="hide-sm">Docs</a>
+      <a href="/chat" class="btn btn-ghost">Sign in</a>
+      <a href="/chat" class="btn btn-blue">Workspace</a>
+    </div>
+  </nav>
+
+  <div class="wrap">
+    <section class="hero">
+      <span class="eyebrow">● Simple, transparent pricing</span>
+      <h1>Pay for the workspace,<br /><span class="glow">not the surprises.</span></h1>
+      <p class="sub">Start free. Scale when your team does. Bring your own API keys on any paid plan and only pay for the platform — not a markup on every token.</p>
+      <p class="note">Prices in USD. Annual billing saves ~20%. Billing launches soon — early users get founding pricing locked in.</p>
+    </section>
+
+    <div class="billtoggle" role="group" aria-label="Billing period">
+      <button type="button" class="bt-opt active" data-interval="month">Monthly</button>
+      <button type="button" class="bt-opt" data-interval="year">Annual <span class="bt-save">save ~20%</span></button>
+    </div>
+
+    <section class="tiers">
+      <div class="tier">
+        <h3>Free</h3>
+        <div class="price">$0</div>
+        <div class="tag">For individuals exploring AI.</div>
+        <ul>
+          <li>1 user</li>
+          <li>Multi-model chat (BYOK)</li>
+          <li>Notes workspace</li>
+          <li>Per-chat Controls panel</li>
+          <li>Full-text search</li>
+          <li class="off">Agent runs</li>
+          <li class="off">Custom models</li>
+        </ul>
+        <a href="/chat" class="btn btn-ghost btn-full">Get started</a>
+      </div>
+
+      <div class="tier feature">
+        <span class="badge">Most popular</span>
+        <h3>Pro</h3>
+        <div class="price" data-plan-price="pro">$20 <small>/ user / mo</small></div>
+        <div class="tag">For power users who want it all.</div>
+        <ul>
+          <li>Everything in Free</li>
+          <li>Unlimited agent runs<sup>*</sup></li>
+          <li>Custom model builder</li>
+          <li>26 agent tool sets</li>
+          <li>Bring your own keys (vault)</li>
+          <li>Cost tracking &amp; budgets</li>
+          <li>Priority models</li>
+        </ul>
+        <a href="/chat?upgrade=pro" data-upgrade="pro" class="btn btn-blue btn-full">Start Pro →</a>
+      </div>
+
+      <div class="tier">
+        <h3>Team</h3>
+        <div class="price" data-plan-price="team">$40 <small>/ user / mo</small></div>
+        <div class="tag">For teams building together.</div>
+        <ul>
+          <li>Everything in Pro</li>
+          <li>Shared org memory</li>
+          <li>Shared models &amp; prompts</li>
+          <li>Admin FinOps dashboard</li>
+          <li>Org-wide budget caps</li>
+          <li>Roles &amp; permissions</li>
+          <li>Priority support</li>
+        </ul>
+        <a href="/chat?upgrade=team" data-upgrade="team" class="btn btn-ghost btn-full">Start Team</a>
+      </div>
+
+      <div class="tier">
+        <h3>Enterprise</h3>
+        <div class="price">Custom</div>
+        <div class="tag">For scale, security &amp; control.</div>
+        <ul>
+          <li>Everything in Team</li>
+          <li>Self-host or dedicated cloud</li>
+          <li>On-prem agent runtime</li>
+          <li>SSO / SAML</li>
+          <li>Audit logs &amp; SLA</li>
+          <li>Security review &amp; DPA</li>
+          <li>Custom integrations</li>
+        </ul>
+        <a href="/help" class="btn btn-ghost btn-full">Contact us</a>
+      </div>
+    </section>
+
+    <section style="max-width:760px;margin:28px auto 0;border:1px solid var(--line);border-radius:15px;padding:22px 24px;">
+      <h3 style="margin:0 0 4px;">Agent Power Tools <span style="font-weight:400;color:var(--muted);">— add-on</span></h3>
+      <div class="price" style="font-size:28px;margin:6px 0;">$99 <small>/ org / mo</small></div>
+      <p style="margin:6px 0 14px;">Unlock the Hermes Agent's <strong>action tools</strong> on Pro &amp; Team — <strong>Messaging</strong> and <strong>Home Assistant</strong> (bring your own credentials) — with admin approval and audit logging. Terminal &amp; computer control arrive on Enterprise once fully sandboxed.</p>
+      <a href="/chat?upgrade=powertools" class="btn btn-blue">Add Power Tools</a>
+    </section>
+
+    <p class="note" style="text-align:center;"><sup>*</sup> Fair-use limits apply. With your own keys, model usage is billed by your provider at cost.</p>
+
+    <h2>Questions</h2>
+    <div class="faq">
+      <details><summary>Do I need my own API keys?</summary><p>On the Free plan and any paid plan you can bring your own keys (Anthropic, OpenAI, OpenRouter, Google, Groq, Mistral) and store them in an encrypted vault — you pay your provider directly at cost, with no Analytikul markup on tokens.</p></details>
+      <details><summary>How is agent cost controlled?</summary><p>Every agent run shows live token and dollar cost, and you can set budget caps that automatically pause runs before they exceed a limit — per user and org-wide on Team.</p></details>
+      <details><summary>Can I self-host?</summary><p>Yes. Enterprise supports self-hosting and a dedicated/on-prem agent runtime, with SSO, audit logging and a security review.</p></details>
+      <details><summary>When does billing go live?</summary><p>Billing connects to Stripe shortly. Until then the workspace is open to early users, and founding accounts keep early pricing when billing launches.</p></details>
+    </div>
+  </div>
+
+  <footer>
+    <div class="fbar">
+      <div class="fbrand"><img src="/assets/Alogo2.png" alt="" /> Analytikul</div>
+      <div class="flinks">
+        <a href="/features">Features</a>
+        <a href="/pricing">Pricing</a>
+        <a href="/help">Help Center</a>
+        <a href="/chat">App</a>
+      </div>
+    </div>
+  </footer>
+</main>
+<script>
+  (function () {
+    // Monthly/annual toggle: swaps displayed price + the checkout interval on the buttons.
+    // Annual shows the monthly-equivalent of a ~20%-off yearly plan; set the matching annual
+    // Price in Stripe (STRIPE_PRICE_PRO_YEAR / STRIPE_PRICE_TEAM_YEAR).
+    var PRICES = { pro: { m: '$20', y: '$16' }, team: { m: '$40', y: '$32' } };
+    var annual = false;
+    var monthBtn = document.querySelector('.bt-opt[data-interval="month"]');
+    var yearBtn = document.querySelector('.bt-opt[data-interval="year"]');
+    function render() {
+      document.querySelectorAll('[data-plan-price]').forEach(function (el) {
+        var p = el.getAttribute('data-plan-price');
+        var amt = annual ? PRICES[p].y : PRICES[p].m;
+        var sub = annual ? '/ user / mo, billed yearly' : '/ user / mo';
+        el.innerHTML = amt + ' <small>' + sub + '</small>';
+      });
+      document.querySelectorAll('[data-upgrade]').forEach(function (a) {
+        var plan = a.getAttribute('data-upgrade');
+        a.href = '/chat?upgrade=' + plan + (annual ? '&interval=year' : '');
+      });
+      monthBtn.classList.toggle('active', !annual);
+      yearBtn.classList.toggle('active', annual);
+    }
+    monthBtn.addEventListener('click', function () { annual = false; render(); });
+    yearBtn.addEventListener('click', function () { annual = true; render(); });
+    render();
+  })();
+</script>
+</body>
+</html>
