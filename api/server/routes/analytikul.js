@@ -266,7 +266,21 @@ router.use('/openclaw', (req, res) => {
   const upstream = http.request(
     { hostname: target.hostname, port: target.port, method: req.method, path: req.originalUrl, headers },
     (r) => {
-      res.writeHead(r.statusCode || 502, r.headers);
+      // The Control UI is served same-origin (from analytikul.ai via this proxy), so allow
+      // framing: drop X-Frame-Options: DENY and rewrite CSP frame-ancestors to 'self'.
+      const h = { ...r.headers };
+      delete h['x-frame-options'];
+      if (typeof h['content-security-policy'] === 'string') {
+        h['content-security-policy'] = h['content-security-policy'].replace(
+          /frame-ancestors[^;]*/i,
+          "frame-ancestors 'self'",
+        );
+      }
+      // Helmet (app middleware) sets X-Frame-Options: DENY on every response; writeHead
+      // only merges, so remove it explicitly to allow the same-origin iframe.
+      res.removeHeader('X-Frame-Options');
+      res.removeHeader('Content-Security-Policy');
+      res.writeHead(r.statusCode || 502, h);
       r.pipe(res);
     },
   );
