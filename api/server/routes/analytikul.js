@@ -877,7 +877,9 @@ router.post('/oc-authorize', (req, res) => {
     path: '/api/analytikul/openclaw',
     maxAge: ocGate.TTL_MS,
   });
-  res.status(200).json({ ok: true, enabled: Boolean(ocGate.gatewayToken()) });
+  // Return the gateway token so the (admin-only) Control UI can answer the WS
+  // connect.challenge via the URL fragment (#token=…), which stays client-side.
+  res.status(200).json({ ok: true, token: ocGate.gatewayToken() });
 });
 
 // Files tab → the user's paired bridge: list projects / tree / read a file on their machine.

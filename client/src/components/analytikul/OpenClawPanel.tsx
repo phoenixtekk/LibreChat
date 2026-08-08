@@ -9,6 +9,7 @@ import { useAuthContext } from '~/hooks';
 export default function OpenClawPanel() {
   const { token } = useAuthContext();
   const [status, setStatus] = useState<'authorizing' | 'ready' | 'denied' | 'error'>('authorizing');
+  const [gatewayToken, setGatewayToken] = useState('');
   const authed = useRef(false);
 
   useEffect(() => {
@@ -31,8 +32,9 @@ export default function OpenClawPanel() {
         }
         return r.json();
       })
-      .then((d) => {
+      .then((d: { token?: string } | null) => {
         if (d) {
+          setGatewayToken(d.token ?? '');
           setStatus('ready');
         }
       })
@@ -55,7 +57,7 @@ export default function OpenClawPanel() {
   return (
     <iframe
       title="OpenClaw"
-      src="/api/analytikul/openclaw/"
+      src={`/api/analytikul/openclaw/${gatewayToken ? `#token=${encodeURIComponent(gatewayToken)}` : ''}`}
       className="h-full w-full border-0"
       allow="clipboard-read; clipboard-write; microphone; camera"
     />
