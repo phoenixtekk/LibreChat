@@ -84,6 +84,7 @@ const crypto = require('node:crypto');
 const fsMod = require('node:fs');
 const http = require('node:http');
 const ocGate = require('~/server/openclawGate');
+const OPENCLAW_OPS_URL = process.env.OPENCLAW_OPS_URL || 'http://analytikul-openclaw-ops:9099';
 const BRIDGE_CODE_TTL_MS = 365 * 24 * 60 * 60 * 1000; // long-lived device pairing
 const BRIDGE_POLL_MS = 25_000;
 const BRIDGE_TOOL_TIMEOUT_MS = 20 * 60 * 1000;
@@ -880,6 +881,52 @@ router.post('/oc-authorize', (req, res) => {
   // Return the gateway token so the (admin-only) Control UI can answer the WS
   // connect.challenge via the URL fragment (#token=…), which stays client-side.
   res.status(200).json({ ok: true, token: ocGate.gatewayToken() });
+});
+
+// OpenClaw manage panel (admin only) — proxied to the scoped ops helper.
+router.get('/oc-manage/status', async (req, res) => {
+  if (req.user.role !== 'ADMIN') {
+    return res.status(403).json({ error: 'admin only' });
+  }
+  try {
+    const r = await fetch(`${OPENCLAW_OPS_URL}/status`, { headers: internalHeaders() });
+    return res.status(r.status).json(await r.json());
+  } catch {
+    return res.status(502).json({ error: 'ops helper unreachable' });
+  }
+});
+
+router.post('/oc-manage/action', express.json(), async (req, res) => {
+  if (req.user.role !== 'ADMIN') {
+    return res.status(403).json({ error: 'admin only' });
+  }
+  const action = req.body?.action;
+  if (!['start', 'stop', 'restart'].includes(action)) {
+    return res.status(400).json({ error: 'action must be start|stop|restart' });
+  }
+  try {
+    const r = await fetch(`${OPENCLAW_OPS_URL}/action`, {
+      method: 'POST',
+      headers: internalHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ action }),
+    });
+    return res.status(r.status).json(await r.json());
+  } catch {
+    return res.status(502).json({ error: 'ops helper unreachable' });
+  }
+});
+
+router.get('/oc-manage/logs', async (req, res) => {
+  if (req.user.role !== 'ADMIN') {
+    return res.status(403).json({ error: 'admin only' });
+  }
+  const tail = Math.min(Math.max(Number(req.query.tail) || 200, 1), 2000);
+  try {
+    const r = await fetch(`${OPENCLAW_OPS_URL}/logs?tail=${tail}`, { headers: internalHeaders() });
+    return res.status(r.status).json(await r.json());
+  } catch {
+    return res.status(502).json({ error: 'ops helper unreachable' });
+  }
 });
 
 // Files tab → the user's paired bridge: list projects / tree / read a file on their machine.
