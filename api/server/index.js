@@ -514,7 +514,11 @@ const startServer = async () => {
         ocWss.handleUpgrade(req, sock, head, (client) => {
           const targetWs = ocGate.targetUrl().replace(/^http/, 'ws') + req.url;
           const upstream = new WebSocket(targetWs, {
-            headers: { Authorization: `Bearer ${ocGate.gatewayToken()}` },
+            headers: {
+              Authorization: `Bearer ${ocGate.gatewayToken()}`,
+              // Forward the browser origin so the gateway's controlUi.allowedOrigins check passes.
+              Origin: req.headers.origin || 'https://analytikul.ai',
+            },
           });
           const queue = [];
           client.on('message', (d, isBinary) =>
