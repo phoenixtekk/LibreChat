@@ -497,6 +497,59 @@ const startServer = async () => {
       logger.info(`Server listening at http://${host == '0.0.0.0' ? 'localhost' : host}:${port}`);
     }
 
+    // OpenClaw embed: proxy admin-gated WebSocket upgrades to the containerized gateway.
+    // Cookie-gated (same signed cookie the HTTP proxy uses); injects the gateway token.
+    try {
+      const ocGate = require('./openclawGate');
+      const { WebSocketServer, WebSocket } = require('ws');
+      const ocWss = new WebSocketServer({ noServer: true });
+      server.on('upgrade', (req, sock, head) => {
+        if (!req.url || !req.url.startsWith('/api/analytikul/openclaw')) {
+          return;
+        }
+        if (!ocGate.valid(req.headers.cookie)) {
+          sock.destroy();
+          return;
+        }
+        ocWss.handleUpgrade(req, sock, head, (client) => {
+          const targetWs = ocGate.targetUrl().replace(/^http/, 'ws') + req.url;
+          const upstream = new WebSocket(targetWs, {
+            headers: { Authorization: `Bearer ${ocGate.gatewayToken()}` },
+          });
+          const queue = [];
+          client.on('message', (d, isBinary) =>
+            upstream.readyState === 1 ? upstream.send(d, { binary: isBinary }) : queue.push([d, isBinary]),
+          );
+          upstream.on('open', () => {
+            for (const [d, b] of queue) {
+              upstream.send(d, { binary: b });
+            }
+            queue.length = 0;
+          });
+          upstream.on('message', (d, isBinary) => client.readyState === 1 && client.send(d, { binary: isBinary }));
+          const close = () => {
+            try {
+              client.close();
+            } catch {
+              /* noop */
+            }
+            try {
+              upstream.close();
+            } catch {
+              /* noop */
+            }
+          };
+          client.on('close', close);
+          client.on('error', close);
+          upstream.on('close', close);
+          upstream.on('error', close);
+        });
+      });
+      logger.info('[analytikul] OpenClaw WS proxy attached at /api/analytikul/openclaw');
+    } catch (e) {
+      logger.warn(`[analytikul] OpenClaw WS proxy not attached: ${e.message}`);
+    }
+
     /**
      * The listen callback is async, so any rejection from these awaits would
      * otherwise be detached from `startServer().catch(...)` (which only

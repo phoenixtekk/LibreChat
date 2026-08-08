@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { useLocalize } from '~/hooks';
+import { useLocalize, useAuthContext } from '~/hooks';
 import AgentPanel from './AgentPanel';
 import WorkspaceFiles from './WorkspaceFiles';
 import TerminalConsole from './TerminalConsole';
@@ -7,6 +7,7 @@ import DeployPanel from './DeployPanel';
 import AnalyticsDashboard from './AnalyticsDashboard';
 import OrgMemoryPanel from './OrgMemoryPanel';
 import KeysPanel from './KeysPanel';
+import OpenClawPanel from './OpenClawPanel';
 import { OutputRenderer, latestRenderableOutput } from './renderers';
 import type { AgentStreamApi } from './useAgentStream';
 
@@ -26,7 +27,7 @@ function readStoredWidth(): number | null {
   }
 }
 
-export type RailTab = 'agent' | 'preview' | 'costs' | 'memory' | 'keys' | 'files' | 'deploy';
+export type RailTab = 'agent' | 'preview' | 'costs' | 'memory' | 'keys' | 'files' | 'deploy' | 'openclaw';
 
 /**
  * Preview Rail — Hermes Desktop's side-by-side output panel. Agent tab launches
@@ -47,6 +48,8 @@ export default function PreviewRail({
   setTab: (tab: RailTab) => void;
 }) {
   const localize = useLocalize();
+  const { user } = useAuthContext();
+  const isAdmin = user?.role === 'ADMIN';
   const latestOutput = latestRenderableOutput(stream.events);
   const [width, setWidth] = useState<number>(() => readStoredWidth() ?? RAIL_MIN_PX);
   const dragStartRef = useRef<{ startX: number; startWidth: number } | null>(null);
@@ -120,6 +123,7 @@ export default function PreviewRail({
     { id: 'keys', label: localize('com_atk_keys') },
     { id: 'files', label: localize('com_atk_files') },
     { id: 'deploy', label: 'Deploy' },
+    ...(isAdmin ? [{ id: 'openclaw' as RailTab, label: 'OpenClaw' }] : []),
   ];
 
   return (
@@ -179,6 +183,7 @@ export default function PreviewRail({
         {tab === 'preview' && <TerminalConsole stream={stream} />}
         {tab === 'files' && <WorkspaceFiles />}
         {tab === 'deploy' && <DeployPanel />}
+        {tab === 'openclaw' && <OpenClawPanel />}
       </div>
     </aside>
   );

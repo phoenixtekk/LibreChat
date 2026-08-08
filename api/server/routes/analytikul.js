@@ -82,6 +82,8 @@ const TASK_META_MAX = 1000;
 // back to the agent. Registry is in-process (single app instance).
 const crypto = require('node:crypto');
 const fsMod = require('node:fs');
+const http = require('node:http');
+const ocGate = require('~/server/openclawGate');
 const BRIDGE_CODE_TTL_MS = 365 * 24 * 60 * 60 * 1000; // long-lived device pairing
 const BRIDGE_POLL_MS = 25_000;
 const BRIDGE_TOOL_TIMEOUT_MS = 20 * 60 * 1000;
@@ -236,6 +238,51 @@ const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 // 'default' bucket (that leaked org-shared notes / memory / analytics across all
 // un-tenanted users).
 const tenantOf = (req) => req.user.tenantId || String(req.user.id);
+
+// --- OpenClaw embed: admin-gated reverse proxy to the containerized gateway ---
+// Cookie-gated (cookie issued by /oc-authorize, which IS JWT+admin-gated). Registered
+// before requireJwtAuth so the browser's iframe/asset requests (which carry the cookie,
+// not the Bearer JWT) reach it. The gateway bearer token is injected upstream.
+router.use('/openclaw', (req, res) => {
+  if (!ocGate.valid(req.headers.cookie)) {
+    return res.status(401).json({ error: 'openclaw: unauthorized — open it from the OpenClaw tab' });
+  }
+  let target;
+  try {
+    target = new URL(ocGate.targetUrl());
+  } catch {
+    return res.status(500).json({ error: 'openclaw target misconfigured' });
+  }
+  const headers = { ...req.headers };
+  headers.host = target.host;
+  headers.authorization = `Bearer ${ocGate.gatewayToken()}`;
+  delete headers.cookie;
+  let bodyBuf = null;
+  if (req.body && typeof req.body === 'object' && Object.keys(req.body).length > 0) {
+    bodyBuf = Buffer.from(JSON.stringify(req.body));
+    headers['content-type'] = 'application/json';
+    headers['content-length'] = String(bodyBuf.length);
+  }
+  const upstream = http.request(
+    { hostname: target.hostname, port: target.port, method: req.method, path: req.originalUrl, headers },
+    (r) => {
+      res.writeHead(r.statusCode || 502, r.headers);
+      r.pipe(res);
+    },
+  );
+  upstream.on('error', () => {
+    if (!res.headersSent) {
+      res.status(502).end('openclaw gateway unreachable');
+    }
+  });
+  if (bodyBuf) {
+    upstream.end(bodyBuf);
+  } else if (req.method === 'GET' || req.method === 'HEAD') {
+    upstream.end();
+  } else {
+    req.pipe(upstream);
+  }
+});
 
 router.use(requireJwtAuth);
 // Apply a generous baseline cap to every authenticated /api/analytikul call.
@@ -801,6 +848,22 @@ router.post('/bridge/pair', (req, res) => {
   bridgeCodes.set(code, { userId: req.user.id, expires: Date.now() + BRIDGE_CODE_TTL_MS });
   saveBridgeCodes();
   res.status(200).json({ code, server: process.env.APP_URL || '' });
+});
+
+// Issue the short-lived OpenClaw embed cookie (admin only). The iframe/assets/WS then
+// carry this cookie; the /openclaw proxy validates it and injects the gateway token.
+router.post('/oc-authorize', (req, res) => {
+  if (req.user.role !== 'ADMIN') {
+    return res.status(403).json({ error: 'admin only' });
+  }
+  res.cookie(ocGate.COOKIE, ocGate.issue(String(req.user.id)), {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: true,
+    path: '/api/analytikul/openclaw',
+    maxAge: ocGate.TTL_MS,
+  });
+  res.status(200).json({ ok: true, enabled: Boolean(ocGate.gatewayToken()) });
 });
 
 // Files tab → the user's paired bridge: list projects / tree / read a file on their machine.
