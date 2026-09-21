@@ -1,4 +1,57 @@
-# Analytikul — Session Handoff (2026-06-13)
+<!-- session-version: 2 -->
+<!-- pending-session-title: Analytikul-One v2 -->
+
+# Analytikul — Session Handoff
+
+> **FIRST ACTION (fresh session):** set your session title from the `pending-session-title`
+> marker above (use `mcp__ccd_session_mgmt__set_session_title` if available, else ask the owner
+> to rename the tab), then **clear that marker** so the next rotation sets a fresh name. Read this
+> Working-state block first — it supersedes the stale host references in `session-startup-prompt.md`.
+
+## Working state — 2026-09-20 (rotated v1 → v2)
+
+**⚠ Infra correction (supersedes `session-startup-prompt.md`'s "linuxg3"):** production runs in
+**CT201 (docker-in-LXC) on the "ai" Proxmox host** — `ssh ai` → `sudo pct exec 201 -- docker ...`.
+Config: `/opt/analytikul/librechat.aibox.yaml` (bind-mounted → `/app/librechat.yaml`); `docker
+restart analytikul-app` reloads it; `docker commit analytikul-app analytikul-app:coder` bakes
+container hotfixes (WIPED by force-recreate — memory: deploy-fragility-warning). Comfy media on
+**CT202** (192.168.166.183). Ollama hosts: **AI Box CT200** (192.168.166.182) + **AISERVER**
+(192.168.166.158). Apex `analytikul.ai` canonical (200).
+
+**Git:** branch `feature/analytikul-coder`, HEAD `cc5ca8101`. Tree is **DIRTY** from prior sessions
+(landing/features/pricing/index html, AnalytikulSidebar, AgentPanel, aibox-voice, coder-bridge,
+coder-desktop; new chatai.html, Analytikul/DesktopApp images, voice enroll/deskbridge files) —
+uncommitted. **This session's work was server-side, NOT in git** (below).
+
+**Shipped this session (server-side, verified live):**
+- **qwen3-coder web-search crash FIXED.** `qwen3-coder:30b` leaks XML tool calls in Ollama
+  streaming (never structured) → agents converter hit `undefined.role`. Patched the
+  `@librechat/agents` OpenAI converter (marker `[atk-patch]`, drops null msgs) in `analytikul-app`,
+  baked into `analytikul-app:coder`. **For local web search/tools use `qwen3-vl:30b`, not coder.**
+  (memory: analytikul-ollama-toolcalls)
+- **ComfyUI video FIXED (CT202).** `get_video` no longer crashes on a dead/expired 404; bridge
+  `job_status` now recovers completed jobs from disk. Edited `/opt/comfy-mcp/mcp_server.py` +
+  `/opt/comfy-bridge/app.py` (.bak kept), services restarted; fresh test render succeeded E2E.
+  WAN 14B is slow ~7min / OOM-prone; `wan5b` is the lighter option (offered as default, NOT
+  approved). (memory: analytikul-comfy-video)
+- **qwen3.8:27b enabled on AISERVER.** Added `AISERVER` custom endpoint (→192.168.166.158:11434,
+  `max_tokens:2000` reasoning floor) + "Qwen 3.8 27B — fast" preset to the CT201 config;
+  restarted + verified; server-inventory updated.
+- **Higgsfield** integration: feasibility confirmed (public async job API, fits the comfy-MCP
+  pattern); NO build — awaiting owner decisions on cost/data-egress/key model.
+
+**Open / next focus:**
+- **Notes image paste/import (ON HOLD).** Owner asked to paste/import screenshots into Notes.
+  Mapped it: TipTap editor `client/src/components/analytikul/notes/NoteEditor.tsx` has no image
+  extension; needs `@tiptap/extension-image` + drop/paste handlers + an upload endpoint
+  (`api/server/routes/analytikul.js`, save via LibreChat file strategy → `/images/...`). Markdown
+  round-trip (turndown/marked) already handles `![](url)`. Owner **dismissed** the scope/storage
+  question — resume once they pick scope (Notes editor) + storage (server-upload vs base64).
+- Decisions pending: make `wan5b` the default video model? build Higgsfield? commit the dirty tree?
+
+---
+
+## History (2026-06-13 and earlier)
 
 ## Latest session (2026-06-13) — redesign shipped + host decommission
 - **Open WebUI redesign DONE & DEPLOYED.** Reworked `NotesList.tsx`/`NoteEditor.tsx` to match
