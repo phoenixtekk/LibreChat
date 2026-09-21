@@ -17,7 +17,10 @@ Command precedence matters: desktop hand-off is checked before search, and
 search before camera, because "look up the weather" is a search while a bare
 "look up" is a tilt.
 """
-import os, re, sys, wave, time, tempfile, subprocess
+import os, threading, collections, re, sys, wave, time, tempfile, subprocess, difflib
+from datetime import datetime
+from zoneinfo import ZoneInfo
+import threading, collections
 import numpy as np
 import requests
 from faster_whisper import WhisperModel
@@ -33,17 +36,30 @@ LLM = os.environ.get("AIBOX_LLM", "llama3:latest")       # fast, conversational
 RMS_GATE = float(os.environ.get("AIBOX_RMS_GATE", "350"))  # silence threshold
 WAKE_WINDOW = 3       # seconds per listen chunk
 QUESTION_WINDOW = 6   # seconds to capture the question
+END_PHRASES = ["stop", "thanks", "thank you", "that's all", "that is all",
+               "no thanks", "never mind", "nevermind", "goodbye", "bye",
+               "that's it", "that is it", "we're done", "i'm done", "done"]
 SCENE_MAX_AGE = 600   # ignore ambient context older than this
 
 # Fuzzy variants Whisper may produce for the wake word
-WAKE = ["hey amy","hey aimee","hey amie","hey emmy","hey ami","hay amy","hey, amy"]
+WAKE = ["hey amy","hey aimee","hey amie","hey emmy","hey ami","hay amy","hey, amy",
+        "hey andy","hey andi","hey andie","hey aigartha","hey agatha","hey agartha"]
+# Trigger + name for fuzzy matching (Whisper garbles the name: amy->andy, aigartha->agatha).
+WAKE_TRIGGERS = ("hey", "hay", "hi", "hello", "ok", "okay", "yo")
+WAKE_NAMES = ("amy", "aimee", "amie", "emmy", "ami", "andy", "andi", "andie",
+              "aigartha", "agatha", "agartha", "argatha")
 
-SYSTEM = ("You are Aigartha, Lacy's local voice assistant on the AiBox. "
-          "Answer briefly and conversationally — 1 to 3 sentences, plain spoken text, "
-          "no markdown or lists, since your reply is read aloud.")
+SYSTEM = ("You are Aigartha, Lacy's local voice assistant running on the AiBox. "
+          "Your manner is calm, composed, and professional: clear, precise, and efficient, "
+          "with no filler, no hype, and no over-apologizing. You are confident and direct, "
+          "but never cold — warm in substance, economical in words. If you do not know "
+          "something, you say so plainly rather than guessing. Because your reply is spoken "
+          "aloud, answer in 1 to 3 short sentences of plain conversational text, with no "
+          "markdown, lists, or emoji.")
 
 SEARCH_SYSTEM = (
-    "You answer questions out loud using web search results. "
+    "You are Aigartha, answering out loud from web search results in a calm, "
+    "professional, matter-of-fact manner. "
     "1 to 3 short spoken sentences, no markdown, no lists, never read out URLs. "
     "Then on a final line write 'SOURCE: <number>' naming the single numbered result you "
     "actually relied on. If the results do not really answer the question, reply with "
@@ -112,6 +128,33 @@ last_query = ""        # what produced them, for "show me the search results"
 last_results_at = 0.0  # when — stale hits must never be opened silently
 RESULTS_TTL = 900      # seconds a remembered result set stays openable
 
+# A follow-up must be at least this loud to count as addressed to her; quieter ambient
+# or cross-room speech ends the conversation instead of being answered, so she never
+# "just starts talking" unless you called her name or clearly spoke up. Tunable via env.
+FOLLOWUP_RMS_GATE = float(os.environ.get("AIBOX_FOLLOWUP_RMS_GATE", "650"))
+OFFER_WINDOW = int(os.environ.get("AIBOX_OFFER_WINDOW", "4"))   # seconds to catch a yes/no
+
+# After a spoken web-search answer, the source she used is offered for opening on the desktop.
+offer_url = ""
+offer_domain = ""
+
+YES_WORDS = ("yes", "yeah", "yep", "yup", "sure", "please", "ok", "okay", "go ahead",
+             "do it", "open it", "open that", "pull it up", "please do", "affirmative",
+             "sounds good", "yes please")
+NO_WORDS = ("no", "nope", "nah", "no thanks", "don't", "do not", "leave it", "that is okay",
+            "that's okay", "that is fine", "that's fine", "cancel", "never mind", "nevermind")
+
+
+def is_affirmative(text):
+    """Yes/no from a short spoken reply. A 'no' anywhere wins over a 'yes'."""
+    if not text:
+        return False
+    t = re.sub(r"[^a-z ]", " ", text.lower())
+    if any(re.search(rf"\b{re.escape(n)}\b", t) for n in NO_WORDS):
+        return False
+    return any(re.search(rf"\b{re.escape(y)}\b", t) for y in YES_WORDS)
+
+
 
 def eyes_call(path, params=None, timeout=240):
     try:
@@ -125,7 +168,41 @@ def eyes_call(path, params=None, timeout=240):
 print("[aigartha] loading STT models...", flush=True)
 wake_stt = WhisperModel("small.en", device="cpu", compute_type="int8")
 qa_stt = WhisperModel("small.en", device="cpu", compute_type="int8")
-print("[aigartha] listening for wake word 'Hey Amy'...", flush=True)
+
+# --- speaker verification: only wake / respond to Lacy's voice ------------------------
+SPEAKER_THRESHOLD = float(os.environ.get("AIBOX_SPEAKER_THRESHOLD", "0.70"))
+VOICEPRINT_PATH = os.environ.get("AIBOX_VOICEPRINT", "/opt/voice/lacy_voiceprint.npy")
+try:
+    from resemblyzer import VoiceEncoder, preprocess_wav
+    _spk_encoder = VoiceEncoder()
+    _lacy_voiceprint = np.load(VOICEPRINT_PATH) if os.path.exists(VOICEPRINT_PATH) else None
+    if _lacy_voiceprint is None:
+        print(f"[speaker] WARNING: no voiceprint at {VOICEPRINT_PATH} - speaker gate OFF", flush=True)
+    else:
+        print(f"[speaker] voiceprint loaded; threshold {SPEAKER_THRESHOLD}", flush=True)
+except Exception as _spk_err:
+    _spk_encoder = None
+    _lacy_voiceprint = None
+    print(f"[speaker] disabled (encoder load failed): {_spk_err}", flush=True)
+
+
+def speaker_is_lacy(wav_path):
+    """True if the clip's speaker matches Lacy's enrolled voiceprint. Fails OPEN if the
+    encoder/voiceprint is unavailable or a rare processing error occurs (so the assistant
+    still works); a computed low similarity is a hard reject."""
+    if _spk_encoder is None or _lacy_voiceprint is None:
+        return True
+    try:
+        emb = _spk_encoder.embed_utterance(preprocess_wav(wav_path))
+    except Exception as e:
+        print(f"[speaker] verify error (allowing): {e}", flush=True)
+        return True
+    sim = float(np.dot(emb, _lacy_voiceprint) /
+                (np.linalg.norm(emb) * np.linalg.norm(_lacy_voiceprint) + 1e-9))
+    ok = sim >= SPEAKER_THRESHOLD
+    print(f"[speaker] sim={sim:.3f} thr={SPEAKER_THRESHOLD} -> {'Lacy' if ok else 'other'}", flush=True)
+    return ok
+print("[aigartha] listening for wake word 'Hey Aigartha'...", flush=True)
 
 
 def record(seconds):
@@ -133,6 +210,70 @@ def record(seconds):
     subprocess.run(["arecord", "-D", CARD, "-f", "S16_LE", "-r", "16000", "-c", "1",
                     "-d", str(seconds), f], stderr=subprocess.DEVNULL)
     return f
+
+# --- continuous rolling-buffer recorder (fills gaps between wake windows) ---
+_RATE = 16000
+_buf = collections.deque(maxlen=_RATE * 4)   # last ~4s of int16 samples
+_buf_lock = threading.Lock()
+_rec_stop = threading.Event()
+_rec_proc = None
+
+
+def _recorder_loop():
+    global _rec_proc
+    while not _rec_stop.is_set():
+        _rec_proc = subprocess.Popen(
+            ["arecord", "-D", CARD, "-f", "S16_LE", "-r", str(_RATE), "-c", "1", "-t", "raw"],
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+        try:
+            while not _rec_stop.is_set():
+                data = _rec_proc.stdout.read(6400)   # ~0.2s
+                if not data:
+                    break
+                with _buf_lock:
+                    _buf.extend(np.frombuffer(data, dtype=np.int16))
+        finally:
+            try:
+                _rec_proc.terminate()
+            except Exception:
+                pass
+        if not _rec_stop.is_set():
+            time.sleep(0.2)
+
+
+def start_recorder():
+    _rec_stop.clear()
+    threading.Thread(target=_recorder_loop, daemon=True).start()
+
+
+def pause_recorder():
+    _rec_stop.set()
+    try:
+        if _rec_proc:
+            _rec_proc.terminate()
+    except Exception:
+        pass
+    time.sleep(0.3)   # let ALSA release the device
+
+
+def resume_recorder():
+    with _buf_lock:
+        _buf.clear()
+    start_recorder()
+
+
+def snapshot(seconds):
+    n = int(_RATE * seconds)
+    with _buf_lock:
+        samples = np.array(list(_buf)[-n:], dtype=np.int16)
+    f = tempfile.mktemp(suffix=".wav")
+    with wave.open(f, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(_RATE)
+        w.writeframes(samples.tobytes())
+    level = float(np.sqrt(np.mean(samples.astype(np.float32) ** 2))) if samples.size else 0.0
+    return f, level
 
 
 def rms(path):
@@ -151,6 +292,75 @@ def transcribe(model, path):
 
 def say(text):
     subprocess.run([SAY, text])
+
+
+MON_DEV = os.environ.get("AIBOX_MON_DEV", "plughw:2,0")   # OBSBOT mic: hears "stop" while the SP92 talks
+STOP_WORDS = ("stop", "be quiet", "quiet", "cancel", "enough", "never mind", "nevermind", "shut up")
+
+
+def _synth(text):
+    """Run say.sh in synth-only mode; return the padded wav path (caller owns playback)."""
+    env = dict(os.environ, AIBOX_SYNTH_ONLY="1")
+    p = subprocess.run([SAY, text], capture_output=True, text=True, env=env)
+    out = (p.stdout or "").strip().splitlines()
+    path = out[-1].strip() if out else ""
+    return path if path and os.path.exists(path) else ""
+
+
+def _is_bargein(heard, answer):
+    """True only for a human stop word that is NOT part of Amy's own (echoed) answer.
+    The monitor mic has no echo cancellation, so it transcribes Amy's own voice to her
+    answer text; a stop word present in the answer is therefore echo, not a barge-in."""
+    if not heard:
+        return False
+    h = heard.lower()
+    a = answer.lower()
+    return any(sw in h and sw not in a for sw in STOP_WORDS)
+
+
+def say_interruptible(text):
+    """Speak on the SP92; abort playback only if a human stop word is heard on the monitor mic.
+    A missing/failed monitor mic (or normal end) must let the full answer play out -- polling
+    stops but playback is waited on with no timeout. (The old 1s finalizer truncated every
+    answer to ~2 words whenever the monitor device was unavailable.)"""
+    wav = _synth(text)
+    if not wav:
+        say(text)
+        return False
+    player = subprocess.Popen(["aplay", "-q", "-D", CARD, wav], stderr=subprocess.DEVNULL)
+    interrupted = False
+    while player.poll() is None:
+        mon = tempfile.mktemp(suffix=".wav")
+        rc = subprocess.run(["arecord", "-D", MON_DEV, "-f", "S16_LE", "-r", "16000",
+                             "-c", "1", "-d", "1", mon], stderr=subprocess.DEVNULL).returncode
+        if rc != 0 or not os.path.exists(mon):
+            try:
+                os.remove(mon)
+            except Exception:
+                pass
+            break                          # no monitor mic -> stop polling, let playback finish
+        if player.poll() is not None:
+            os.remove(mon)
+            break
+        heard = transcribe(wake_stt, mon)
+        os.remove(mon)
+        if _is_bargein(heard, text):
+            print(f"[interrupt] '{heard}'", flush=True)
+            player.terminate()
+            interrupted = True
+            break
+    if interrupted:
+        try:
+            player.wait(timeout=1)
+        except Exception:
+            player.kill()
+    else:
+        player.wait()                      # full answer plays out; never truncate
+    try:
+        os.remove(wav)
+    except Exception:
+        pass
+    return interrupted
 
 
 def llm(system, user, timeout=120):
@@ -268,6 +478,10 @@ def handle_search(question):
     answer, source = parse_answer(raw, results)
     if not answer:
         return f"I couldn't find anything solid about {query}."
+    global offer_url, offer_domain
+    target = source or (results[0] if results else None)
+    if target:
+        offer_url, offer_domain = target["url"], target["domain"]
     return f"{answer} That's from {source['domain']}." if source else answer
 
 
@@ -392,8 +606,47 @@ def handle_camera_command(text):
     return None
 
 
+AIBOX_TZ = ZoneInfo(os.environ.get("AIBOX_TZ", "America/Phoenix"))
+TZ_SPOKEN = os.environ.get("AIBOX_TZ_SPOKEN", "Mountain Standard Time")
+TIME_QUERY = re.compile(
+    r"\bwhat(?:\'?s| is)?\b[^?]*\b(time|date|day)\b"
+    r"|\b(current|the)\s+(time|date)\b"
+    r"|\btime\s+is\s+it\b"
+    r"|\bwhat\s+day\b"
+    r"|\btoday\'?s?\s+date\b",
+    re.I,
+)
+
+
+def _ordinal(n):
+    suffix = "th" if 11 <= n % 100 <= 13 else {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+    return f"{n}{suffix}"
+
+
+def handle_time(text):
+    """Answer time/date questions from the real clock. Returns spoken text, or None."""
+    if not TIME_QUERY.search(text):
+        return None
+    now = datetime.now(AIBOX_TZ)
+    low = text.lower()
+    wants_date = any(w in low for w in ("date", "day", "today"))
+    wants_time = "time" in low or "o'clock" in low or "clock" in low
+    clock = now.strftime("%I:%M %p").lstrip("0")
+    long_date = f"{now.strftime('%A, %B')} {_ordinal(now.day)}, {now.year}"
+    if wants_date and not wants_time:
+        return f"Today is {long_date}."
+    if wants_date and wants_time:
+        return f"It's {clock} {TZ_SPOKEN}, on {long_date}."
+    return f"It's {clock} {TZ_SPOKEN}."
+
+
 def respond(question):
     """Route one question. Order is deliberate — see the module docstring."""
+    global offer_url, offer_domain
+    offer_url, offer_domain = "", ""
+    spoken = handle_time(question)
+    if spoken:
+        return spoken
     spoken = handle_desktop_command(question)
     if spoken:
         return spoken
@@ -418,38 +671,105 @@ def respond(question):
 
 
 def is_wake(text):
-    return any(p in text for p in WAKE)
+    """Wake if the text contains a trigger word ('hey', ...) immediately followed by a
+    name close to 'amy'/'aigartha'. Whisper garbles the name (amy->andy, aigartha->agatha),
+    so an exact list is too brittle; fuzzy-match the following one or two tokens."""
+    low = text.lower()
+    if any(p in low for p in WAKE):
+        return True
+    words = re.sub(r"[^a-z ]", " ", low).split()
+    for i, w in enumerate(words):
+        if w not in WAKE_TRIGGERS:
+            continue
+        for cand in (words[i + 1] if i + 1 < len(words) else "",
+                     "".join(words[i + 1:i + 3])):
+            if not cand:
+                continue
+            if any(difflib.SequenceMatcher(None, cand, n).ratio() >= 0.72 for n in WAKE_NAMES):
+                return True
+    return False
 
 
 if __name__ == "__main__":
+    start_recorder()
+    time.sleep(1.0)   # prime the buffer
     while True:
-        w = record(WAKE_WINDOW)
-        level = rms(w)
+        time.sleep(0.7)                    # slide the window ~0.7s
+        w, level = snapshot(2.5)           # overlapping 2.5s window -> no gaps
         if level < RMS_GATE:
             os.remove(w)
             continue
         text = transcribe(wake_stt, w)
-        os.remove(w)
         if not text:
+            os.remove(w)
             continue
         print(f"[heard] ({int(level)}) {text}", flush=True)
         if not is_wake(text):
+            os.remove(w)
             continue
+        if not speaker_is_lacy(w):
+            print("[WAKE] wake word heard but not Lacy's voice - ignored", flush=True)
+            os.remove(w)
+            continue
+        os.remove(w)
         print("[WAKE] detected", flush=True)
-        say("How can I help you, Lacy?")
-        q = record(QUESTION_WINDOW)
-        question = transcribe(qa_stt, q)
-        os.remove(q)
-        print(f"[question] {question}", flush=True)
-        if not question:
-            say("Sorry, I didn't catch that.")
-            continue
-
-        try:
-            answer = respond(question)
-        except Exception as e:
-            print(f"[error] {e}", flush=True)
-            say("Sorry, something went wrong.")
-            continue
-        print(f"[answer] {answer}", flush=True)
-        say(answer)
+        pause_recorder()                   # free the SP92 for greeting + conversation
+        say("I'm here, Lacy. What do you need?")
+        # --- conversation loop ---
+        # The first turn is hers (you just called her). After that a follow-up must be
+        # spoken up / close (rms >= FOLLOWUP_RMS_GATE) to count as addressed; quieter
+        # ambient or cross-room speech ends the conversation and she waits for the wake
+        # word again -- so she never answers talk that wasn't directed at her.
+        engaged = False
+        while True:
+            q = record(QUESTION_WINDOW)
+            level = rms(q)
+            question = transcribe(qa_stt, q)
+            clean = question.strip().lower() if question else ""
+            if len(clean) < 2:
+                os.remove(q)
+                if not engaged:
+                    say("I didn't catch that. Say it again?")
+                    engaged = True
+                    continue
+                break                      # silence -> conversation is over
+            # Only Lacy's voice sustains the conversation; anyone else (a meeting, a
+            # passerby) ends it and she waits for the wake word again.
+            if engaged and not speaker_is_lacy(q):
+                os.remove(q)
+                print(f"[followup] ignored - not Lacy's voice: {clean!r}", flush=True)
+                break
+            os.remove(q)
+            if engaged and level < FOLLOWUP_RMS_GATE:
+                print(f"[followup] ignored ambient ({int(level)}<{int(FOLLOWUP_RMS_GATE)}): {clean!r}",
+                      flush=True)
+                break                      # not addressed to her -> require the wake word again
+            if any(clean == ph or clean.startswith(ph + " ") for ph in END_PHRASES):
+                say("Understood. I'll be here if you need me.")
+                break
+            print(f"[question] ({int(level)}) {question}", flush=True)
+            try:
+                answer = respond(question)
+            except Exception as e:
+                print(f"[error] {e}", flush=True)
+                say("Sorry, something went wrong.")
+                break
+            print(f"[answer] {answer}", flush=True)
+            if say_interruptible(answer):
+                print("[interrupt] stopped by user", flush=True)
+                engaged = True
+                continue                   # you cut her off -> skip the offer, keep listening
+            engaged = True
+            # --- offer to open the search source on the desktop (web-search answers only) ---
+            if offer_url:
+                url, dom = offer_url, offer_domain
+                say(f"Want me to open {dom} in your browser?")
+                r = record(OFFER_WINDOW)
+                reply = transcribe(qa_stt, r)
+                os.remove(r)
+                print(f"[offer] {dom} -> {reply!r}", flush=True)
+                if is_affirmative(reply):
+                    ok = web.open_on_desktop(url)
+                    say("Opening it now." if ok else
+                        "I couldn't reach your computer. Make sure the desktop helper is running.")
+        resume_recorder()
