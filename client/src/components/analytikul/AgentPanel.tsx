@@ -383,7 +383,7 @@ export default function AgentPanel({ stream }: { stream: AgentStreamApi }) {
     }
   }, [stream.state, refreshGit]);
   const commitProject = useCallback(async () => {
-    const msg = window.prompt('Commit message', 'Analytikul Coder changes');
+    const msg = window.prompt('Commit message', 'Analytikul AI changes');
     if (msg == null) {
       return;
     }
@@ -753,7 +753,7 @@ export default function AgentPanel({ stream }: { stream: AgentStreamApi }) {
                   </button>
                 </div>
                 <p className="mt-1 text-[10px] leading-snug text-text-tertiary">
-                  Agent works in this folder under your Analytikul_Coder workspace.
+                  Agent works in this folder under your Analytikul AI workspace.
                 </p>
               </div>
             )}

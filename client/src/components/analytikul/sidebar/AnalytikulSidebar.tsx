@@ -213,8 +213,8 @@ function AnalytikulSidebar() {
             key={item.id}
             type="button"
             className={cn(
-              'flex w-full items-center space-x-3 rounded-2xl px-2.5 py-2 text-sm transition hover:bg-surface-hover',
-              item.active ? 'bg-surface-active' : '',
+              'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-text-secondary transition hover:bg-surface-hover hover:text-text-primary',
+              item.active ? 'bg-surface-active text-text-primary' : '',
             )}
             onClick={item.onClick}
           >
@@ -225,30 +225,27 @@ function AnalytikulSidebar() {
 
         <button
           type="button"
-          className="flex w-full items-center justify-between rounded-2xl px-2.5 py-2 text-sm transition hover:bg-surface-hover"
+          className="mt-2 flex w-full items-center justify-between px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-text-tertiary transition hover:text-text-secondary"
           aria-expanded={workspaceOpen}
           onClick={() => setWorkspaceOpen((prev) => !prev)}
         >
-          <span className="flex items-center space-x-3">
-            <LayoutGrid size={16} strokeWidth={2} aria-hidden="true" />
-            <span className="translate-y-[0.5px]">{localize('com_atk_sb_workspace')}</span>
-          </span>
+          <span>{localize('com_atk_sb_workspace')}</span>
           <ChevronDown
-            size={14}
-            className={cn('transition-transform', workspaceOpen ? 'rotate-180' : '')}
+            size={13}
+            className={cn('transition-transform', workspaceOpen ? '' : '-rotate-90')}
             aria-hidden="true"
           />
         </button>
         {workspaceOpen && (
-          <div className="ml-3 mt-[1px] flex flex-col border-s border-border-light pl-1">
+          <div className="ml-[18px] mt-px flex flex-col gap-px border-s border-border-light pl-2">
             {workspaceItems.map((item) => (
               <button
                 key={item.id}
                 type="button"
-                className="flex w-full items-center space-x-3 rounded-2xl px-2.5 py-1.5 text-sm text-text-secondary transition hover:bg-surface-hover"
+                className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-text-secondary transition hover:bg-surface-hover hover:text-text-primary"
                 onClick={item.onClick}
               >
-                <item.icon size={14} strokeWidth={2} aria-hidden="true" />
+                <item.icon size={16} strokeWidth={2} aria-hidden="true" />
                 <span>{item.label}</span>
               </button>
             ))}
