@@ -34,8 +34,25 @@ const { ipKeyGenerator } = require('express-rate-limit');
 const requireJwtAuth = require('~/server/middleware/requireJwtAuth');
 const { AgentTrace, Note, Annotation } = require('~/db/models');
 const mongoose = require('mongoose');
+const multer = require('multer');
+const { getAppConfig } = require('~/server/services/Config');
+const { getFileStrategy } = require('~/server/utils/getFileStrategy');
+const { getStrategyFunctions } = require('~/server/services/Files/strategies');
 
 const router = express.Router();
+
+// Notes image uploads: buffered in memory, saved via the configured file
+// strategy (local -> /images/<userId>/..., served statically). Cap at 10 MB.
+const noteImageUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+});
+const NOTE_IMAGE_EXT = new Map([
+  ['image/png', 'png'],
+  ['image/jpeg', 'jpg'],
+  ['image/gif', 'gif'],
+  ['image/webp', 'webp'],
+]);
 
 // Per-route rate limiters. Per-USER (authenticated) is the right key here; IP
 // is a fallback when the request slips in before JWT auth would have run. The IP
@@ -1226,6 +1243,29 @@ router.post('/notes/ai', notesAiLimiter, async (req, res) => {
     logger.error('[analytikul] note ai failed', error);
     const status = error instanceof AdapterError ? error.status : 500;
     res.status(status).json({ message: error.message ?? 'note ai failed' });
+  }
+});
+
+router.post('/notes/image', noteImageUpload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'image file required' });
+    }
+    const ext = NOTE_IMAGE_EXT.get(req.file.mimetype);
+    if (!ext) {
+      return res.status(415).json({ message: 'unsupported image type (png, jpeg, gif, webp)' });
+    }
+    const appConfig =
+      req.config ??
+      (await getAppConfig({ role: req.user?.role, userId: req.user?.id, tenantId: tenantOf(req) }));
+    const fileStrategy = getFileStrategy(appConfig, { isImage: true });
+    const { saveBuffer } = getStrategyFunctions(fileStrategy);
+    const fileName = `note_${Date.now()}_${crypto.randomBytes(6).toString('hex')}.${ext}`;
+    const url = await saveBuffer({ userId: req.user.id, buffer: req.file.buffer, fileName });
+    res.status(201).json({ url });
+  } catch (error) {
+    logger.error('[analytikul] note image upload failed', error);
+    res.status(500).json({ message: 'image upload failed' });
   }
 });
 

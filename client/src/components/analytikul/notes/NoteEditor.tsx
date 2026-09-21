@@ -8,6 +8,7 @@ import StarterKit from '@tiptap/starter-kit';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
 import Placeholder from '@tiptap/extension-placeholder';
+import Image from '@tiptap/extension-image';
 import type { Editor } from '@tiptap/core';
 import { useLocalize, useAuthContext } from '~/hooks';
 import OpenSidebar from '~/components/Chat/Menus/OpenSidebar';
@@ -70,6 +71,47 @@ export default function NoteEditor({
   noteRef.current = note;
   const editorRef = useRef<Editor | null>(null);
 
+  // Upload pasted/dropped images through the file strategy and insert them at
+  // `at` (drop position) or the current selection. Referenced via a ref so the
+  // editorProps handlers always see the current token, not a stale closure.
+  const insertImageFiles = useCallback(
+    async (files: File[], at?: number) => {
+      const active = editorRef.current;
+      const images = files.filter((file) => file.type.startsWith('image/'));
+      if (active == null || images.length === 0) {
+        return;
+      }
+      for (const file of images) {
+        try {
+          const form = new FormData();
+          form.append('image', file);
+          const res = await fetch('/api/analytikul/notes/image', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}` },
+            body: form,
+          });
+          if (!res.ok) {
+            const body = (await res.json().catch(() => null)) as { message?: string } | null;
+            throw new Error(body?.message ?? `Image upload failed (${res.status})`);
+          }
+          const { url } = (await res.json()) as { url: string };
+          const chain = active.chain().focus();
+          if (typeof at === 'number') {
+            chain.insertContentAt(at, { type: 'image', attrs: { src: url } });
+          } else {
+            chain.insertContent({ type: 'image', attrs: { src: url } });
+          }
+          chain.run();
+        } catch (err) {
+          setError(err instanceof Error ? err.message : 'Image upload failed');
+        }
+      }
+    },
+    [token],
+  );
+  const insertImageFilesRef = useRef(insertImageFiles);
+  insertImageFilesRef.current = insertImageFiles;
+
   const headers = useMemo(
     () => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }),
     [token],
@@ -89,6 +131,7 @@ export default function NoteEditor({
       TaskList,
       TaskItem.configure({ nested: true }),
       Placeholder.configure({ placeholder: localize('com_atk_notes_placeholder') }),
+      Image.configure({ inline: false, allowBase64: false }),
     ],
     editorProps: {
       attributes: {
@@ -98,6 +141,14 @@ export default function NoteEditor({
       // Paste markdown as rich text (Open WebUI parity). Real HTML pastes (from
       // rendered sources) fall through to ProseMirror's default handling.
       handlePaste: (_view, event) => {
+        const files = event.clipboardData?.files;
+        if (files != null && files.length > 0) {
+          const images = Array.from(files).filter((file) => file.type.startsWith('image/'));
+          if (images.length > 0) {
+            void insertImageFilesRef.current(images);
+            return true;
+          }
+        }
         const html = event.clipboardData?.getData('text/html') ?? '';
         if (html.trim() !== '') {
           return false;
@@ -108,6 +159,21 @@ export default function NoteEditor({
           return false;
         }
         active.chain().focus().insertContent(markdownToHtml(text)).run();
+        return true;
+      },
+      // Drag-and-drop image import: upload each image and insert at the drop point.
+      handleDrop: (view, event) => {
+        const files = (event as DragEvent).dataTransfer?.files;
+        if (files == null || files.length === 0) {
+          return false;
+        }
+        const images = Array.from(files).filter((file) => file.type.startsWith('image/'));
+        if (images.length === 0) {
+          return false;
+        }
+        const dropEvent = event as DragEvent;
+        const coords = view.posAtCoords({ left: dropEvent.clientX, top: dropEvent.clientY });
+        void insertImageFilesRef.current(images, coords?.pos);
         return true;
       },
     },

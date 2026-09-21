@@ -61,6 +61,7 @@
     "@react-spring/web": "^9.7.5",
     "@tanstack/react-query": "^4.28.0",
     "@tanstack/react-table": "^8.11.7",
+    "@tiptap/extension-image": "^3.26.1",
     "@tiptap/extension-link": "^3.26.1",
     "@tiptap/extension-placeholder": "^3.26.1",
     "@tiptap/extension-task-item": "^3.26.1",
