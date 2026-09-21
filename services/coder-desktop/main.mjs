@@ -67,7 +67,7 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 920,
-    title: 'Analytikul Coder',
+    title: 'Analytikul AI',
     backgroundColor: '#0b1020',
     webPreferences: {
       contextIsolation: true,

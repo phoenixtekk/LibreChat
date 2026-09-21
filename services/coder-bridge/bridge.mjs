@@ -103,16 +103,19 @@ function isInside(parent, child) {
   return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
 }
 
-function projectDir(bin, project) {
+function projectDir(bin, project, create = false) {
   const name = PROJECT_RE.test(project || '') ? project : 'default';
   const dir = path.resolve(bin, name);
   if (!isInside(bin, dir)) throw new Error('project escapes workspace');
-  fs.mkdirSync(dir, { recursive: true });
+  // Only materialize the folder on an actual write. Read/status ops (tree, git-status,
+  // read_file, search) must never create it — otherwise typing a project name into the UI
+  // leaves a trail of phantom folders, one per keystroke.
+  if (create) fs.mkdirSync(dir, { recursive: true });
   return dir;
 }
 
-function resolveInProject(bin, project, rel) {
-  const base = projectDir(bin, project);
+function resolveInProject(bin, project, rel, create = false) {
+  const base = projectDir(bin, project, create);
   const full = path.resolve(base, rel || '.');
   if (!isInside(base, full)) throw new Error('path escapes project');
   return { base, full };
@@ -155,7 +158,7 @@ async function executeTool(bin, tool, rawArgs, project, permissionMode) {
       if (!p) return err('write_file: path required');
       const content = typeof args.content === 'string' ? args.content : '';
       if (isPlan) return `[plan] would write ${content.length} chars to ${p} (no changes made)`;
-      const { full } = resolveInProject(bin, project, p);
+      const { full } = resolveInProject(bin, project, p, true);
       fs.mkdirSync(path.dirname(full), { recursive: true });
       fs.writeFileSync(full, content);
       return `Wrote ${Buffer.byteLength(content)} bytes to ${p}`;
@@ -177,7 +180,7 @@ async function executeTool(bin, tool, rawArgs, project, permissionMode) {
       const command = pick(args, 'command', 'cmd', 'input');
       if (!command) return err('terminal: command required');
       if (isPlan) return `[plan] would run: ${command} (no execution)`;
-      const { base } = resolveInProject(bin, project, '.');
+      const { base } = resolveInProject(bin, project, '.', true);
       const r = await runExec(base, command);
       let text = r.stdout;
       if (r.stderr) text += (text ? '\n' : '') + `[stderr]\n${r.stderr}`;
@@ -189,6 +192,7 @@ async function executeTool(bin, tool, rawArgs, project, permissionMode) {
       const where = pick(args, 'path', 'dir') || '.';
       if (!pattern) return err('search_files: query/pattern required');
       const { base } = resolveInProject(bin, project, '.');
+      if (!fs.existsSync(base)) return '(no matches)';
       const command =
         process.platform === 'win32'
           ? `findstr /s /n /i /c:"${pattern.replace(/"/g, '')}" "${where}\\*"`
@@ -234,6 +238,7 @@ function fsHandle(bin, op, project, relPath) {
     }
     if (op === 'tree') {
       const { base } = resolveInProject(bin, project, '.');
+      if (!fs.existsSync(base)) return JSON.stringify({ entries: [] });
       const entries = [];
       flatWalk(base, base, entries, 8);
       return JSON.stringify({ entries });
@@ -252,8 +257,9 @@ function fsHandle(bin, op, project, relPath) {
 
 async function gitHandle(bin, op, project, message) {
   try {
-    const { base } = resolveInProject(bin, project, '.');
     if (op === 'git-status') {
+      const { base } = resolveInProject(bin, project, '.');
+      if (!fs.existsSync(base)) return JSON.stringify({ isRepo: false });
       const branchR = await runExec(base, 'git rev-parse --abbrev-ref HEAD');
       if (branchR.exitCode !== 0) {
         return JSON.stringify({ isRepo: false });
@@ -274,15 +280,16 @@ async function gitHandle(bin, op, project, message) {
       return JSON.stringify({ isRepo: true, branch, added, removed, dirty });
     }
     if (op === 'git-commit') {
+      const { base } = resolveInProject(bin, project, '.', true);
       const inside = await runExec(base, 'git rev-parse --is-inside-work-tree');
       if (inside.exitCode !== 0) {
         await runExec(base, 'git init');
       }
       await runExec(base, 'git add -A');
-      const msg = String(message || 'Analytikul Coder commit').replace(/["\r\n]/g, "'").slice(0, 200);
+      const msg = String(message || 'Analytikul AI commit').replace(/["\r\n]/g, "'").slice(0, 200);
       const commitR = await runExec(
         base,
-        `git -c user.email=coder@analytikul.ai -c user.name="Analytikul Coder" commit -m "${msg}"`,
+        `git -c user.email=coder@analytikul.ai -c user.name="Analytikul AI" commit -m "${msg}"`,
       );
       return JSON.stringify({
         ok: commitR.exitCode === 0,
@@ -341,7 +348,7 @@ async function main() {
     console.error('then run:  CODER_BRIDGE_PAIR=<code> node bridge.mjs\n');
     process.exit(2);
   }
-  console.log(`\n  Analytikul Coder — Local Bridge v${VERSION}`);
+  console.log(`\n  Analytikul AI — Local Bridge v${VERSION}`);
   console.log(`  workspace : ${bin}`);
   console.log(`  server    : ${SERVER}`);
   console.log(`  paired    : ${CODE.slice(0, 6)}…  — waiting for agent tool calls\n`);

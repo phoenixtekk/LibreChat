@@ -2,7 +2,7 @@
   "name": "@analytikul/coder-desktop",
   "version": "0.1.0",
   "private": true,
-  "description": "Analytikul Coder desktop shell — a native window for the Analytikul web app that bundles and auto-starts the local bridge.",
+  "description": "Analytikul AI desktop shell — a native window for the Analytikul web app that bundles and auto-starts the local bridge.",
   "type": "module",
   "main": "main.mjs",
   "scripts": {
@@ -15,7 +15,7 @@
   },
     "build": {
     "appId": "ai.analytikul.coder",
-    "productName": "Analytikul Coder",
+    "productName": "Analytikul AI",
     "files": [
       "main.mjs",
       "preload.cjs"
