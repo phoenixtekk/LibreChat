@@ -36,9 +36,27 @@ verify; `f6fc6707f` Notes image paste/drop; `7d353e9ca` **Hermes re-vendor v0.16
 - **Bot Mode = a Hermes profile** (`profiles.*`, `message_agent`, `groups.*` rooms, `cron.manage`)
   over the **tui_gateway WS `/api/ws`**. The deployed `analytikul-openclaw` is `openclaw:2026.7.1-2`
   (pre-Bot-Mode) — hence the new gateway from our own tree.
-- **Remaining (S4/S5):** routines + rooms UI (need `cron.manage`/`groups.*` **return shapes** verified
-  vs a live gateway — don't guess), bot chat (broker needs stream relay), and per-bot FinOps/vault/org
-  (needs a bot→tenant/budget mapping decision). **Gateway stand-up runbook is in the plan doc §6a.**
+- **S4/S5 BUILT + pushed** (`0919dd870`): routines (`cron.manage`), rooms (`groups.*` list/create/
+  state/log), poll-based bot chat (`session.resume`+`prompt.submit`), org-shared toggle, per-bot
+  provider pin — all against **source-read** v0.21.5 return shapes. Deferred (needs live gateway):
+  chat token-streaming (broker SSE relay), user-injected room msgs (`groups.send` payload), per-bot
+  FinOps data feed.
+
+**⚠ DEPLOY TOPOLOGY CORRECTION (2026-09-29 pre-flight) — supersedes the plan doc's prod.yml refs:**
+Prod on CT201 runs from the **host-only `docker-compose.aibox.yml`** (+ `.env.aibox`), and
+`/opt/analytikul` is a **git-archive of `feature/analytikul-coder`, NOT a git repo** (no `git pull`).
+Deploy = copy files into `/opt/analytikul` → `docker build -t analytikul-hermes:coder` /
+`analytikul-app:coder` → `docker compose -p analytikul -f docker-compose.aibox.yml up -d
+--force-recreate <svc>` (force-recreate RACES the build — verify the running image id changed).
+`docker-compose.prod.yml` (build-based) is NOT what prod uses. **Now reconciled:** the authoritative
+`docker-compose.aibox.yml` is vendored into the repo with the `hermes-gateway` service added.
+
+**DEPLOY WINDOW = ARMED, on explicit "deploy now" (owner chose additive+verify, stop before prod swap):**
+`scripts/standup-hermes-gateway.sh` (dev-box driver, uses the linuxg6→ai jump). Additive: git-archive
+syncs v0.21.5 → /opt/analytikul, rebuilds `analytikul-hermes:coder` (tags rollback), brings up ONLY
+`hermes-gateway` (no app/adapter recreate), provisions `HERMES_GATEWAY_TOKEN` in `.env.aibox`, verifies
+(container health + `hermes profile list` + `:9119`). Prints — does NOT run — the gated prod-swap steps
+(rebuild+recreate `app` with `HERMES_GATEWAY_URL`, then `hermes-adapter` to v0.21.5). Not yet executed.
 
 **Shipped this session (server-side, verified live):**
 - **qwen3-coder web-search crash FIXED.** `qwen3-coder:30b` leaks XML tool calls in Ollama
