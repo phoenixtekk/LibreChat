@@ -1,0 +1,12 @@
+# Never let host secrets or runtime state into the repo if someone rsyncs
+# /opt/voice back over this directory.
+bridge.token
+token.txt
+voice.conf
+presets.json
+*.log
+*.wav
+venv/
+models/
+samples/
+__pycache__/

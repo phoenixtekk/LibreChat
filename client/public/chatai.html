@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Talk to Analytikul</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #04060c; --ink: #eaf1f8; --muted: #93a0b8; --faint: #525d75;
+    --blue: #18a8da; --blue-bright: #38d2ef; --violet: #6a32c0;
+    --line: rgba(56, 178, 224, 0.16); --card: rgba(255, 255, 255, 0.03);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font-family: 'Inter', system-ui, sans-serif; font-weight: 300;
+    overflow: hidden; -webkit-font-smoothing: antialiased;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    min-height: 100dvh;
+  }
+  #stars { position: fixed; inset: 0; z-index: 0; }
+  .glow-field { position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background:
+      radial-gradient(42vw 42vw at 50% 34%, rgba(24,108,170,0.14), transparent 70%),
+      radial-gradient(44vw 44vw at 78% 66%, rgba(106,50,192,0.10), transparent 72%); }
+
+  main { position: relative; z-index: 2; width: min(760px, 92vw);
+    display: flex; flex-direction: column; align-items: center; gap: 22px; }
+
+  /* ---- the talking face ---- */
+  .stage { position: relative; width: min(300px, 62vw); aspect-ratio: 1; }
+  .halo { position: absolute; inset: -12%; border-radius: 50%; z-index: 0;
+    background: radial-gradient(circle at 50% 42%, rgba(56,210,239,0.28), rgba(106,50,192,0.14) 46%, transparent 70%);
+    filter: blur(14px); animation: breathe 6s ease-in-out infinite; }
+  @keyframes breathe { 0%,100% { transform: scale(1); opacity: .7; } 50% { transform: scale(1.05); opacity: 1; } }
+  .portrait-wrap { position: relative; width: 100%; height: 100%; border-radius: 50%;
+    overflow: hidden; z-index: 1; border: 1px solid var(--line);
+    box-shadow: 0 24px 70px rgba(4,10,24,.6), 0 0 60px rgba(24,168,218,.18); }
+  #portrait { width: 100%; height: 100%; object-fit: cover; display: block;
+    transform-origin: 50% 62%; transition: transform .08s linear; }
+  /* placeholder amplitude "mouth" glow until the real lip-sync sprites land */
+  .speak-pulse { position: absolute; left: 50%; bottom: 20%; transform: translateX(-50%);
+    width: 40%; height: 6%; border-radius: 50%; z-index: 2; opacity: 0; pointer-events: none;
+    background: radial-gradient(ellipse, rgba(56,210,239,.55), transparent 70%); filter: blur(6px); }
+  .name { font-family: 'Space Grotesk', sans-serif; font-weight: 600; letter-spacing: .18em;
+    text-transform: uppercase; font-size: 13px; color: var(--blue-bright);
+    display: flex; align-items: center; gap: 9px; }
+  .name .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--blue-bright);
+    box-shadow: 0 0 10px var(--blue-bright); }
+  .name .dot.speaking { animation: blink 1s steps(2) infinite; }
+  @keyframes blink { 50% { opacity: .3; } }
+
+  /* ---- caption band: grows to max 100px, text scrolls up and fades at the top ---- */
+  .caption {
+    width: 100%; max-width: 620px; height: 0; max-height: 100px; overflow: hidden;
+    transition: height .25s ease; position: relative;
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 42%, #000 100%);
+    mask-image: linear-gradient(to bottom, transparent 0%, #000 42%, #000 100%);
+  }
+  .caption.active { height: 100px; }
+  .caption-inner { position: absolute; bottom: 0; left: 0; right: 0;
+    padding: 0 8px; text-align: center; font-size: 17px; line-height: 1.55; color: var(--ink);
+    font-weight: 300; }
+  .caption-inner .cursor { display: inline-block; width: 2px; height: 1em; margin-left: 2px;
+    background: var(--blue-bright); vertical-align: text-bottom; animation: caret 1s steps(2) infinite; }
+  @keyframes caret { 50% { opacity: 0; } }
+
+  /* ---- input ---- */
+  .composer { width: 100%; max-width: 620px; display: flex; align-items: center; gap: 10px;
+    background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+    padding: 8px 8px 8px 18px; box-shadow: 0 10px 40px rgba(4,10,24,.5); }
+  .composer input { flex: 1; background: transparent; border: 0; outline: 0; color: var(--ink);
+    font-family: inherit; font-size: 16px; font-weight: 300; }
+  .composer input::placeholder { color: var(--faint); }
+  .iconbtn { flex: 0 0 auto; width: 40px; height: 40px; border-radius: 12px; border: 1px solid var(--line);
+    background: transparent; color: var(--muted); cursor: pointer; display: grid; place-items: center;
+    transition: all .18s ease; }
+  .iconbtn:hover { color: var(--blue-bright); border-color: var(--blue); }
+  .iconbtn.send { background: linear-gradient(180deg, var(--blue-bright), var(--blue)); color: #021019; border: 0; }
+  .iconbtn.muted { color: var(--faint); }
+  .hint { color: var(--faint); font-size: 12px; letter-spacing: .04em; }
+  .gate { color: var(--muted); font-size: 15px; text-align: center; }
+  .gate a { color: var(--blue-bright); text-decoration: none; }
+</style>
+</head>
+<body>
+<canvas id="stars"></canvas>
+<div class="glow-field"></div>
+
+<main id="app" hidden>
+  <div class="stage">
+    <div class="halo"></div>
+    <div class="portrait-wrap">
+      <img id="portrait" src="/assets/Analytikul.png" alt="Analytikul" />
+      <div class="speak-pulse" id="speakPulse"></div>
+    </div>
+  </div>
+  <div class="name"><span class="dot" id="statusDot"></span> <span id="statusText">Analytikul</span></div>
+
+  <div class="caption" id="caption"><div class="caption-inner" id="captionInner"></div></div>
+
+  <form class="composer" id="composer" autocomplete="off">
+    <input id="msg" placeholder="Say something to Analytikul…" autofocus />
+    <button type="button" class="iconbtn" id="muteBtn" title="Mute voice" aria-label="Mute voice">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M4 9v6h4l5 4V5L8 9H4Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M16 9c1.2 1 1.2 5 0 6M18.5 7c2.5 2 2.5 8 0 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+    </button>
+    <button type="submit" class="iconbtn send" title="Send" aria-label="Send">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M5 12h13M12 5l7 7-7 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+  </form>
+  <div class="hint">Always-on voice · Analytikul speaks her replies</div>
+</main>
+
+<div id="gate" class="gate" hidden>
+  <p>Please <a id="loginLink" href="/login">sign in</a> to talk to Analytikul.</p>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const app = $('app'), gate = $('gate');
+  let TOKEN = null, muted = false, busy = false;
+
+  // ---- auth: exchange the login cookie for a bearer token ----
+  async function getToken() {
+    try {
+      const r = await fetch('/api/auth/refresh', { method: 'POST', credentials: 'include' });
+      if (!r.ok) return null;
+      const d = await r.json().catch(() => ({}));
+      return d && d.token ? d.token : null;
+    } catch { return null; }
+  }
+
+  // ---- caption: type-and-fade rolling band (max 100px) ----
+  const caption = $('caption'), captionInner = $('captionInner');
+  let captionText = '';
+  function resetCaption() { captionText = ''; captionInner.textContent = ''; }
+  function pushCaption(chunk, withCursor) {
+    caption.classList.add('active');
+    captionText += chunk;
+    captionInner.innerHTML = escapeHtml(captionText) + (withCursor ? '<span class="cursor"></span>' : '');
+  }
+  function escapeHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+  // ---- placeholder "speaking" animation (amplitude mouth pulse + subtle head bob) ----
+  const portrait = $('portrait'), speakPulse = $('speakPulse'), statusDot = $('statusDot'), statusText = $('statusText');
+  let anim = null;
+  function setSpeaking(on) {
+    statusDot.classList.toggle('speaking', on);
+    statusText.textContent = on ? 'Speaking…' : 'Analytikul';
+    if (!on) { speakPulse.style.opacity = 0; portrait.style.transform = 'scale(1)'; }
+  }
+  // Drive the pulse from a live audio element via Web Audio (used once TTS is wired).
+  function animateFromAudio(audio) {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const src = ctx.createMediaElementSource(audio);
+      const an = ctx.createAnalyser(); an.fftSize = 256;
+      src.connect(an); an.connect(ctx.destination);
+      const data = new Uint8Array(an.frequencyBinCount);
+      const loop = () => {
+        an.getByteFrequencyData(data);
+        let sum = 0; for (let i = 0; i < 40; i++) sum += data[i];
+        const level = Math.min(1, (sum / 40) / 140);
+        speakPulse.style.opacity = 0.2 + level * 0.8;
+        speakPulse.style.transform = 'translateX(-50%) scaleY(' + (0.6 + level * 2.2) + ')';
+        portrait.style.transform = 'scale(' + (1 + level * 0.012) + ')';
+        anim = requestAnimationFrame(loop);
+      };
+      loop();
+      audio.addEventListener('ended', () => { cancelAnimationFrame(anim); setSpeaking(false); });
+    } catch (e) { /* animation is best-effort */ }
+  }
+
+  // ---- voice: server-proxied ElevenLabs (graceful no-op until the key is configured) ----
+  async function speak(text) {
+    if (muted || !text.trim()) return;
+    try {
+      const r = await fetch('/api/files/speech/tts/manual', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + TOKEN },
+        body: JSON.stringify({ input: text }),
+      });
+      if (!r.ok) return; // no TTS provider configured yet -> stay silent, text still shows
+      const blob = await r.blob();
+      const audio = new Audio(URL.createObjectURL(blob));
+      setSpeaking(true);
+      animateFromAudio(audio);
+      await audio.play().catch(() => setSpeaking(false));
+    } catch { setSpeaking(false); }
+  }
+
+  // ---- reply stream (SSE from the dedicated /chatai conversational endpoint) ----
+  const CONVO_ID = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()));
+  const history = [];
+  async function ask(message) {
+    resetCaption();
+    let full = '';
+    const res = await fetch('/api/analytikul/chatai', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + TOKEN },
+      body: JSON.stringify({ message, conversationId: CONVO_ID, history }),
+    });
+    if (!res.ok || !res.body) { pushCaption('(Analytikul is unavailable right now.)', false); return ''; }
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const frames = buf.split('\n\n'); buf = frames.pop() || '';
+      for (const f of frames) {
+        const line = f.split('\n').find((l) => l.startsWith('data:'));
+        if (!line) continue;
+        let evt; try { evt = JSON.parse(line.slice(5).trim()); } catch { continue; }
+        if (evt.token) { full += evt.token; pushCaption(evt.token, true); }
+        else if (evt.done) { captionInner.innerHTML = escapeHtml(full); }
+        else if (evt.error) { pushCaption(' (' + evt.error + ')', false); }
+      }
+    }
+    return full;
+  }
+
+  // ---- submit flow ----
+  $('composer').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const input = $('msg'); const message = input.value.trim();
+    if (!message || busy) return;
+    busy = true; input.value = ''; input.disabled = true;
+    statusText.textContent = 'Thinking…';
+    try {
+      const reply = await ask(message);
+      history.push({ role: 'user', content: message }, { role: 'assistant', content: reply });
+      if (history.length > 20) history.splice(0, history.length - 20);
+      await speak(reply);
+    } finally {
+      busy = false; input.disabled = false; input.focus();
+      if (!statusDot.classList.contains('speaking')) statusText.textContent = 'Analytikul';
+    }
+  });
+
+  $('muteBtn').addEventListener('click', () => {
+    muted = !muted;
+    $('muteBtn').classList.toggle('muted', muted);
+    $('muteBtn').title = muted ? 'Unmute voice' : 'Mute voice';
+  });
+
+  // ---- starfield ----
+  (function stars() {
+    const c = $('stars'), x = c.getContext('2d'); let w, h, st;
+    function init() { w = c.width = innerWidth; h = c.height = innerHeight;
+      st = Array.from({ length: Math.min(360, (w * h / 5200) | 0) }, () => ({
+        x: Math.random() * w, y: Math.random() * h, r: Math.random() * 1.1 + 0.2,
+        a: Math.random() * 0.5 + 0.1, t: Math.random() * 6.28, s: Math.random() * 0.02 + 0.004 })); }
+    function draw() { x.clearRect(0, 0, w, h);
+      for (const s of st) { s.t += s.s; const tw = s.a * (0.5 + 0.5 * Math.sin(s.t));
+        x.beginPath(); x.arc(s.x, s.y, s.r, 0, 6.28); x.fillStyle = 'rgba(200,225,248,' + tw + ')'; x.fill(); }
+      requestAnimationFrame(draw); }
+    init(); draw(); addEventListener('resize', init);
+  })();
+
+  // ---- boot ----
+  (async function boot() {
+    TOKEN = await getToken();
+    if (!TOKEN) {
+      $('loginLink').href = '/login?redirect=' + encodeURIComponent('/chatai');
+      gate.hidden = false; return;
+    }
+    app.hidden = false;
+    $('msg').focus();
+  })();
+})();
+</script>
+</body>
+</html>

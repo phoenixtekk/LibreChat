@@ -1,0 +1,1104 @@
+/* ============================================================================
+   Analytikul theme system — loaded AFTER LibreChat's style.css.
+   8 paired skins (4 families × light/dark) + 6 accent palettes.
+
+   How it works: LibreChat derives every surface/border/text color from the
+   --gray-* ramp in style.css. Each skin re-tints that ramp once on
+   html[data-skin='…']; the existing light/dark toggle (.dark class) then
+   produces the paired variant automatically. Accents override the submit/brand
+   variables on html[data-accent='…'].
+
+   This file is the ONLY place hex literals are allowed on the client
+   (enforced by the analytikul/no-hardcoded-color ESLint rule).
+   ========================================================================== */
+
+/* ----- Skin: aurora — deep navy-black, cool blue-tinted ramp (default) ---- */
+html[data-skin='aurora'] {
+  --gray-20: #e8ecf4;
+  --gray-50: #f4f6fb;
+  --gray-100: #e9edf5;
+  --gray-200: #dde2ee;
+  --gray-300: #c3cadd;
+  --gray-400: #8e96b0;
+  --gray-500: #555e7b;
+  --gray-600: #3c445f;
+  --gray-700: #2a3148;
+  --gray-800: #1d2235;
+  --gray-850: #151929;
+  --gray-900: #0c0f1d;
+}
+
+/* ----- Skin: ember — warm charcoal / cream, amber-leaning ramp ------------ */
+html[data-skin='ember'] {
+  --gray-20: #f2ede6;
+  --gray-50: #faf6f0;
+  --gray-100: #f1ebe2;
+  --gray-200: #e7dfd3;
+  --gray-300: #d2c7b6;
+  --gray-400: #a39684;
+  --gray-500: #6b6155;
+  --gray-600: #4d453c;
+  --gray-700: #38322b;
+  --gray-800: #272320;
+  --gray-850: #1c1917;
+  --gray-900: #121110;
+}
+
+/* ----- Skin: verdant — slate-green tint --------------------------------- */
+html[data-skin='verdant'] {
+  --gray-20: #e8f0ec;
+  --gray-50: #f3f8f5;
+  --gray-100: #e8f0eb;
+  --gray-200: #dbe7e0;
+  --gray-300: #c0d2c8;
+  --gray-400: #8da89a;
+  --gray-500: #57705f;
+  --gray-600: #3f5347;
+  --gray-700: #2d3c33;
+  --gray-800: #202b25;
+  --gray-850: #171f1a;
+  --gray-900: #0e1411;
+}
+
+/* ----- Skin: slate — LibreChat's stock neutral ramp, stated explicitly ---- */
+html[data-skin='slate'] {
+  --gray-20: #ececf1;
+  --gray-50: #f7f7f8;
+  --gray-100: #ececec;
+  --gray-200: #e3e3e3;
+  --gray-300: #cdcdcd;
+  --gray-400: #999696;
+  --gray-500: #595959;
+  --gray-600: #424242;
+  --gray-700: #2f2f2f;
+  --gray-800: #212121;
+  --gray-850: #171717;
+  --gray-900: #0d0d0d;
+}
+
+/* ----- Accents: drive submit buttons, brand highlights, focus rings ------- */
+html[data-accent='indigo'] {
+  --accent-400: #818cf8;
+  --accent-500: #6366f1;
+  --accent-600: #4f46e5;
+  --accent-700: #4338ca;
+}
+html[data-accent='amber'] {
+  --accent-400: #fbbf24;
+  --accent-500: #f59e0b;
+  --accent-600: #d97706;
+  --accent-700: #b45309;
+}
+html[data-accent='emerald'] {
+  --accent-400: #34d399;
+  --accent-500: #10b981;
+  --accent-600: #059669;
+  --accent-700: #047857;
+}
+html[data-accent='rose'] {
+  --accent-400: #fb7185;
+  --accent-500: #f43f5e;
+  --accent-600: #e11d48;
+  --accent-700: #be123c;
+}
+html[data-accent='cyan'] {
+  --accent-400: #22d3ee;
+  --accent-500: #06b6d4;
+  --accent-600: #0891b2;
+  --accent-700: #0e7490;
+}
+html[data-accent='violet'] {
+  --accent-400: #a78bfa;
+  --accent-500: #8b5cf6;
+  --accent-600: #7c3aed;
+  --accent-700: #6d28d9;
+}
+
+/* Analytikul brand blue (from the logo / Alogo2.png). Pinned unconditionally
+ * so the Continue / submit buttons stay on-brand instead of flipping between
+ * LibreChat's green and whatever data-accent palette was last applied. */
+:root,
+html,
+html[data-accent] {
+  --brand-blue: #18a8da;
+  --brand-blue-bright: #38d2ef;
+  --brand-blue-deep: #0c5996;
+  --brand-purple: var(--brand-blue-bright);
+  --surface-submit: var(--brand-blue);
+  --surface-submit-hover: var(--brand-blue-deep);
+  --ring-primary: var(--brand-blue-bright);
+}
+html.dark,
+html[data-accent].dark {
+  --surface-submit: var(--brand-blue);
+  --surface-submit-hover: var(--brand-blue-bright);
+}
+
+/* ============================================================================
+   Analytikul component styles (CSS variables only below this line)
+   ========================================================================== */
+
+.atk-command-palette-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgb(0 0 0 / 0.45);
+  backdrop-filter: blur(2px);
+}
+
+.atk-command-palette {
+  position: fixed;
+  left: 50%;
+  top: 18%;
+  z-index: 1001;
+  width: min(640px, calc(100vw - 2rem));
+  transform: translateX(-50%);
+  border: 1px solid var(--border-medium);
+  border-radius: 0.75rem;
+  background: var(--surface-dialog);
+  color: var(--text-primary);
+  box-shadow: 0 24px 64px rgb(0 0 0 / 0.35);
+  overflow: hidden;
+}
+
+.atk-command-palette input {
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid var(--border-light);
+  background: transparent;
+  color: var(--text-primary);
+  padding: 0.875rem 1rem;
+  font-size: var(--font-size-base);
+  outline: none;
+}
+
+.atk-command-palette-list {
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 0.375rem;
+}
+
+.atk-command-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  border-radius: 0.5rem;
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  text-align: left;
+  cursor: pointer;
+}
+.atk-command-item[data-active='true'] {
+  background: var(--surface-active);
+}
+.atk-command-item .atk-command-hint {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+}
+
+.atk-preview-rail {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 900;
+  height: 100dvh;
+  width: min(440px, 92vw); /* fallback; inline style overrides on desktop */
+  max-width: 92vw;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--border-medium);
+  background: var(--surface-primary-alt);
+  color: var(--text-primary);
+  box-shadow: -16px 0 48px rgb(0 0 0 / 0.25);
+  transform: translateX(100%);
+  transition: transform 240ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* Resize handle on the left edge. Wide hit area, thin visual line.
+ * Double-click resets to the minimum width. */
+.atk-preview-rail-resizer {
+  position: absolute;
+  left: -3px;
+  top: 0;
+  bottom: 0;
+  width: 10px;
+  cursor: col-resize;
+  z-index: 1;
+  touch-action: none;
+  /* Subtle accent on hover/drag so users see the affordance. */
+  background: transparent;
+  transition: background-color 140ms ease;
+}
+.atk-preview-rail-resizer:hover,
+.atk-preview-rail-resizer:focus-visible {
+  background: linear-gradient(
+    to right,
+    transparent 0%,
+    var(--blue-bright, #38d2ef) 50%,
+    transparent 100%
+  );
+  background-size: 100% 40%;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+.atk-preview-rail[data-open='true'] {
+  transform: translateX(0);
+}
+
+/* Mobile: bottom sheet instead of side rail */
+@media (max-width: 768px) {
+  .atk-preview-rail {
+    top: auto;
+    bottom: 0;
+    height: 60dvh;
+    width: 100vw !important; /* override inline width from desktop drag */
+    max-width: 100vw;
+    border-left: 0;
+    border-top: 1px solid var(--border-medium);
+    transform: translateY(100%);
+  }
+  .atk-preview-rail[data-open='true'] {
+    transform: translateY(0);
+  }
+  .atk-preview-rail-resizer {
+    display: none;
+  }
+}
+
+.atk-preview-rail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.625rem 0.875rem;
+  border-bottom: 1px solid var(--border-light);
+  background: var(--surface-secondary);
+}
+
+.atk-preview-rail-tabs {
+  display: flex;
+  gap: 0.25rem;
+}
+.atk-preview-rail-tab {
+  padding: 0.3rem 0.7rem;
+  border-radius: 0.45rem;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.atk-preview-rail-tab[data-active='true'] {
+  background: var(--surface-active);
+  color: var(--text-primary);
+}
+
+.atk-preview-rail-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.875rem;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.atk-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 0.5rem;
+  text-align: center;
+  color: var(--text-tertiary);
+}
+
+kbd.atk-kbd {
+  border: 1px solid var(--border-medium);
+  border-bottom-width: 2px;
+  border-radius: 0.3rem;
+  background: var(--surface-tertiary);
+  color: var(--text-secondary);
+  padding: 0.05rem 0.35rem;
+  font-size: var(--font-size-xs);
+  font-family: inherit;
+}
+
+/* ============================================================================
+   Notes editor — tight lists (Open WebUI parity).
+   TipTap wraps each list item's content in a <p>, which otherwise inherits the
+   full prose paragraph margin (~20px), stacking on the <li> margin and leaving
+   big gaps between bullets. Zero the inner <p> margins and tighten <li> spacing.
+   Scoped to .atk-note-prose so no other editor is affected.
+   ========================================================================== */
+/* Reading width is controlled by the note wrapper (default vs full), so the prose
+   itself must fill it — override Tailwind Typography's 65ch cap. */
+.atk-note-prose {
+  max-width: none !important;
+}
+/* Headings one size smaller than the prose default (owner request): each heading
+   drops to roughly the next-smaller heading's size. */
+.atk-note-prose h1 {
+  font-size: 1.5em;
+}
+.atk-note-prose h2 {
+  font-size: 1.25em;
+}
+.atk-note-prose h3 {
+  font-size: 1.1em;
+}
+.atk-note-prose h4 {
+  font-size: 0.95em;
+}
+.atk-note-prose h5,
+.atk-note-prose h6 {
+  font-size: 0.85em;
+}
+.atk-note-prose li > p {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+.atk-note-prose li {
+  margin-top: 0.15em;
+  margin-bottom: 0.15em;
+}
+.atk-note-prose ul,
+.atk-note-prose ol {
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+}
+.atk-note-prose ul ul,
+.atk-note-prose ul ol,
+.atk-note-prose ol ul,
+.atk-note-prose ol ol {
+  margin-top: 0.15em;
+  margin-bottom: 0.15em;
+}
+
+/* -------- Annotations (Diigo-style highlights) -------- */
+
+/* Yellow highlight on saved annotations. Inherits color so message text stays
+ * readable in both light and dark modes. */
+mark.atk-annotation {
+  background-color: rgba(250, 204, 21, 0.45);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 2px;
+  cursor: pointer;
+  transition: background-color 140ms ease;
+}
+mark.atk-annotation:hover {
+  background-color: rgba(250, 204, 21, 0.6);
+}
+.dark mark.atk-annotation {
+  background-color: rgba(250, 204, 21, 0.32);
+}
+.dark mark.atk-annotation:hover {
+  background-color: rgba(250, 204, 21, 0.48);
+}
+
+/* Brief pulse after jump-to-annotation navigation. */
+@keyframes atkAnnotationPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(250, 204, 21, 0); }
+  20%      { box-shadow: 0 0 0 6px rgba(250, 204, 21, 0.55); }
+  60%      { box-shadow: 0 0 0 3px rgba(250, 204, 21, 0.25); }
+}
+mark.atk-annotation.pulse,
+mark.atk-annotation.atk-transient {
+  animation: atkAnnotationPulse 2.4s ease-out;
+}
+
+/* Transient paragraph indicator — left-border accent + soft background glow
+ * applied to the containing <p>/<li>/<blockquote> for ~2.5s after jump. */
+@keyframes atkParagraphGlow {
+  0%   { box-shadow: inset 4px 0 0 0 rgba(250, 204, 21, 0); background-color: transparent; }
+  15%  { box-shadow: inset 4px 0 0 0 rgba(250, 204, 21, 0.9); background-color: rgba(250, 204, 21, 0.10); }
+  100% { box-shadow: inset 4px 0 0 0 rgba(250, 204, 21, 0); background-color: transparent; }
+}
+.atk-paragraph-pulse {
+  animation: atkParagraphGlow 2.6s ease-out;
+  border-radius: 4px;
+}
+
+/* Floating chip near the snippet — says "Saved: …" or the note text.
+ * Fixed-position; pointer-events none; auto-removed after ~3s. */
+.atk-annotation-chip {
+  position: fixed;
+  z-index: 9999;
+  max-width: 320px;
+  padding: 7px 12px;
+  border-radius: 6px;
+  background: rgba(250, 204, 21, 0.98);
+  color: #1f1f1f;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.3;
+  border: 1px solid rgba(120, 80, 0, 0.35);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+  pointer-events: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0;
+  animation: atkChipShow 3s ease-out forwards;
+}
+@keyframes atkChipShow {
+  0%   { opacity: 0; transform: translateY(4px); }
+  12%  { opacity: 1; transform: translateY(0); }
+  82%  { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-4px); }
+}
+.dark .atk-annotation-chip {
+  background: rgba(250, 204, 21, 0.92);
+  color: #1f1f1f;
+}
+
+/* Second-column panel — a flex sibling between the left sidebar and the
+ * main content (sits in normal flow, so the chat shifts right when open
+ * instead of being covered). Width animates 0 → 320px. */
+.atk-annotations-panel {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  width: 0;
+  background: var(--surface-primary-alt);
+  color: var(--text-primary);
+  border-right: 1px solid transparent;
+  transition: width 280ms cubic-bezier(0.2, 0, 0, 1),
+              border-color 280ms cubic-bezier(0.2, 0, 0, 1);
+}
+.atk-annotations-panel[data-open='true'] {
+  width: 320px;
+  border-right-color: var(--border-medium);
+}
+.atk-annotations-panel-inner {
+  display: flex;
+  flex-direction: column;
+  width: 320px;
+  height: 100%;
+}
+
+@media (max-width: 768px) {
+  /* On mobile: fixed bottom sheet that doesn't push the layout. */
+  .atk-annotations-panel {
+    position: fixed;
+    left: 0;
+    right: 0;
+    top: auto;
+    bottom: 0;
+    width: 100vw !important;
+    height: 60dvh;
+    z-index: 100;
+    transform: translateY(100%);
+    transition: transform 280ms cubic-bezier(0.2, 0, 0, 1);
+    border-right: 0;
+    border-top: 1px solid var(--border-medium);
+  }
+  .atk-annotations-panel[data-open='true'] {
+    transform: translateY(0);
+    border-right: 0;
+  }
+  .atk-annotations-panel-inner {
+    width: 100%;
+  }
+}
+
+/* ============================================================================
+   Brand identity — Tier 1: surface the analytikul.ai landing brand into the
+   workspace shell on key high-signal moments. Reading surfaces stay clean.
+   ============================================================================ */
+
+:root {
+  --atk-brand-cyan: #18a8da;
+  --atk-brand-cyan-bright: #38d2ef;
+  --atk-brand-violet: #6a32c0;
+  --atk-brand-glow: rgba(56, 210, 239, 0.45);
+}
+
+/* Wordmark gradient — used on the sidebar "Analytikul" label and the
+ * empty-state landing greeting. Same gradient + shimmer as the landing page. */
+.atk-brand-wordmark,
+.atk-landing-greeting {
+  background: linear-gradient(
+    110deg,
+    var(--atk-brand-cyan-bright),
+    #d6ecff 28%,
+    var(--atk-brand-violet) 52%,
+    var(--atk-brand-cyan) 76%,
+    var(--atk-brand-cyan-bright)
+  );
+  background-size: 220% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: atkBrandShimmer 12s linear infinite;
+}
+.atk-landing-greeting {
+  text-shadow: 0 0 38px var(--atk-brand-glow);
+}
+@keyframes atkBrandShimmer {
+  to { background-position: 220% center; }
+}
+
+/* Chat header — subtle deep-space gradient backdrop. Sits ON TOP of the
+ * existing Tailwind from-presentation overlay so the brand glow shows on
+ * every breakpoint; controls are pushed above via z-index. */
+.atk-app-header { position: relative; isolation: isolate; }
+.atk-app-header::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(40% 220% at 18% 50%, rgba(24, 108, 170, 0.22), transparent 70%),
+    radial-gradient(42% 220% at 82% 50%, rgba(106, 50, 192, 0.18), transparent 70%);
+  mix-blend-mode: screen;
+}
+.atk-app-header > * { position: relative; z-index: 1; }
+html:not(.dark) .atk-app-header::before {
+  background:
+    radial-gradient(40% 220% at 18% 50%, rgba(24, 168, 218, 0.10), transparent 70%),
+    radial-gradient(42% 220% at 82% 50%, rgba(106, 50, 192, 0.08), transparent 70%);
+  mix-blend-mode: multiply;
+}
+
+/* Empty-state landing — soft cosmic backdrop on the "/c/new" greeting view.
+ * Radial-gradient mask keeps the bloom contained so it doesn't bleed into the
+ * input row. */
+.atk-cosmic-landing { position: relative; }
+.atk-cosmic-landing::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(36vw 36vw at 22% 28%, rgba(24, 108, 170, 0.12), transparent 70%),
+    radial-gradient(42vw 42vw at 78% 32%, rgba(106, 50, 192, 0.12), transparent 70%),
+    radial-gradient(50vw 32vw at 50% 80%, rgba(24, 168, 218, 0.07), transparent 72%);
+  -webkit-mask-image: radial-gradient(ellipse 78% 70% at 50% 50%, #000 30%, transparent 85%);
+  mask-image: radial-gradient(ellipse 78% 70% at 50% 50%, #000 30%, transparent 85%);
+}
+html:not(.dark) .atk-cosmic-landing::before {
+  background:
+    radial-gradient(36vw 36vw at 22% 28%, rgba(24, 168, 218, 0.07), transparent 70%),
+    radial-gradient(42vw 42vw at 78% 32%, rgba(106, 50, 192, 0.06), transparent 70%),
+    radial-gradient(50vw 32vw at 50% 80%, rgba(24, 168, 218, 0.04), transparent 72%);
+}
+
+/* Faint Analytikul logo centered behind the greeting — same look as the
+ * landing page's .hero-logo: ~12% opacity, cyan drop-shadow, slow breath. */
+.atk-cosmic-landing::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(392px, 59vw);
+  aspect-ratio: 1;
+  background: url('/assets/Alogo2.png') no-repeat center / contain;
+  pointer-events: none;
+  z-index: 0;
+  filter: drop-shadow(0 0 60px rgba(24, 168, 218, 0.30));
+  animation: atkLogoBreath 11s ease-in-out infinite;
+}
+html:not(.dark) .atk-cosmic-landing::after {
+  filter: drop-shadow(0 0 40px rgba(24, 168, 218, 0.22));
+}
+@keyframes atkLogoBreath {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.12; }
+  50%      { transform: translate(-50%, -52%) scale(1.03); opacity: 0.18; }
+}
+html:not(.dark) .atk-cosmic-landing::after { animation-name: atkLogoBreathLight; }
+@keyframes atkLogoBreathLight {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.08; }
+  50%      { transform: translate(-50%, -52%) scale(1.03); opacity: 0.13; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .atk-cosmic-landing::after { animation: none; transform: translate(-50%, -50%); opacity: 0.12; }
+}
+.atk-cosmic-landing > * { position: relative; z-index: 1; }
+
+/* Send button — cyan→deep gradient with glow on hover/focus when enabled.
+ * Matches the landing's "Enter Analytikul" CTA. Falls back to the
+ * default-disabled style untouched. */
+#send-button:not(:disabled) {
+  background: linear-gradient(180deg, var(--atk-brand-cyan-bright), var(--atk-brand-cyan));
+  color: #021019;
+  box-shadow: 0 0 0 0 var(--atk-brand-glow);
+  transition: box-shadow 220ms ease, transform 160ms ease;
+}
+#send-button:not(:disabled):hover,
+#send-button:not(:disabled):focus-visible {
+  box-shadow: 0 0 20px var(--atk-brand-glow);
+  transform: translateY(-1px);
+}
+#send-button:not(:disabled) svg { color: #021019; }
+
+/* ============================================================================
+   Feature Catalog (Discover) panel — slide-out from the right. Opened via the
+   sidebar "Discover" item or Ctrl/Cmd+K. Backdrop on mobile only; desktop is a
+   floating overlay so the chat stays visible behind it.
+   ========================================================================== */
+
+/* Conversation Starter chips — clickable cards on the /c/new empty state
+ * that fill the composer with a starter prompt. Solves blank-canvas paralysis
+ * for newcomers without taking over the page. */
+.atk-starter-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border-light, rgba(255, 255, 255, 0.08));
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 160ms ease, border-color 160ms ease, transform 120ms ease;
+  animation: atkStarterIn 320ms ease-out backwards;
+}
+.atk-starter-chip:hover {
+  background: rgba(56, 210, 239, 0.06);
+  border-color: rgba(56, 210, 239, 0.35);
+  transform: translateY(-1px);
+}
+.atk-starter-chip:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(56, 210, 239, 0.55);
+}
+html:not(.dark) .atk-starter-chip {
+  background: rgba(0, 0, 0, 0.02);
+}
+html:not(.dark) .atk-starter-chip:hover {
+  background: rgba(24, 168, 218, 0.05);
+  border-color: rgba(24, 168, 218, 0.30);
+}
+@keyframes atkStarterIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.atk-starter-chip:nth-child(2) { animation-delay: 60ms; }
+.atk-starter-chip:nth-child(3) { animation-delay: 120ms; }
+.atk-starter-chip:nth-child(4) { animation-delay: 180ms; }
+.atk-starter-chip:nth-child(5) { animation-delay: 240ms; }
+.atk-starter-chip:nth-child(6) { animation-delay: 300ms; }
+
+/* "Powered by Hermes runtime" pill — sits at the top of the Agent Panel so
+ * the user knows which engine runs the task (vs. the main chat path). Small,
+ * cyan-tinted, non-interactive. */
+.atk-hermes-pill {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--atk-brand-cyan-bright);
+  background: rgba(56, 210, 239, 0.10);
+  border: 1px solid rgba(56, 210, 239, 0.30);
+  border-radius: 999px;
+  cursor: help;
+}
+html:not(.dark) .atk-hermes-pill {
+  color: #0c5996;
+  background: rgba(24, 168, 218, 0.10);
+  border-color: rgba(24, 168, 218, 0.35);
+}
+
+/* Annotation "Save highlight" chip — small floating button that appears near
+ * a text selection. Does NOT steal focus (mousedown.preventDefault in JS), so
+ * native selection + Ctrl+C keep working. User clicks the chip explicitly to
+ * open the comment popover. */
+/* "What I just did" expander — collapsible plain-English summary of
+ * the multi-step tool calls in an assistant message. Sits below the
+ * message body. Default-collapsed; one tap reveals what each step did.
+ * Teaches newcomers how the agent thinks without lecturing anyone. */
+.atk-what-i-did {
+  margin: 6px 0 4px 4px;
+  max-width: 100%;
+}
+.atk-what-i-did-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid var(--border-light, rgba(255, 255, 255, 0.10));
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+.atk-what-i-did-toggle:hover {
+  background: rgba(56, 210, 239, 0.08);
+  border-color: rgba(56, 210, 239, 0.30);
+  color: var(--atk-brand-cyan-bright);
+}
+.atk-what-i-did-toggle:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(56, 210, 239, 0.50);
+}
+html:not(.dark) .atk-what-i-did-toggle:hover {
+  background: rgba(24, 168, 218, 0.06);
+  border-color: rgba(24, 168, 218, 0.28);
+  color: #0c5996;
+}
+.atk-what-i-did-list {
+  list-style: none;
+  margin: 8px 0 0 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(56, 210, 239, 0.04);
+  border: 1px solid rgba(56, 210, 239, 0.16);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  animation: atkWhatIDidIn 200ms ease-out;
+}
+.atk-what-i-did-step {
+  display: flex;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+.atk-what-i-did-step-num {
+  flex-shrink: 0;
+  font-weight: 600;
+  color: var(--atk-brand-cyan-bright);
+  min-width: 1.4em;
+}
+.atk-what-i-did-step-body { min-width: 0; flex: 1; }
+.atk-what-i-did-step-tool {
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-right: 6px;
+}
+.atk-what-i-did-step-args {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  padding: 1px 5px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 3px;
+  color: var(--text-primary);
+}
+html:not(.dark) .atk-what-i-did-step-args {
+  background: rgba(0, 0, 0, 0.05);
+}
+.atk-what-i-did-step-out { display: inline; margin-left: 6px; color: var(--text-tertiary); }
+.atk-what-i-did-step-err { color: #f5b969; }
+@keyframes atkWhatIDidIn {
+  from { opacity: 0; transform: translateY(-2px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+html:not(.dark) .atk-what-i-did-list {
+  background: rgba(24, 168, 218, 0.04);
+  border-color: rgba(24, 168, 218, 0.22);
+}
+
+/* Ghost hint — one-shot per user, dismissable. Subtle, non-blocking;
+ * appears at the moment of relevance, then never again. */
+.atk-ghost-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px 5px 12px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: rgba(56, 210, 239, 0.06);
+  border: 1px dashed rgba(56, 210, 239, 0.32);
+  border-radius: 6px;
+  animation: atkGhostIn 280ms ease-out;
+  max-width: 100%;
+}
+.atk-ghost-hint-body { flex: 1; min-width: 0; }
+.atk-ghost-hint-dismiss {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border-radius: 4px;
+  border: 0;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+.atk-ghost-hint-dismiss:hover {
+  background: rgba(56, 210, 239, 0.10);
+  color: var(--atk-brand-cyan-bright);
+}
+html:not(.dark) .atk-ghost-hint {
+  background: rgba(24, 168, 218, 0.05);
+  border-color: rgba(24, 168, 218, 0.28);
+}
+@keyframes atkGhostIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Response-adjust chips — one-tap "Shorter / More formal / Different angle"
+ * row that renders under the latest assistant message. Click sends a fresh
+ * user message asking for the adjustment, so newcomers don't have to
+ * articulate what they want changed. Subtle, no decoration. */
+.atk-response-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0 4px 4px;
+}
+.atk-response-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid var(--border-light, rgba(255, 255, 255, 0.10));
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+.atk-response-chip:hover {
+  background: rgba(56, 210, 239, 0.08);
+  border-color: rgba(56, 210, 239, 0.35);
+  color: var(--atk-brand-cyan-bright);
+}
+.atk-response-chip:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(56, 210, 239, 0.50);
+}
+html:not(.dark) .atk-response-chip:hover {
+  background: rgba(24, 168, 218, 0.07);
+  border-color: rgba(24, 168, 218, 0.28);
+  color: #0c5996;
+}
+
+/* "via Hermes" pill — renders under bash_tool / execute_code tool-call
+ * results in the main chat to show the user the code ran on Hermes (gVisor),
+ * not the LibreChat paid Code API. Same cyan brand as the Agent Panel pill,
+ * smaller and more subdued. */
+.atk-via-hermes-row {
+  display: flex;
+  justify-content: flex-start;
+  margin: 4px 0 0 4px;
+}
+.atk-via-hermes-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--atk-brand-cyan-bright);
+  background: rgba(56, 210, 239, 0.08);
+  border: 1px solid rgba(56, 210, 239, 0.20);
+  border-radius: 999px;
+  cursor: help;
+}
+html:not(.dark) .atk-via-hermes-pill {
+  color: #0c5996;
+  background: rgba(24, 168, 218, 0.07);
+  border-color: rgba(24, 168, 218, 0.28);
+}
+
+.atk-annotate-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--atk-brand-cyan-bright), var(--atk-brand-cyan));
+  color: #021019;
+  border: 1px solid rgba(120, 80, 0, 0.10);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25), 0 0 0 0 var(--atk-brand-glow);
+  cursor: pointer;
+  user-select: none;
+  transition: box-shadow 180ms ease, transform 120ms ease;
+  animation: atkAnnotateChipIn 140ms ease-out;
+}
+.atk-annotate-chip:hover {
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28), 0 0 16px var(--atk-brand-glow);
+  transform: translateY(-1px);
+}
+@keyframes atkAnnotateChipIn {
+  from { opacity: 0; transform: translateY(4px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.atk-catalog-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 6, 12, 0.18);
+  z-index: 140;
+  animation: atkCatalogFade 160ms ease-out;
+}
+html:not(.dark) .atk-catalog-backdrop {
+  background: rgba(4, 6, 12, 0.08);
+}
+@keyframes atkCatalogFade { from { opacity: 0; } to { opacity: 1; } }
+
+.atk-catalog-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100vh;
+  width: 420px;
+  max-width: 92vw;
+  z-index: 141;
+  background: var(--surface-primary-alt);
+  color: var(--text-primary);
+  border-left: 1px solid var(--border-light, rgba(255, 255, 255, 0.08));
+  box-shadow: -8px 0 28px rgba(0, 0, 0, 0.18);
+  transform: translateX(100%);
+  transition: transform 200ms ease-out;
+  display: flex;
+  flex-direction: column;
+}
+.atk-catalog-panel[data-open='true'] { transform: translateX(0); }
+
+.atk-catalog-inner {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.atk-catalog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 14px 10px 14px;
+  border-bottom: 1px solid var(--border-light, rgba(255, 255, 255, 0.06));
+}
+
+.atk-catalog-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 12px 0 12px;
+  padding: 6px 10px;
+  border: 1px solid var(--border-medium, rgba(255, 255, 255, 0.12));
+  border-radius: 8px;
+  background: var(--surface-secondary, rgba(255, 255, 255, 0.02));
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+.atk-catalog-search:focus-within {
+  border-color: var(--atk-brand-cyan);
+  box-shadow: 0 0 0 3px rgba(56, 210, 239, 0.18);
+}
+.atk-catalog-search-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-size: 13px;
+}
+.atk-catalog-search-input::placeholder { color: var(--text-tertiary); }
+
+.atk-catalog-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px 6px 14px;
+}
+.atk-catalog-checkbox {
+  accent-color: var(--atk-brand-cyan);
+  cursor: pointer;
+}
+
+.atk-catalog-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 6px 16px 6px;
+}
+
+.atk-catalog-whatsnew {
+  margin: 4px 8px 12px 8px;
+  padding: 10px 10px 8px 10px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(24, 168, 218, 0.06), rgba(106, 50, 192, 0.05));
+  border: 1px solid rgba(56, 210, 239, 0.18);
+}
+
+.atk-catalog-section { padding: 6px 0 4px 0; }
+.atk-catalog-section-header {
+  padding: 8px 12px 4px 12px;
+}
+
+.atk-catalog-entry {
+  padding: 10px 12px;
+  margin: 1px 6px;
+  border-radius: 8px;
+  outline: none;
+  transition: background-color 140ms ease;
+}
+.atk-catalog-entry-clickable { cursor: pointer; }
+.atk-catalog-entry-clickable:hover,
+.atk-catalog-entry-clickable:focus-visible {
+  background: var(--surface-hover);
+}
+.atk-catalog-entry-clickable:focus-visible {
+  box-shadow: 0 0 0 2px rgba(56, 210, 239, 0.5);
+}
+
+.atk-catalog-pill {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+}
+.atk-catalog-pill-live {
+  color: #0d8b4f;
+  background: rgba(13, 139, 79, 0.10);
+  border-color: rgba(13, 139, 79, 0.30);
+}
+.atk-catalog-pill-beta {
+  color: #18a8da;
+  background: rgba(24, 168, 218, 0.10);
+  border-color: rgba(24, 168, 218, 0.32);
+}
+.atk-catalog-pill-gated {
+  color: #a05a00;
+  background: rgba(160, 90, 0, 0.10);
+  border-color: rgba(160, 90, 0, 0.32);
+}
+.atk-catalog-pill-soon {
+  color: #6a32c0;
+  background: rgba(106, 50, 192, 0.10);
+  border-color: rgba(106, 50, 192, 0.32);
+}
+html.dark .atk-catalog-pill-live   { color: #4ade80; }
+html.dark .atk-catalog-pill-beta   { color: #38d2ef; }
+html.dark .atk-catalog-pill-gated  { color: #f5b969; }
+html.dark .atk-catalog-pill-soon   { color: #b794f4; }
+
+@media (max-width: 640px) {
+  .atk-catalog-panel { width: 100vw; max-width: 100vw; }
+}
+
+

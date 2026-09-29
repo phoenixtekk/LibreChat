@@ -13,6 +13,7 @@ import {
 import { useChatContext, useAgentsMapContext, useAssistantsMapContext } from '~/Providers';
 import { useGetEndpointsQuery, useGetStartupConfig } from '~/data-provider';
 import ConvoIcon from '~/components/Endpoints/ConvoIcon';
+import ConversationStarters from '~/components/analytikul/ConversationStarters';
 import { useLocalize, useAuthContext } from '~/hooks';
 
 const containerClassName =
@@ -164,7 +165,7 @@ export default function Landing({ centerFormOnLanding }: { centerFormOnLanding: 
 
   return (
     <div
-      className={`flex h-full transform-gpu flex-col items-center justify-center pb-16 transition-all duration-200 ${centerFormOnLanding ? 'max-h-full sm:max-h-0' : 'max-h-full'} ${getDynamicMargin}`}
+      className={`atk-cosmic-landing flex h-full transform-gpu flex-col items-center justify-center pb-16 transition-all duration-200 ${centerFormOnLanding ? 'max-h-full sm:max-h-0' : 'max-h-full'} ${getDynamicMargin}`}
     >
       <div ref={contentRef} className="flex flex-col items-center gap-0 p-2">
         <div
@@ -235,6 +236,7 @@ export default function Landing({ centerFormOnLanding }: { centerFormOnLanding: 
             </div>
           ))}
       </div>
+      <ConversationStarters />
     </div>
   );
 }

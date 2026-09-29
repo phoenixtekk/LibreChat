@@ -18,10 +18,12 @@ import {
   FileMapContext,
 } from '~/Providers';
 import { useUserTermsQuery, useGetStartupConfig } from '~/data-provider';
-import { UnifiedSidebar } from '~/components/UnifiedSidebar';
+import AnalytikulSidebar from '~/components/analytikul/sidebar/AnalytikulSidebar';
 import { TermsAndConditionsModal } from '~/components/ui';
 import { useHealthCheck } from '~/data-provider';
 import { Banner } from '~/components/Banners';
+import AnalytikulProvider from '~/components/analytikul/AnalytikulProvider';
+import AnnotationsPanel from '~/components/analytikul/annotations/AnnotationsPanel';
 
 export default function Root() {
   const [showTerms, setShowTerms] = useState(false);
@@ -69,10 +71,12 @@ export default function Root() {
         <AssistantsMapContext.Provider value={assistantsMap}>
           <AgentsMapContext.Provider value={agentsMap}>
             <PromptGroupsProvider>
+              <AnalytikulProvider />
               <Banner onHeightChange={setBannerHeight} />
               <div className="flex" style={{ height: `calc(100dvh - ${bannerHeight}px)` }}>
                 <div className="relative z-0 flex h-full w-full overflow-hidden">
-                  <UnifiedSidebar />
+                  <AnalytikulSidebar />
+                  <AnnotationsPanel />
                   <div
                     className="relative flex h-full max-w-full flex-1 flex-col overflow-hidden"
                     style={{

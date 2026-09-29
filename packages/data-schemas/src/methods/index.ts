@@ -5,6 +5,8 @@ import { createTokenMethods, type TokenMethods } from './token';
 import { createRoleMethods, RoleConflictError } from './role';
 import { createFileMethods, type FileMethods } from './file';
 import { createKeyMethods, type KeyMethods } from './key';
+/* User-defined custom endpoints (BYOK) */
+import { createUserEndpointMethods, type UserEndpointMethods } from './userEndpoint';
 /* Memories */
 import { createMemoryMethods, type MemoryMethods } from './memory';
 /* Agent Categories */
@@ -107,6 +109,7 @@ export type AllMethods = UserMethods &
   TokenMethods &
   RoleMethods &
   KeyMethods &
+  UserEndpointMethods &
   FileMethods &
   MemoryMethods &
   AgentCategoryMethods &
@@ -233,6 +236,7 @@ export function createMethods(
     ...createTokenMethods(mongoose),
     ...roleMethods,
     ...createKeyMethods(mongoose),
+    ...createUserEndpointMethods(mongoose),
     ...createFileMethods(mongoose),
     ...createMemoryMethods(mongoose),
     ...createAgentCategoryMethods(mongoose),
@@ -276,6 +280,7 @@ export type {
   TokenMethods,
   RoleMethods,
   KeyMethods,
+  UserEndpointMethods,
   FileMethods,
   MemoryMethods,
   AgentCategoryMethods,

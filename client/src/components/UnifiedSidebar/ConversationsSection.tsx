@@ -21,7 +21,7 @@ import store from '~/store';
 
 const BookmarkNav = lazy(() => import('~/components/Nav/Bookmarks/BookmarkNav'));
 
-const ConversationsSection = memo(() => {
+const ConversationsSection = memo(({ hideSearch = false }: { hideSearch?: boolean }) => {
   const localize = useLocalize();
   const isSmallScreen = useMediaQuery('(max-width: 768px)');
   const setSidebarExpanded = useSetRecoilState(store.sidebarExpanded);
@@ -110,13 +110,23 @@ const ConversationsSection = memo(() => {
       role="region"
       aria-label={localize('com_ui_chat_history')}
     >
-      <div className="flex items-center gap-0.5 px-3">
+      <div className="flex items-center gap-2 px-3">
         {hasAccessToBookmarks && (
           <Suspense fallback={null}>
-            <BookmarkNav tags={tags} setTags={setTags} />
+            <span className="flex items-center gap-1">
+              <BookmarkNav tags={tags} setTags={setTags} />
+              <button
+                type="button"
+                className="rounded-lg px-1.5 py-1 text-sm text-text-primary transition hover:bg-surface-hover"
+                onClick={() => document.getElementById('bookmark-nav-menu-button')?.click()}
+                aria-label={localize('com_ui_bookmarks')}
+              >
+                {localize('com_ui_bookmarks')}
+              </button>
+            </span>
           </Suspense>
         )}
-        {search.enabled && <SearchBar isSmallScreen={isSmallScreen} />}
+        {!hideSearch && search.enabled && <SearchBar isSmallScreen={isSmallScreen} />}
       </div>
       {!search.query && (
         <div className="px-3">

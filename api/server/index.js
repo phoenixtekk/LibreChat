@@ -1,3 +1,20 @@
+// Analytikul: point LibreChat's bundled code-exec tool at our Hermes adapter
+// so the main chat's bash_tool / execute_code runs on our gVisor-sandboxed
+// runtime instead of the LibreChat paid Code API. Must be set BEFORE any
+// require of @librechat/agents — getCodeBaseURL() reads the env at module
+// load. Set only when unset, so a real docker-compose env still wins.
+if (!process.env.LIBRECHAT_CODE_BASEURL) {
+  process.env.LIBRECHAT_CODE_BASEURL = 'http://analytikul-hermes-adapter:8001';
+}
+if (!process.env.LIBRECHAT_CODE_API_KEY) {
+  // The bundled code-exec tool sends this as `Authorization: Bearer` to the
+  // adapter's /exec. The adapter now authenticates that route with the shared
+  // INTERNAL_SERVICE_TOKEN (require_internal_or_bearer), so carry the real
+  // token when present; fall back to a stub for local/dev where it's unset.
+  process.env.LIBRECHAT_CODE_API_KEY =
+    process.env.INTERNAL_SERVICE_TOKEN || 'hermes-internal';
+}
+
 const telemetry = require('./telemetry');
 const fs = require('fs');
 const path = require('path');
@@ -129,8 +146,64 @@ const startServer = async () => {
     await updateInterfacePermissions({ appConfig, getRoleByName, updateAccessPermissions });
   });
 
+  // Analytikul: inject the analytics tag (GTM container `GTM-…` or GA4 `G-…`) into
+  // every served HTML surface — the SPA shell and the static marketing pages — from a
+  // single env var (`ANALYTICS_GTM_ID`). Done server-side at boot so no client rebuild
+  // is needed to add/swap the ID, and nothing is hardcoded in source. No-op if unset.
+  const injectAnalytics = (html) => {
+    const raw = process.env.ANALYTICS_GTM_ID;
+    if (!html || !raw) {
+      return html;
+    }
+    // Only trust a well-formed Google tag id (defends the inline script string).
+    const id = raw.trim();
+    if (!/^(GTM|G|AW|UA)-[A-Z0-9-]+$/i.test(id)) {
+      logger.warn(`[analytics] ANALYTICS_GTM_ID "${id}" is not a valid Google tag id; skipping`);
+      return html;
+    }
+    let head;
+    let body = '';
+    if (/^GTM-/i.test(id)) {
+      head =
+        `<!-- Google Tag Manager -->\n<script>(function(w,d,s,l,i){w[l]=w[l]||[];` +
+        `w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],` +
+        `j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;` +
+        `j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);` +
+        `})(window,document,'script','dataLayer','${id}');</script>\n<!-- End Google Tag Manager -->`;
+      body =
+        `<!-- Google Tag Manager (noscript) --><noscript><iframe ` +
+        `src="https://www.googletagmanager.com/ns.html?id=${id}" height="0" width="0" ` +
+        `style="display:none;visibility:hidden"></iframe></noscript>`;
+    } else {
+      head =
+        `<!-- Google tag (gtag.js) -->\n` +
+        `<script async src="https://www.googletagmanager.com/gtag/js?id=${id}"></script>\n` +
+        `<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}` +
+        `gtag('js',new Date());gtag('config','${id}');</script>`;
+    }
+    let out = html.replace(/<head[^>]*>/i, (m) => `${m}\n${head}`);
+    if (body) {
+      out = out.replace(/<body[^>]*>/i, (m) => `${m}\n${body}`);
+    }
+    return out;
+  };
+
   const indexPath = path.join(appConfig.paths.dist, 'index.html');
-  let indexHTML = fs.readFileSync(indexPath, 'utf8');
+  let indexHTML = injectAnalytics(fs.readFileSync(indexPath, 'utf8'));
+
+  // Analytikul: marketing landing page served at the apex `/`. The SPA lives at
+  // `/chat` (and `/c/:id`, `/login`, etc.); see client/src/routes/index.tsx.
+  const readDistHtml = (file) => {
+    const p = path.join(appConfig.paths.dist, file);
+    return fs.existsSync(p) ? injectAnalytics(fs.readFileSync(p, 'utf8')) : null;
+  };
+  const landingHTML = readDistHtml('landing.html');
+  // Analytikul marketing pages served as static HTML (route -> cached html).
+  const marketingPages = {
+    '/features': readDistHtml('features.html'),
+    '/pricing': readDistHtml('pricing.html'),
+    '/help': readDistHtml('help.html'),
+  };
 
   // In order to provide support to serving the application in a sub-directory
   // We need to update the base href if the DOMAIN_CLIENT is specified and not the root path
@@ -171,6 +244,47 @@ const startServer = async () => {
     return res.status(200).send('OK');
   });
 
+  /* Rate-limit the public, unauthenticated webhook forwarders so they can't be
+   * used to flood the internal billing-service (each request triggers an
+   * outbound 1mb forward). Signature verification still happens downstream. */
+  const rateLimit = require('express-rate-limit');
+  const webhookLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 120,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'too many requests' },
+  });
+
+  /* Stripe webhook needs the raw body for signature verification — mounted
+   * before the JSON parser. Forwards verbatim to the internal billing-service;
+   * Stripe authenticates via its signature header, not JWT. */
+  app.post(
+    '/api/analytikul/webhooks/stripe',
+    webhookLimiter,
+    express.raw({ type: 'application/json', limit: '1mb' }),
+    async (req, res) => {
+      try {
+        const upstream = await fetch(
+          `${process.env.BILLING_SERVICE_URL ?? 'http://localhost:8013'}/webhooks/stripe`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'stripe-signature': req.headers['stripe-signature'] ?? '',
+            },
+            body: req.body,
+            signal: AbortSignal.timeout(10000),
+          },
+        );
+        res.status(upstream.status).json(await upstream.json());
+      } catch (error) {
+        logger.error('[analytikul] stripe webhook forward failed', error);
+        res.status(502).json({ error: 'billing unavailable' });
+      }
+    },
+  );
+
   /* Middleware */
   app.use(metricsMiddleware);
   app.use(noIndex);
@@ -192,7 +306,66 @@ const startServer = async () => {
   });
 
   app.use(mongoSanitize());
-  app.use(cors());
+
+  // Analytikul: tighten CORS to the production origin(s). Same-origin / no-
+  // Origin requests (e.g. native browser navigations, curl, server-side) pass
+  // through; cross-origin XHR/fetch from unknown origins is blocked.
+  const corsAllowlist = new Set(
+    (process.env.CORS_ORIGINS ?? 'https://analytikul.ai,https://www.analytikul.ai')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean),
+  );
+  app.use(
+    cors({
+      origin: (origin, cb) => {
+        if (!origin) {
+          return cb(null, true);
+        }
+        cb(null, corsAllowlist.has(origin));
+      },
+      credentials: true,
+    }),
+  );
+
+  // Analytikul: baseline security headers (helmet-equivalent without the dep).
+  // CSP allows the surfaces actually used: inline scripts on the static landing
+  // and the GTM injection, Google Fonts, GTM/GA endpoints, and same-origin
+  // everything else. 'frame-ancestors none' duplicates X-Frame-Options.
+  // Toggle CSP_REPORT_ONLY=true in env to switch to report-only for debugging.
+  const cspDirectives = [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.google-analytics.com",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' data: https://fonts.gstatic.com",
+    "img-src 'self' data: blob: https:",
+    "media-src 'self' blob:",
+    "connect-src 'self' https://www.googletagmanager.com https://www.google-analytics.com https://*.analytics.google.com wss: ws:",
+    "worker-src 'self' blob:",
+    "frame-src 'self' https://www.googletagmanager.com",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+    'upgrade-insecure-requests',
+  ].join('; ');
+  const cspHeader = isEnabled(process.env.CSP_REPORT_ONLY)
+    ? 'Content-Security-Policy-Report-Only'
+    : 'Content-Security-Policy';
+  app.use((req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader(
+      'Strict-Transport-Security',
+      'max-age=63072000; includeSubDomains; preload',
+    );
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('X-XSS-Protection', '0');
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    res.setHeader(cspHeader, cspDirectives);
+    next();
+  });
+
   app.use(cookieParser());
 
   if (!isEnabled(DISABLE_COMPRESSION)) {
@@ -201,6 +374,24 @@ const startServer = async () => {
     console.warn('Response compression has been disabled via DISABLE_COMPRESSION.');
   }
 
+  app.get('/', (req, res) => {
+    if (landingHTML == null) {
+      return sendIndexHtml(req, res);
+    }
+    res.set({ 'Cache-Control': 'public, max-age=300' });
+    res.type('html');
+    res.send(landingHTML);
+  });
+  for (const [route, html] of Object.entries(marketingPages)) {
+    app.get(route, (req, res) => {
+      if (html == null) {
+        return sendIndexHtml(req, res);
+      }
+      res.set({ 'Cache-Control': 'public, max-age=300' });
+      res.type('html');
+      res.send(html);
+    });
+  }
   app.get('/index.html', sendIndexHtml);
   app.use(staticCache(appConfig.paths.dist));
   app.use(staticCache(appConfig.paths.fonts));
@@ -267,6 +458,7 @@ const startServer = async () => {
   app.use('/api/agents/chat', rejectChatStartsUntilReady);
   app.use('/api/agents', routes.agents);
   app.use('/api/banner', routes.banner);
+  app.use('/api/analytikul', routes.analytikul);
   app.use('/api/memories', routes.memories);
   app.use('/api/permissions', routes.accessPermissions);
 
@@ -303,6 +495,63 @@ const startServer = async () => {
       );
     } else {
       logger.info(`Server listening at http://${host == '0.0.0.0' ? 'localhost' : host}:${port}`);
+    }
+
+    // OpenClaw embed: proxy admin-gated WebSocket upgrades to the containerized gateway.
+    // Cookie-gated (same signed cookie the HTTP proxy uses); injects the gateway token.
+    try {
+      const ocGate = require('./openclawGate');
+      const { WebSocketServer, WebSocket } = require('ws');
+      const ocWss = new WebSocketServer({ noServer: true });
+      server.on('upgrade', (req, sock, head) => {
+        if (!req.url || !req.url.startsWith('/api/analytikul/openclaw')) {
+          return;
+        }
+        if (!ocGate.valid(req.headers.cookie)) {
+          sock.destroy();
+          return;
+        }
+        ocWss.handleUpgrade(req, sock, head, (client) => {
+          const targetWs = ocGate.targetUrl().replace(/^http/, 'ws') + req.url;
+          const upstream = new WebSocket(targetWs, {
+            headers: {
+              Authorization: `Bearer ${ocGate.gatewayToken()}`,
+              // Forward the browser origin so the gateway's controlUi.allowedOrigins check passes.
+              Origin: req.headers.origin || 'https://analytikul.ai',
+            },
+          });
+          const queue = [];
+          client.on('message', (d, isBinary) =>
+            upstream.readyState === 1 ? upstream.send(d, { binary: isBinary }) : queue.push([d, isBinary]),
+          );
+          upstream.on('open', () => {
+            for (const [d, b] of queue) {
+              upstream.send(d, { binary: b });
+            }
+            queue.length = 0;
+          });
+          upstream.on('message', (d, isBinary) => client.readyState === 1 && client.send(d, { binary: isBinary }));
+          const close = () => {
+            try {
+              client.close();
+            } catch {
+              /* noop */
+            }
+            try {
+              upstream.close();
+            } catch {
+              /* noop */
+            }
+          };
+          client.on('close', close);
+          client.on('error', close);
+          upstream.on('close', close);
+          upstream.on('error', close);
+        });
+      });
+      logger.info('[analytikul] OpenClaw WS proxy attached at /api/analytikul/openclaw');
+    } catch (e) {
+      logger.warn(`[analytikul] OpenClaw WS proxy not attached: ${e.message}`);
     }
 
     /**

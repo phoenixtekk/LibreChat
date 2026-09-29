@@ -1,0 +1,16 @@
+{
+  "name": "@analytikul/coder-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Localhost bridge that owns Analytikul_AI_Bin and runs the agent's file/terminal work path-jailed on the user's machine.",
+  "type": "module",
+  "bin": {
+    "coder-bridge": "bridge.mjs"
+  },
+  "scripts": {
+    "start": "node bridge.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
