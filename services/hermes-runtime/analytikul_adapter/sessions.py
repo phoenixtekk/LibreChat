@@ -7,7 +7,7 @@ IDLE_TTL_S of inactivity. Hermes's own memory/skills persistence is disabled
 run_conversation() is synchronous, so each task runs on a worker thread; its
 runtime callbacks emit onto the task's TaskEventBus. Cost metering wraps
 agent.context_compressor.update_from_response — the single point every LLM
-call's canonical usage flows through (agent/conversation_loop.py:1568).
+call's canonical usage flows through (agent/turn_usage.py:125 (v0.21.5)).
 """
 
 from __future__ import annotations
@@ -516,11 +516,11 @@ def _wire_callbacks(agent: Any, bus: TaskEventBus, session: AgentSession) -> Dic
             bus.emit("text_chunk", {"text": text})
 
     def tool_start(tool_call_id: str, name: str = "", args: Any = None, *rest: Any) -> None:
-        # Runtime signature: tool_start_callback(tc.id, name, args) — agent/tool_executor.py:446
+        # Runtime signature: tool_start_callback(tc.id, name, args) — agent/tool_executor.py:991 (v0.21.5)
         bus.emit("tool_start", {"tool": name, "call_id": tool_call_id, "args": _safe_args(args)})
 
     def tool_complete(tool_call_id: str, name: str = "", args: Any = None, result: Any = "", *rest: Any) -> None:
-        # Runtime signature: tool_complete_callback(tc.id, name, args, result) — agent/tool_executor.py:719
+        # Runtime signature: tool_complete_callback(tc.id, name, args, result) — agent/tool_executor.py:1016 (v0.21.5)
         bus.emit(
             "tool_complete",
             {
@@ -537,7 +537,7 @@ def _wire_callbacks(agent: Any, bus: TaskEventBus, session: AgentSession) -> Dic
         bus.emit("tool_output", {"kind": kind, "tool": str(name), "output": str(preview)})
 
     def step(api_call_count: int = 0, prev_tools: Any = None, *rest: Any) -> None:
-        # Runtime signature: step_callback(api_call_count, prev_tools) — agent/conversation_loop.py:512
+        # Runtime signature: step_callback(api_call_count, prev_tools) — agent/turn_iteration_prep.py:131 (v0.21.5)
         bus.emit("step", {"step": api_call_count, "prev_tools": _safe_args(prev_tools)})
 
     # NOTE: do NOT also set agent.stream_delta_callback = stream here. The delta

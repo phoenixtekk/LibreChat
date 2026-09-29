@@ -8,6 +8,7 @@ launching profile preselected. `--isolated` opts out.
 import sys
 import types
 import pytest
+from hermes_cli import main_dashboard
 
 
 @pytest.fixture
@@ -27,40 +28,14 @@ def _args(**kw):
 
 
 class TestUnifiedDashboardRouting:
-    def test_profile_launch_attaches_to_running_dashboard(self, main_mod, monkeypatch):
-        monkeypatch.setattr(
-            "hermes_cli.profiles.get_active_profile_name", lambda: "worker_x"
-        )
-        monkeypatch.setattr(main_mod, "_dashboard_listening", lambda host, port: True)
-        execs = []
-        monkeypatch.setattr(main_mod.os, "execvpe", lambda *a, **k: execs.append(a))
 
-        with pytest.raises(SystemExit) as exc:
-            main_mod.cmd_dashboard(_args())
-        assert exc.value.code == 0
-        assert execs == []  # attached, never re-exec'd
-
-    def test_profile_launch_attach_opens_scoped_url(self, main_mod, monkeypatch):
-        """The attach path must open the browser at ?profile=<name> — that
-        URL is the entire point of attaching (preselects the switcher)."""
-        monkeypatch.setattr(
-            "hermes_cli.profiles.get_active_profile_name", lambda: "worker_x"
-        )
-        monkeypatch.setattr(main_mod, "_dashboard_listening", lambda host, port: True)
-        opened = []
-        import webbrowser
-        monkeypatch.setattr(webbrowser, "open", lambda url: opened.append(url))
-
-        with pytest.raises(SystemExit) as exc:
-            main_mod.cmd_dashboard(_args(no_open=False))
-        assert exc.value.code == 0
-        assert opened == ["http://127.0.0.1:9119/?profile=worker_x"]
 
     def test_profile_launch_reexecs_machine_dashboard(self, main_mod, monkeypatch):
+        monkeypatch.delenv("HERMES_HOME", raising=False)
         monkeypatch.setattr(
             "hermes_cli.profiles.get_active_profile_name", lambda: "worker_x"
         )
-        monkeypatch.setattr(main_mod, "_dashboard_listening", lambda host, port: False)
+        monkeypatch.setattr(main_dashboard, "_dashboard_listening", lambda host, port: False)
         execs = []
 
         def fake_exec(exe, argv, env):
@@ -79,52 +54,60 @@ class TestUnifiedDashboardRouting:
         assert "-p" in argv and argv[argv.index("-p") + 1] == "default"
         assert "--open-profile" in argv
         assert argv[argv.index("--open-profile") + 1] == "worker_x"
-        # Profile HERMES_HOME dropped so the child binds the machine root.
-        assert "HERMES_HOME" not in env
+        # The child is pinned to the machine ROOT, not the launching profile's
+        # HERMES_HOME.  For a standard install (HERMES_HOME unset) that root is
+        # the platform-native default (~/.hermes), NOT dropped — see the Docker
+        # test below for why we resolve explicitly instead of popping.
+        from hermes_constants import get_default_hermes_root
+        assert env.get("HERMES_HOME") == str(get_default_hermes_root())
 
-    def test_isolated_flag_skips_routing(self, main_mod, monkeypatch):
+
+    def test_desktop_profile_backend_skips_machine_dashboard_reroute(self, main_mod, monkeypatch):
+        """A desktop-spawned named-profile backend (HERMES_DESKTOP=1) must NOT
+        reroute into the machine dashboard. The reroute re-execs as the default
+        profile and exits, so the desktop never sees a ready backend → boot
+        loop. The guard keeps desktop pool backends per-profile."""
+        monkeypatch.setenv("HERMES_DESKTOP", "1")
+        monkeypatch.setenv("HERMES_DASHBOARD_SESSION_TOKEN", "desktop-spawn-token")
         monkeypatch.setattr(
             "hermes_cli.profiles.get_active_profile_name", lambda: "worker_x"
         )
         listening_calls = []
-        monkeypatch.setattr(
-            main_mod, "_dashboard_listening",
-            lambda host, port: listening_calls.append(1) or True,
-        )
-        # With --isolated the routing block is skipped entirely; the command
-        # proceeds to dependency checks. Make the first post-routing step
-        # bail so the test doesn't actually start a server.
-        monkeypatch.setitem(sys.modules, "fastapi", None)
-
-        with pytest.raises((SystemExit, AttributeError, ImportError, TypeError)):
-            main_mod.cmd_dashboard(_args(isolated=True))
-        assert listening_calls == []
-
-    def test_default_profile_launch_skips_routing(self, main_mod, monkeypatch):
-        monkeypatch.setattr(
-            "hermes_cli.profiles.get_active_profile_name", lambda: "default"
-        )
-        listening_calls = []
-        monkeypatch.setattr(
-            main_mod, "_dashboard_listening",
-            lambda host, port: listening_calls.append(1) or True,
-        )
-        monkeypatch.setitem(sys.modules, "fastapi", None)
-
-        with pytest.raises((SystemExit, AttributeError, ImportError, TypeError)):
-            main_mod.cmd_dashboard(_args())
-        assert listening_calls == []
-
-    def test_reexec_child_does_not_reroute(self, main_mod, monkeypatch):
-        """The re-exec'd child carries --open-profile; the guard must treat
-        that as 'already routed' and never re-exec again (no exec loop)."""
-        monkeypatch.setattr(
-            "hermes_cli.profiles.get_active_profile_name", lambda: "worker_x"
+        monkeypatch.setattr(main_dashboard, "_dashboard_listening",
+            lambda host, port: listening_calls.append(1) or False,
         )
         execs = []
         monkeypatch.setattr(main_mod.os, "execvpe", lambda *a, **k: execs.append(a))
         monkeypatch.setitem(sys.modules, "fastapi", None)
 
         with pytest.raises((SystemExit, AttributeError, ImportError, TypeError)):
-            main_mod.cmd_dashboard(_args(open_profile="worker_x"))
+            main_mod.cmd_dashboard(_args())
+        assert listening_calls == []
         assert execs == []
+
+
+class TestInteractiveDashboardAuthSetup:
+
+    def test_loopback_proxy_public_url_offers_auth_setup(
+        self, main_mod, monkeypatch, capsys
+    ):
+        """A TTY operator is prompted when public_url gates a loopback bind."""
+        from hermes_cli.dashboard_auth import clear_providers
+
+        monkeypatch.setenv(
+            "HERMES_DASHBOARD_PUBLIC_URL",
+            "https://dashboard.example.test:9443",
+        )
+        clear_providers()
+        monkeypatch.setattr(main_mod.sys.stdin, "isatty", lambda: True)
+        monkeypatch.setattr(main_mod.sys.stdout, "isatty", lambda: True)
+        monkeypatch.setattr("builtins.input", lambda _prompt: "3")
+
+        with pytest.raises(SystemExit) as exc:
+            main_mod._maybe_setup_dashboard_auth_interactively(_args())
+
+        assert exc.value.code == 1
+        output = capsys.readouterr().out
+        assert "configured external dashboard.public_url" in output
+
+

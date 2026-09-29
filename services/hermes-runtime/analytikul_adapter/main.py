@@ -29,7 +29,7 @@ from analytikul_adapter.sessions import ConcurrencyLimit, new_task_id, pool
 logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"))
 logger = logging.getLogger("analytikul.adapter")
 
-HERMES_PIN = "484f484c25bc89fbddc73f1d80410e99e6133fd5"
+HERMES_PIN = "f97608f178d1ffeca59860195ab7da295f7c8e5f"
 STREAM_IDLE_TIMEOUT_S = 120
 
 INTERNAL_TOKEN = os.environ.get("INTERNAL_SERVICE_TOKEN", "")
