@@ -59,6 +59,8 @@ services:
       - MEMORY_SERVICE_URL=http://memory-service:8012
       - BILLING_SERVICE_URL=http://billing-service:8013
       - GATEWAY_SERVICE_URL=http://gateway-service:8014
+      - HERMES_GATEWAY_URL=ws://hermes-gateway:9119/api/ws
+      - HERMES_GATEWAY_TOKEN=${HERMES_GATEWAY_TOKEN:-}
     depends_on:
       - mongodb
       - meilisearch
@@ -145,6 +147,29 @@ services:
     depends_on:
       - redis
       - docker-socket-proxy
+
+  # Hermes v0.21.5 dashboard/tui_gateway — the Bot Mode control plane (profiles.*, groups.*,
+  # cron.manage, image.generate over /api/ws). Same image as hermes-adapter (built from the
+  # vendored runtime); command overridden to run the dashboard. Never published to the host —
+  # only analytikul-app reaches it, over the compose network, via the admin-gated /bots broker.
+  hermes-gateway:
+    container_name: analytikul-hermes-gateway
+    build:
+      context: ./services/hermes-runtime
+      dockerfile: analytikul_adapter/Dockerfile
+      network: host
+    restart: always
+    command: ["python", "-m", "hermes_cli.main", "dashboard", "--host", "0.0.0.0", "--port", "9119", "--no-open"]
+    environment:
+      - HERMES_HOME=/data/hermes-gateway
+      - REDIS_URI=redis://redis:6379/1
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN}
+      # Bot Mode default provider — the AI Box Ollama (no cloud keys), matching the OpenClaw pattern.
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://192.168.166.182:11434}
+    volumes:
+      - hermes-gateway-home:/data/hermes-gateway
+    depends_on:
+      - redis
 
   analytics-service:
     container_name: analytikul-analytics
@@ -243,6 +268,7 @@ volumes:
   pg-data:
   redis-data:
   hermes-home:
+  hermes-gateway-home:
   embedder-models:
 
 networks:

@@ -72,7 +72,9 @@ export type PreviewRailTab =
   | 'memory'
   | 'keys'
   | 'files'
-  | 'deploy';
+  | 'deploy'
+  | 'openclaw'
+  | 'bots';
 
 const previewRail = atom<{ open: boolean; tab: PreviewRailTab }>({
   key: 'analytikulPreviewRail',

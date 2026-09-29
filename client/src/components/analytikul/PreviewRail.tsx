@@ -8,6 +8,7 @@ import AnalyticsDashboard from './AnalyticsDashboard';
 import OrgMemoryPanel from './OrgMemoryPanel';
 import KeysPanel from './KeysPanel';
 import OpenClawPanel from './OpenClawPanel';
+import BotsPanel from './bots/BotsPanel';
 import { OutputRenderer, latestRenderableOutput } from './renderers';
 import type { AgentStreamApi } from './useAgentStream';
 
@@ -27,7 +28,16 @@ function readStoredWidth(): number | null {
   }
 }
 
-export type RailTab = 'agent' | 'preview' | 'costs' | 'memory' | 'keys' | 'files' | 'deploy' | 'openclaw';
+export type RailTab =
+  | 'agent'
+  | 'preview'
+  | 'costs'
+  | 'memory'
+  | 'keys'
+  | 'files'
+  | 'deploy'
+  | 'openclaw'
+  | 'bots';
 
 /**
  * Preview Rail — Hermes Desktop's side-by-side output panel. Agent tab launches
@@ -124,6 +134,7 @@ export default function PreviewRail({
     { id: 'files', label: localize('com_atk_files') },
     { id: 'deploy', label: 'Deploy' },
     ...(isAdmin ? [{ id: 'openclaw' as RailTab, label: 'OpenClaw' }] : []),
+    ...(isAdmin ? [{ id: 'bots' as RailTab, label: 'Bots' }] : []),
   ];
 
   return (
@@ -184,6 +195,7 @@ export default function PreviewRail({
         {tab === 'files' && <WorkspaceFiles />}
         {tab === 'deploy' && <DeployPanel />}
         {tab === 'openclaw' && <OpenClawPanel />}
+        {tab === 'bots' && <BotsPanel />}
       </div>
     </aside>
   );

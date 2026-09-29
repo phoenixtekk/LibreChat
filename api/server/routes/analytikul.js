@@ -38,6 +38,7 @@ const multer = require('multer');
 const { getAppConfig } = require('~/server/services/Config');
 const { getFileStrategy } = require('~/server/utils/getFileStrategy');
 const { getStrategyFunctions } = require('~/server/services/Files/strategies');
+const hermesBots = require('~/server/hermesBots');
 
 const router = express.Router();
 
@@ -943,6 +944,42 @@ router.get('/oc-manage/logs', async (req, res) => {
     return res.status(r.status).json(await r.json());
   } catch {
     return res.status(502).json({ error: 'ops helper unreachable' });
+  }
+});
+
+// --- Bots (Hermes Bot Mode) — admin-gated JSON-RPC broker to the hermes-gateway ---
+// The browser posts { method, params }; the backend validates the method against the broker's
+// allow-list and forwards it over the single authenticated gateway WebSocket. Admin-only for now
+// (matches the OpenClaw embed's audience). See docs/hermes-botmode-integration-plan.md.
+router.post('/bots/rpc', async (req, res) => {
+  if (req.user.role !== 'ADMIN') {
+    return res.status(403).json({ message: 'admin only' });
+  }
+  const { method, params } = req.body ?? {};
+  if (!hermesBots.isAllowed(method)) {
+    return res.status(400).json({ message: `method not allowed: ${method ?? '(none)'}` });
+  }
+  try {
+    const result = await hermesBots.call(method, params ?? {});
+    return res.status(200).json({ result });
+  } catch (error) {
+    logger.error('[analytikul] bots rpc failed', error);
+    return res.status(502).json({ message: error.message ?? 'gateway rpc failed' });
+  }
+});
+
+router.get('/bots/health', async (req, res) => {
+  if (req.user.role !== 'ADMIN') {
+    return res.status(403).json({ message: 'admin only' });
+  }
+  if (!hermesBots.configured()) {
+    return res.status(200).json({ configured: false, reachable: false });
+  }
+  try {
+    await hermesBots.call('groups.capabilities', {});
+    return res.status(200).json({ configured: true, reachable: true });
+  } catch {
+    return res.status(200).json({ configured: true, reachable: false });
   }
 });
 
