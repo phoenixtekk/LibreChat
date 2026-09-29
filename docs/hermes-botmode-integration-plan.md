@@ -131,6 +131,40 @@ Bolt Bot Mode onto Analytikul's existing strengths instead of duplicating a desk
 - **S5 — differentiators:** per-bot budget/spend, per-bot vault, org-shared bots.
 - **S6 — docs:** FEATURES.md, HELP_CENTER.md, wiki mirror; register in My Apps if a new URL.
 
+## 6a. Progress — 2026-09-29 (decisions: path C, v0.21.5, admin-only, full arc)
+
+**Done + committed** (branch `feature/analytikul-coder`):
+- **S1 runtime update** — re-vendored Hermes v0.16.0 → **v0.21.5** (`v2026.9.24`), adapter ported
+  (pin + comments), `py_compile` clean, all hooked modules present. Commit `7d353e9ca`.
+  ⚠ **Not runtime-verified** — needs the container rebuild + agent smoke test before the prod swap.
+- **S2 gateway + broker** — new `hermes-gateway` compose service (Hermes dashboard, `:9119`, internal
+  only, own volume); `api/server/hermesBots.js` JSON-RPC-over-WS broker (allow-listed methods,
+  configurable `HERMES_GATEWAY_URL/_TOKEN`); admin routes `POST /api/analytikul/bots/rpc` +
+  `GET /bots/health`. Commit `b5c2a024f`.
+- **S3 Bots UI** — admin `Bots` rail tab → `BotsPanel`: health gate, roster (`profiles.list`),
+  create bot (`profiles.create` + `hermes-bots` ui_meta), per-bot detail (`profiles.describe`).
+  Typechecks clean. Commit `b5c2a024f`.
+
+**Remaining — build alongside the gateway stand-up so they are E2E-verifiable:**
+- **S4 routines** (`cron.manage`, `deliver:"bot-chat[:profile]"`) and **rooms** (`groups.*`). The
+  broker already allow-lists these. **Blocker to building blind:** the RPC map documented these
+  methods' *params* but not their full *return shapes*; confirm `cron.manage(list)` and
+  `groups.list/state/log` result shapes against the running gateway before rendering fields
+  (per "verify, never guess"). Bot chat needs the broker extended to relay gateway stream
+  notifications (SSE/WS) — request/response only today.
+- **S5 differentiators** — per-bot budget/spend (FinOps), per-bot BYOK vault, org-shared bots.
+  These need adapter/meter/vault to key on the bot profile, and **one design decision**: how a bot
+  profile maps to an Analytikul tenant/budget/vault key (per-admin? per-tenant? a `ui_meta` field?).
+  Specify with the owner at S5 kickoff; do not infer.
+
+**Gateway stand-up runbook (when the deploy window opens):**
+1. Rebuild both images: `docker compose build hermes-adapter hermes-gateway` on CT201 (staging first).
+2. Seed the gateway's `HERMES_HOME` config (provider = AI Box Ollama) and provision a
+   `HERMES_GATEWAY_TOKEN`; set it in `.env` (app + gateway).
+3. Bring up `hermes-gateway`; confirm `GET /api/analytikul/bots/health` → `{configured, reachable}`.
+4. Smoke-test the adapter (agent run: metering + events + memory tools) before swapping prod.
+5. Confirm `profiles.list` renders the roster in the Bots tab; create a bot; verify `ui_meta`.
+
 ## 7. Decisions needed from the owner
 
 1. **Update strategy:** full re-vendor to v0.21.5 now, or pin to v0.21.0 (Bot Mode's floor, smaller

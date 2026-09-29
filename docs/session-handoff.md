@@ -1,5 +1,5 @@
 <!-- session-version: 2 -->
-<!-- pending-session-title: Analytikul-One v2 -->
+<!-- pending-session-title: -->
 
 # Analytikul — Session Handoff
 
@@ -18,10 +18,27 @@ container hotfixes (WIPED by force-recreate — memory: deploy-fragility-warning
 **CT202** (192.168.166.183). Ollama hosts: **AI Box CT200** (192.168.166.182) + **AISERVER**
 (192.168.166.158). Apex `analytikul.ai` canonical (200).
 
-**Git:** branch `feature/analytikul-coder`, HEAD `cc5ca8101`. Tree is **DIRTY** from prior sessions
-(landing/features/pricing/index html, AnalytikulSidebar, AgentPanel, aibox-voice, coder-bridge,
-coder-desktop; new chatai.html, Analytikul/DesktopApp images, voice enroll/deskbridge files) —
-uncommitted. **This session's work was server-side, NOT in git** (below).
+**Git:** branch `feature/analytikul-coder`, HEAD `b5c2a024f` (+ pending doc/handoff edits). 7 commits
+this session, **none pushed, none deployed**: `b5af39362` client rebrand + landing Desktop section +
+sidebar restyle; `281f58444` coder-bridge phantom-folder fix; `286ff8664` aibox-voice barge-in/speaker-
+verify; `f6fc6707f` Notes image paste/drop; `7d353e9ca` **Hermes re-vendor v0.16→v0.21.5**;
+`b5c2a024f` **Bots surface + hermes-gateway + broker (S2/S3)**.
+
+**Hermes Bot Mode work (2026-09-29) — see `docs/hermes-botmode-integration-plan.md` +
+`docs/hermes-0.21.5-rpc-and-adapter-map.md`:**
+- Owner decisions: native Analytikul surface (path C), update to v0.21.5, **admin-only first**, full arc.
+- **S1 done:** re-vendored `services/hermes-runtime/` to v0.21.5 (tag `v2026.9.24`, commit `f97608f`),
+  adapter ported (low-risk — all hooked symbols compatible), `HERMES_PIN` bumped, `ANALYTIKUL_PIN.md`
+  updated, `website/` dropped. py_compile clean. **NOT runtime-verified** (needs container rebuild).
+- **S2/S3 done:** `hermes-gateway` compose service (Hermes dashboard `:9119`, internal, own volume);
+  `api/server/hermesBots.js` WS JSON-RPC broker + `/api/analytikul/bots/rpc`+`/bots/health` (admin);
+  `Bots` rail tab → `BotsPanel` (roster/create/describe). Frontend typechecks clean.
+- **Bot Mode = a Hermes profile** (`profiles.*`, `message_agent`, `groups.*` rooms, `cron.manage`)
+  over the **tui_gateway WS `/api/ws`**. The deployed `analytikul-openclaw` is `openclaw:2026.7.1-2`
+  (pre-Bot-Mode) — hence the new gateway from our own tree.
+- **Remaining (S4/S5):** routines + rooms UI (need `cron.manage`/`groups.*` **return shapes** verified
+  vs a live gateway — don't guess), bot chat (broker needs stream relay), and per-bot FinOps/vault/org
+  (needs a bot→tenant/budget mapping decision). **Gateway stand-up runbook is in the plan doc §6a.**
 
 **Shipped this session (server-side, verified live):**
 - **qwen3-coder web-search crash FIXED.** `qwen3-coder:30b` leaks XML tool calls in Ollama
@@ -40,14 +57,26 @@ uncommitted. **This session's work was server-side, NOT in git** (below).
 - **Higgsfield** integration: feasibility confirmed (public async job API, fits the comfy-MCP
   pattern); NO build — awaiting owner decisions on cost/data-egress/key model.
 
+**Shipped this session (2026-09-20 v2):**
+- **wan5b is now the DEFAULT video model** (owner-approved). CT202 `app.py`+`mcp_server.py`
+  defaults flipped, `.bak-wan5b` kept, both services restarted + verified. 14B is opt-in via
+  `hq=True`. (memory: analytikul-comfy-video)
+- **Notes image paste/drop — BUILT (server-upload, Notes + chat).** Owner picked server-upload +
+  "Notes + chat composer". New `POST /api/analytikul/notes/image` (multer→file-strategy saveBuffer
+  →`/images/<userId>/`, png/jpeg/gif/webp, 10 MB, auth-gated); NoteEditor registers
+  `@tiptap/extension-image` (pinned 3.26.1 to match core) + paste/drop upload+insert. Chat composer
+  already supports image paste/drop natively (LibreChat `useTextarea`/dropzone) — no change. Typechecks
+  clean; **NOT yet deployed** (needs `analytikul-app` image rebuild — deploy-fragility-warning).
+- Reviewed + committed the whole v1 dirty tree (4 commits, above).
+
 **Open / next focus:**
-- **Notes image paste/import (ON HOLD).** Owner asked to paste/import screenshots into Notes.
-  Mapped it: TipTap editor `client/src/components/analytikul/notes/NoteEditor.tsx` has no image
-  extension; needs `@tiptap/extension-image` + drop/paste handlers + an upload endpoint
-  (`api/server/routes/analytikul.js`, save via LibreChat file strategy → `/images/...`). Markdown
-  round-trip (turndown/marked) already handles `![](url)`. Owner **dismissed** the scope/storage
-  question — resume once they pick scope (Notes editor) + storage (server-upload vs base64).
-- Decisions pending: make `wan5b` the default video model? build Higgsfield? commit the dirty tree?
+- **Deploy decision:** rebuild+deploy `analytikul-app:coder` image to ship the Notes image feature
+  (and the committed rebrand/sidebar UI) to prod, then verify E2E in browser. Not done unprompted.
+- **Push** `feature/analytikul-coder` (5 commits ahead, unpushed).
+- Pre-existing: `NoteEditor.tsx` has 170 pre-existing prettier errors (committed non-clean; my
+  changes added 0) — separate cleanup if desired.
+- **Higgsfield** — still ON HOLD (owner deferred; awaiting cost/data-egress/key decisions).
+- FEATURES.md / HELP_CENTER.md / wiki entry for the Notes image feature — pending deploy.
 
 ---
 
