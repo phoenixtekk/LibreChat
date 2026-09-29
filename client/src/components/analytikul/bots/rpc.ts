@@ -90,3 +90,66 @@ export async function botsHealth(token: string | undefined): Promise<BotsHealth>
   });
   return (await res.json()) as BotsHealth;
 }
+
+// ---- S4: routines (cron.manage), rooms (groups.*), chat (session.resume + prompt.submit) ----
+
+export interface CronJob {
+  id: string;
+  name: string;
+  schedule: string;
+  prompt?: string;
+  enabled?: boolean;
+  state?: string;
+  next_run_at?: number | null;
+  deliver?: string;
+}
+
+export interface CronListResult {
+  success: boolean;
+  count: number;
+  jobs: CronJob[];
+}
+
+export interface Room {
+  room_id: string;
+  name: string;
+  members: string[];
+  created_at: number;
+  disbanded_at?: number | null;
+  authority_epoch?: number;
+}
+
+export interface RoomsListResult {
+  rooms: Room[];
+  next_offset?: number | null;
+}
+
+export interface ChatMessage {
+  role: string;
+  content: string;
+  usage?: { input_tokens?: number; output_tokens?: number; cost?: number };
+}
+
+export interface SessionResumeResult {
+  session_id: string;
+  resumed?: string;
+  message_count: number;
+  messages: ChatMessage[];
+}
+
+// ---- S5: bot metadata carried in ui_meta['hermes-bots'] ----
+
+export interface BotMeta {
+  title?: string;
+  shared_with_org?: boolean;
+}
+
+/** Read the `hermes-bots` ui_meta block off a profile, if present. */
+export function botMeta(profile: BotProfile): BotMeta {
+  const raw = profile.ui_meta?.['hermes-bots'];
+  return raw != null && typeof raw === 'object' ? (raw as BotMeta) : {};
+}
+
+export function isSharedWithOrg(profile: BotProfile): boolean {
+  return botMeta(profile).shared_with_org === true;
+}

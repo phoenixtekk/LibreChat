@@ -34,6 +34,7 @@ const ALLOWED_METHODS = new Set([
   'session.title',
   'session.set_hidden',
   'session.most_recent',
+  'session.resume',
   'prompt.submit',
   'groups.capabilities',
   'groups.list',
