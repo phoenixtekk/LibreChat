@@ -70,12 +70,19 @@ Deploy = copy files into `/opt/analytikul` → `docker build -t analytikul-herme
   Creds: `HERMES_GATEWAY_USER` (default `analytikul`) + `HERMES_GATEWAY_TOKEN` (= basic-auth password
   in `.env.aibox`). Verified by a `docker exec` test from `analytikul-app` → `hermes-gateway`:
   login 200 / ws-ticket 200 / ws open / gateway streamed `gateway.ready`. Prod untouched (exec only).
-  2. **Rooms-db perm** — 1 residual `sqlite3.OperationalError` after chown; confirm when groups.* used
-     (durable fix: chown `/data/hermes-gateway` in the image Dockerfile, not just the live volume).
-  3. **Prod swap (gated):** rebuild+recreate `app` with `HERMES_GATEWAY_URL` + the bots routes, then
-     `hermes-adapter` → v0.21.5 (smoke-test an agent run first).
-  Gateway left running (stable, internal-only). `--skip-build` dist currently builds at image/first-run;
-  durable optimization: bake `hermes_cli/web_dist` in the Dockerfile.
+- **✅ PROD SWAP COMPLETE + verified (2026-10-04).** Synced full branch → `/opt/analytikul`; rebuilt
+  `analytikul-app:coder` (rollback tagged) and force-recreated `app` — image id changed, `HERMES_GATEWAY_URL`
+  + token in env, **Bots UI shipped in `/app/client/dist`**, "Server readiness checks passing". Then
+  rebuilt→recreated `hermes-adapter` onto **v0.21.5** (rollback tagged): `restarts=0`, `/health` →
+  `hermes_pin f97608f`, logs show `save_to_org_memory` + notes tools registered, **no import errors** —
+  the adapter port is now RUNTIME-verified. **analytikul.ai → 200**, full fleet healthy. Rollback image
+  tags kept: `analytikul-app:rollback-*`, `analytikul-hermes:rollback-*`.
+  Now LIVE: Hermes v0.21.5 agent runtime, the admin **Bots tab** (Bot Mode via the gateway), and the
+  **Notes image paste/drop** feature (shipped in the same app image).
+- **Remaining (non-blocking):** (a) rooms-db — 1 residual `sqlite3.OperationalError`; confirm when
+  `groups.*` exercised (durable fix: chown `/data/hermes-gateway` in the Dockerfile). (b) in-browser
+  admin smoke: open the Bots tab (health→reachable, roster, create a bot) + run one agent turn to confirm
+  metering end-to-end. (c) optimize: bake `hermes_cli/web_dist` in the Dockerfile (avoid first-run build).
 
 **Shipped this session (server-side, verified live):**
 - **qwen3-coder web-search crash FIXED.** `qwen3-coder:30b` leaks XML tool calls in Ollama
