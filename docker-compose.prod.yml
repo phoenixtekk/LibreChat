@@ -159,7 +159,8 @@ services:
       dockerfile: analytikul_adapter/Dockerfile
       network: host
     restart: always
-    command: ["python", "-m", "hermes_cli.main", "dashboard", "--host", "0.0.0.0", "--port", "9119", "--no-open"]
+    init: true
+    command: ["python", "-m", "hermes_cli.main", "dashboard", "--host", "0.0.0.0", "--port", "9119", "--no-open", "--skip-build"]
     environment:
       - HERMES_HOME=/data/hermes-gateway
       - REDIS_URI=redis://redis:6379/1

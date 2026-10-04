@@ -85,7 +85,10 @@ services:
     container_name: analytikul-hermes-gateway
     image: analytikul-hermes:coder
     restart: always
-    command: ["python", "-m", "hermes_cli.main", "dashboard", "--host", "0.0.0.0", "--port", "9119", "--no-open"]
+    init: true
+    # --skip-build: serve the RPC/WS backend headless (no web UI build; Analytikul has its own
+    # Bots UI). Avoids the upstream web/ tsc build that fails in-container.
+    command: ["python", "-m", "hermes_cli.main", "dashboard", "--host", "0.0.0.0", "--port", "9119", "--no-open", "--skip-build"]
     env_file: .env.aibox
     environment:
       - HERMES_HOME=/data/hermes-gateway
