@@ -51,12 +51,28 @@ Deploy = copy files into `/opt/analytikul` → `docker build -t analytikul-herme
 `docker-compose.prod.yml` (build-based) is NOT what prod uses. **Now reconciled:** the authoritative
 `docker-compose.aibox.yml` is vendored into the repo with the `hermes-gateway` service added.
 
-**DEPLOY WINDOW = ARMED, on explicit "deploy now" (owner chose additive+verify, stop before prod swap):**
-`scripts/standup-hermes-gateway.sh` (dev-box driver, uses the linuxg6→ai jump). Additive: git-archive
-syncs v0.21.5 → /opt/analytikul, rebuilds `analytikul-hermes:coder` (tags rollback), brings up ONLY
-`hermes-gateway` (no app/adapter recreate), provisions `HERMES_GATEWAY_TOKEN` in `.env.aibox`, verifies
-(container health + `hermes profile list` + `:9119`). Prints — does NOT run — the gated prod-swap steps
-(rebuild+recreate `app` with `HERMES_GATEWAY_URL`, then `hermes-adapter` to v0.21.5). Not yet executed.
+**DEPLOY WINDOW — RUN 2026-10-04 (additive stand-up; prod untouched throughout).**
+`scripts/standup-hermes-gateway.sh` ran; uncovered + fixed a chain of real issues, gateway now UP:
+- **hermes-gateway is UP** (`analytikul-hermes-gateway`, image `analytikul-hermes:coder` = v0.21.5),
+  stable (`restarts=0`), serving `:9119` (HTTP 302 → auth login). PROD app+adapter untouched (Up 6 days).
+- **Fixed (committed `9429b60d5`):** root `.gitignore` `*.d.ts` silently dropped 7 hand-written vendored
+  source `.d.ts` (incl. `web/src/plugins/sdk.d.ts`) → git-archive never shipped them → gateway web build
+  failed. Un-ignored under `services/hermes-runtime/**`.
+- **Gateway config learned the hard way:** `hermes dashboard` needs `--skip-build` (serve headless; web
+  dist builds to `hermes_cli/web_dist`) + `init:true`; a **non-loopback bind REQUIRES an auth provider**
+  (`--insecure` does NOT bypass). Configured the **basic** provider via `.env.aibox` env
+  (`HERMES_DASHBOARD_BASIC_AUTH_USERNAME=analytikul`, `_PASSWORD=<=HERMES_GATEWAY_TOKEN>`, `_SECRET`).
+  Chowned the `aibox-hermes-gateway` volume to uid 10001 (hosted-rooms sqlite write perms).
+- **⚠ REMAINING before the Bots UI works E2E:**
+  1. **Broker auth handshake.** The dashboard WS (`/api/ws`) auth is browser-style **login → ws-ticket**,
+     NOT the simple Bearer the broker (`api/server/hermesBots.js`) sends. The broker must POST basic-auth
+     creds → get a session/ws-ticket → connect `/api/ws` with it. This is the key remaining integration.
+  2. **Rooms-db perm** — 1 residual `sqlite3.OperationalError` after chown; confirm when groups.* used
+     (durable fix: chown `/data/hermes-gateway` in the image Dockerfile, not just the live volume).
+  3. **Prod swap (gated):** rebuild+recreate `app` with `HERMES_GATEWAY_URL` + the bots routes, then
+     `hermes-adapter` → v0.21.5 (smoke-test an agent run first).
+  Gateway left running (stable, internal-only). `--skip-build` dist currently builds at image/first-run;
+  durable optimization: bake `hermes_cli/web_dist` in the Dockerfile.
 
 **Shipped this session (server-side, verified live):**
 - **qwen3-coder web-search crash FIXED.** `qwen3-coder:30b` leaks XML tool calls in Ollama
