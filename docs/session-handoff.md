@@ -79,10 +79,16 @@ Deploy = copy files into `/opt/analytikul` → `docker build -t analytikul-herme
   tags kept: `analytikul-app:rollback-*`, `analytikul-hermes:rollback-*`.
   Now LIVE: Hermes v0.21.5 agent runtime, the admin **Bots tab** (Bot Mode via the gateway), and the
   **Notes image paste/drop** feature (shipped in the same app image).
-- **Remaining (non-blocking):** (a) rooms-db — 1 residual `sqlite3.OperationalError`; confirm when
-  `groups.*` exercised (durable fix: chown `/data/hermes-gateway` in the Dockerfile). (b) in-browser
-  admin smoke: open the Bots tab (health→reachable, roster, create a bot) + run one agent turn to confirm
-  metering end-to-end. (c) optimize: bake `hermes_cli/web_dist` in the Dockerfile (avoid first-run build).
+- **✅ Rooms-db FIXED + verified (2026-10-04).** The gateway's `/data/hermes-gateway/shared-state.db`
+  (`default_db_path()` = `HERMES_HOME/shared-state.db`) failed because the fresh volume was root-owned
+  but the container runs as uid 10001. Live fix: chowned the volume (done earlier). Durable fix:
+  `analytikul_adapter/Dockerfile` now `mkdir -p` + `chown`s `/data/hermes-gateway` so fresh builds are
+  correct. Verified live: `open_db` → OPEN_OK, 0 "unable to open" errors in recent logs. (Benign residual:
+  a one-time SQLite WAL-reset *warning* — it falls back to journal_mode=DELETE; upstream recommends
+  SQLite ≥3.51.3, not a blocker.) The Dockerfile change applies on the next hermes image rebuild.
+- **Remaining (non-blocking):** (a) in-browser admin smoke: open the Bots tab (health→reachable, roster,
+  create a bot) + one agent turn to confirm metering E2E. (b) optimize: bake `hermes_cli/web_dist` in the
+  Dockerfile (avoid first-run web build).
 
 **Shipped this session (server-side, verified live):**
 - **qwen3-coder web-search crash FIXED.** `qwen3-coder:30b` leaks XML tool calls in Ollama

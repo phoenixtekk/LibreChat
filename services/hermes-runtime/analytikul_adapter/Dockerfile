@@ -59,8 +59,8 @@ COPY . .
 RUN uv pip install --system --no-cache -e .
 
 RUN useradd -m -u 10001 agent \
-    && mkdir -p /data/hermes/sandboxes \
-    && chown -R agent:agent /data/hermes /runtime
+    && mkdir -p /data/hermes/sandboxes /data/hermes-gateway \
+    && chown -R agent:agent /data/hermes /data/hermes-gateway /runtime
 USER agent
 
 ENV HERMES_HOME=/data/hermes \
