@@ -6,17 +6,76 @@
 // Transport: newline-delimited JSON-RPC 2.0 over WebSocket (tui_gateway/ws.py, mounted at
 // `/api/ws`). We correlate responses by `id`. See docs/hermes-0.21.5-rpc-and-adapter-map.md §2.
 //
-// Auth to the gateway is a legacy shared token (like the OpenClaw embed injects a gateway token).
-// The exact upgrade credential is finalized when the hermes-gateway service is stood up; it is
-// configurable here and presented on the WS handshake. Until then this module no-ops gracefully.
+// Auth: the Hermes dashboard gates non-loopback binds with a login -> ws-ticket flow (not a bearer
+// header). Per connection we (1) POST /auth/password-login with the basic-auth creds to get session
+// cookies, (2) POST /api/auth/ws-ticket for a single-use ticket, (3) open /api/ws presenting the
+// ticket as the `hermes-gateway-ticket.<ticket>` WebSocket subprotocol. Creds come from
+// HERMES_GATEWAY_USER + HERMES_GATEWAY_TOKEN (set in .env.aibox alongside the gateway's
+// HERMES_DASHBOARD_BASIC_AUTH_*). Until configured, the module no-ops gracefully.
 const WebSocket = require('ws');
 const { logger } = require('@librechat/data-schemas');
 
 const GATEWAY_URL = () =>
   process.env.HERMES_GATEWAY_URL || 'ws://analytikul-hermes-gateway:9119/api/ws';
+const GATEWAY_USER = () => process.env.HERMES_GATEWAY_USER || 'analytikul';
 const GATEWAY_TOKEN = () => process.env.HERMES_GATEWAY_TOKEN || '';
+const GATEWAY_PROVIDER = () => process.env.HERMES_GATEWAY_PROVIDER || 'basic';
+const WS_PROTOCOL = 'hermes-gateway-v1';
+const WS_TICKET_SUBPROTOCOL_PREFIX = 'hermes-gateway-ticket.';
 const CONNECT_TIMEOUT_MS = 8000;
 const REQUEST_TIMEOUT_MS = 30000;
+
+/** HTTP base (scheme + host) for the dashboard, derived from the ws(s):// gateway URL. */
+function httpBase() {
+  const u = new URL(GATEWAY_URL());
+  u.protocol = u.protocol === 'wss:' ? 'https:' : 'http:';
+  return `${u.protocol}//${u.host}`;
+}
+
+/** Collapse Set-Cookie headers into a single `name=value; …` Cookie header value. */
+function cookieHeaderFrom(res) {
+  const setCookies =
+    typeof res.headers.getSetCookie === 'function'
+      ? res.headers.getSetCookie()
+      : [res.headers.get('set-cookie')].filter(Boolean);
+  return setCookies.map((c) => c.split(';')[0]).join('; ');
+}
+
+/**
+ * Run the dashboard login -> ws-ticket handshake and return a fresh single-use ticket plus the
+ * session Cookie header. Throws on auth failure.
+ */
+async function obtainWsTicket() {
+  const base = httpBase();
+  const controller = AbortSignal.timeout(CONNECT_TIMEOUT_MS);
+  const loginRes = await fetch(`${base}/auth/password-login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      provider: GATEWAY_PROVIDER(),
+      username: GATEWAY_USER(),
+      password: GATEWAY_TOKEN(),
+    }),
+    signal: controller,
+  });
+  if (!loginRes.ok) {
+    throw new Error(`gateway login failed (${loginRes.status})`);
+  }
+  const cookie = cookieHeaderFrom(loginRes);
+  const ticketRes = await fetch(`${base}/api/auth/ws-ticket`, {
+    method: 'POST',
+    headers: { Cookie: cookie },
+    signal: AbortSignal.timeout(CONNECT_TIMEOUT_MS),
+  });
+  if (!ticketRes.ok) {
+    throw new Error(`gateway ws-ticket failed (${ticketRes.status})`);
+  }
+  const { ticket } = await ticketRes.json();
+  if (!ticket) {
+    throw new Error('gateway ws-ticket: empty ticket');
+  }
+  return ticket;
+}
 
 // Methods the browser is allowed to invoke through the broker. Anything else is rejected before
 // it reaches the gateway. Group-chat rooms and cron routines are included for S4.
@@ -65,27 +124,34 @@ function connect() {
   if (conn.ready) {
     return conn.ready;
   }
-  conn.ready = new Promise((resolve, reject) => {
-    const headers = {};
-    const token = GATEWAY_TOKEN();
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
-    }
-    const socket = new WebSocket(GATEWAY_URL(), { headers, handshakeTimeout: CONNECT_TIMEOUT_MS });
-    conn.ws = socket;
+  conn.ready = (async () => {
+    const ticket = await obtainWsTicket();
+    await new Promise((resolve, reject) => {
+      // The gateway requires BOTH the stable protocol and the ticket-bearing protocol in the
+      // Sec-WebSocket-Protocol set; it selects the stable one on accept.
+      const socket = new WebSocket(
+        GATEWAY_URL(),
+        [WS_PROTOCOL, `${WS_TICKET_SUBPROTOCOL_PREFIX}${ticket}`],
+        { handshakeTimeout: CONNECT_TIMEOUT_MS },
+      );
+      conn.ws = socket;
 
-    socket.on('open', () => resolve());
-    socket.on('message', (data) => onMessage(data));
-    socket.on('close', () => {
-      conn.ws = null;
-      conn.ready = null;
-      rejectAllPending(new Error('hermes gateway connection closed'));
+      socket.on('open', () => resolve());
+      socket.on('message', (data) => onMessage(data));
+      socket.on('close', () => {
+        conn.ws = null;
+        conn.ready = null;
+        rejectAllPending(new Error('hermes gateway connection closed'));
+      });
+      socket.on('error', (err) => {
+        conn.ready = null;
+        rejectAllPending(err);
+        reject(err);
+      });
     });
-    socket.on('error', (err) => {
-      conn.ready = null;
-      rejectAllPending(err);
-      reject(err);
-    });
+  })();
+  conn.ready.catch(() => {
+    conn.ready = null;
   });
   return conn.ready;
 }

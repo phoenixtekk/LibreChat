@@ -63,10 +63,13 @@ Deploy = copy files into `/opt/analytikul` → `docker build -t analytikul-herme
   (`--insecure` does NOT bypass). Configured the **basic** provider via `.env.aibox` env
   (`HERMES_DASHBOARD_BASIC_AUTH_USERNAME=analytikul`, `_PASSWORD=<=HERMES_GATEWAY_TOKEN>`, `_SECRET`).
   Chowned the `aibox-hermes-gateway` volume to uid 10001 (hosted-rooms sqlite write perms).
-- **⚠ REMAINING before the Bots UI works E2E:**
-  1. **Broker auth handshake.** The dashboard WS (`/api/ws`) auth is browser-style **login → ws-ticket**,
-     NOT the simple Bearer the broker (`api/server/hermesBots.js`) sends. The broker must POST basic-auth
-     creds → get a session/ws-ticket → connect `/api/ws` with it. This is the key remaining integration.
+- **✅ Broker auth handshake DONE + verified E2E (2026-10-04).** `api/server/hermesBots.js` now does
+  the real flow: POST `/auth/password-login` {provider:"basic",username,password} → session cookies →
+  POST `/api/auth/ws-ticket` → single-use ticket → WS `/api/ws` presenting BOTH subprotocols
+  `hermes-gateway-v1` + `hermes-gateway-ticket.<ticket>` (the gateway rejects ticket-only with 403).
+  Creds: `HERMES_GATEWAY_USER` (default `analytikul`) + `HERMES_GATEWAY_TOKEN` (= basic-auth password
+  in `.env.aibox`). Verified by a `docker exec` test from `analytikul-app` → `hermes-gateway`:
+  login 200 / ws-ticket 200 / ws open / gateway streamed `gateway.ready`. Prod untouched (exec only).
   2. **Rooms-db perm** — 1 residual `sqlite3.OperationalError` after chown; confirm when groups.* used
      (durable fix: chown `/data/hermes-gateway` in the image Dockerfile, not just the live volume).
   3. **Prod swap (gated):** rebuild+recreate `app` with `HERMES_GATEWAY_URL` + the bots routes, then
