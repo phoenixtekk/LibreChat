@@ -1,13 +1,12 @@
-import { useCallback, useEffect, useState, useMemo, memo, lazy, Suspense, useRef } from 'react';
+import { useCallback, useEffect, useState, useMemo, memo, useRef } from 'react';
 import { useSetRecoilState, useRecoilValue } from 'recoil';
 import { useMediaQuery } from '@librechat/client';
-import { PermissionTypes, Permissions } from 'librechat-data-provider';
 import type { InfiniteQueryObserverResult } from '@tanstack/react-query';
 import type { ConversationListResponse } from 'librechat-data-provider';
 import type { List } from 'react-virtualized';
 import {
   useLocalize,
-  useHasAccess,
+  useFavorites,
   useAuthContext,
   useLocalStorage,
   useNavScrolling,
@@ -17,25 +16,26 @@ import { Conversations } from '~/components/Conversations';
 import ProjectsSection from '~/components/Conversations/ProjectsSection';
 import FavoritesList from '~/components/Nav/Favorites/FavoritesList';
 import SearchBar from '~/components/Nav/SearchBar';
+import { SidebarGroup } from '~/components/analytikul/sidebar/SidebarGroup';
 import store from '~/store';
 
-const BookmarkNav = lazy(() => import('~/components/Nav/Bookmarks/BookmarkNav'));
+interface ConversationsSectionProps {
+  hideSearch?: boolean;
+  hideMarketplace?: boolean;
+  tags: string[];
+}
 
-const ConversationsSection = memo(({ hideSearch = false }: { hideSearch?: boolean }) => {
+const ConversationsSection = memo((props: ConversationsSectionProps) => {
+  const { hideSearch = false, hideMarketplace = false, tags } = props;
   const localize = useLocalize();
   const isSmallScreen = useMediaQuery('(max-width: 768px)');
   const setSidebarExpanded = useSetRecoilState(store.sidebarExpanded);
   const { isAuthenticated } = useAuthContext();
+  const { favorites } = useFavorites();
   useTitleGeneration(isAuthenticated);
 
   const [isChatsExpanded, setIsChatsExpanded] = useLocalStorage('chatsExpanded', true);
   const [showLoading, setShowLoading] = useState(false);
-  const [tags, setTags] = useState<string[]>([]);
-
-  const hasAccessToBookmarks = useHasAccess({
-    permissionType: PermissionTypes.BOOKMARKS,
-    permission: Permissions.USE,
-  });
 
   const search = useRecoilValue(store.search);
 
@@ -110,27 +110,20 @@ const ConversationsSection = memo(({ hideSearch = false }: { hideSearch?: boolea
       role="region"
       aria-label={localize('com_ui_chat_history')}
     >
-      <div className="flex items-center gap-2 px-3">
-        {hasAccessToBookmarks && (
-          <Suspense fallback={null}>
-            <span className="flex items-center gap-1">
-              <BookmarkNav tags={tags} setTags={setTags} />
-              <button
-                type="button"
-                className="rounded-lg px-1.5 py-1 text-sm text-text-primary transition hover:bg-surface-hover"
-                onClick={() => document.getElementById('bookmark-nav-menu-button')?.click()}
-                aria-label={localize('com_ui_bookmarks')}
-              >
-                {localize('com_ui_bookmarks')}
-              </button>
-            </span>
-          </Suspense>
-        )}
-        {!hideSearch && search.enabled && <SearchBar isSmallScreen={isSmallScreen} />}
-      </div>
-      {!search.query && (
-        <div className="px-3">
-          <FavoritesList isSmallScreen={isSmallScreen} toggleNav={toggleNav} />
+      {!hideSearch && search.enabled && (
+        <div className="flex items-center gap-2 px-3">
+          <SearchBar isSmallScreen={isSmallScreen} />
+        </div>
+      )}
+      {!search.query && favorites.length > 0 && (
+        <div className="px-2">
+          <SidebarGroup id="favorites" label={localize('com_atk_sb_favorites')}>
+            <FavoritesList
+              isSmallScreen={isSmallScreen}
+              toggleNav={toggleNav}
+              hideMarketplace={hideMarketplace}
+            />
+          </SidebarGroup>
         </div>
       )}
       {!search.query && <ProjectsSection toggleNav={toggleNav} isAuthenticated={isAuthenticated} />}

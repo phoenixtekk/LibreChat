@@ -1,10 +1,10 @@
-import { memo, useCallback, useState } from 'react';
+import { memo, useCallback, useState, lazy, Suspense } from 'react';
 import type { ReactNode } from 'react';
 import { useForm } from 'react-hook-form';
 import { useRecoilState, useSetRecoilState } from 'recoil';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { QueryKeys } from 'librechat-data-provider';
+import { QueryKeys, PermissionTypes, Permissions } from 'librechat-data-provider';
 import { useMediaQuery } from '@librechat/client';
 import {
   PenSquare,
@@ -14,22 +14,24 @@ import {
   LayoutGrid,
   ScrollText,
   MessageSquareText,
-  ChevronDown,
   Brain,
   KeyRound,
   Boxes,
   Compass,
+  Store,
 } from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
 import type { PreviewRailTab } from '~/store/misc';
 import type { ChatFormValues } from '~/common';
 import ConversationsSection from '~/components/UnifiedSidebar/ConversationsSection';
 import { ChatContext, ChatFormProvider, ActivePanelProvider } from '~/Providers';
 import AccountSettings from '~/components/Nav/AccountSettings';
 import AnnotationsTree from '~/components/analytikul/annotations/AnnotationsTree';
-import { useLocalize, useNewConvo, useChatHelpers } from '~/hooks';
+import { useLocalize, useNewConvo, useChatHelpers, useHasAccess } from '~/hooks';
+import { SidebarGroup, NavRow } from './SidebarGroup';
 import store from '~/store';
 import { cn } from '~/utils';
+
+const BookmarkNav = lazy(() => import('~/components/Nav/Bookmarks/BookmarkNav'));
 
 /** Isolates chat Recoil subscriptions from the sidebar shell (same pattern as UnifiedSidebar). */
 function SidebarChatProvider({ children }: { children: ReactNode }) {
@@ -45,83 +47,12 @@ function SidebarChatProvider({ children }: { children: ReactNode }) {
 const SIDEBAR_WIDTH = 264;
 const TRANSITION = 'transform 280ms cubic-bezier(0.2, 0, 0, 1)';
 
-/** Collapse state for a nav group, persisted per-group in localStorage (defaults open). */
-function usePersistedOpen(key: string) {
-  const storageKey = `atk_nav_${key}`;
-  const [open, setOpen] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem(storageKey) !== '0';
-    } catch {
-      return true;
-    }
-  });
-  const toggle = useCallback(() => {
-    setOpen((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem(storageKey, next ? '1' : '0');
-      } catch {
-        /* private mode / blocked storage — state still toggles for this session */
-      }
-      return next;
-    });
-  }, [storageKey]);
-  return [open, toggle] as const;
-}
-
-interface NavLink {
-  id: string;
-  label: string;
-  icon: LucideIcon;
-  onClick: () => void;
-  active?: boolean;
-}
-
-/** One nav row — identical shape for every item so the rail reads as one system. */
-function NavRow({ icon: Icon, label, active, onClick }: Omit<NavLink, 'id'>) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-text-secondary transition hover:bg-surface-hover hover:text-text-primary',
-        active ? 'bg-surface-active text-text-primary' : '',
-      )}
-    >
-      <Icon size={16} strokeWidth={2} aria-hidden={true} />
-      <span className="truncate">{label}</span>
-    </button>
-  );
-}
-
-/** A collapsible category: one consistent header + its rows. Open state persists. */
-function SidebarGroup({ id, label, children }: { id: string; label: string; children: ReactNode }) {
-  const [open, toggle] = usePersistedOpen(id);
-  return (
-    <div className="mt-1">
-      <button
-        type="button"
-        className="flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-text-tertiary transition hover:text-text-secondary"
-        aria-expanded={open}
-        onClick={toggle}
-      >
-        <span>{label}</span>
-        <ChevronDown
-          size={13}
-          className={cn('transition-transform', open ? '' : '-rotate-90')}
-          aria-hidden="true"
-        />
-      </button>
-      {open && <div className="mt-px flex flex-col gap-px">{children}</div>}
-    </div>
-  );
-}
-
 /**
- * Analytikul nav rail: a pinned action row, then unified collapsible categories
- * (Workspace, Knowledge), the conversation history, and the account footer.
- * Every row shares one shape; categories remember their collapsed state; the
- * nav region scrolls so nothing is clipped on a short window.
+ * Analytikul nav rail: four pinned actions (New chat, Search, Bookmarks, Agent
+ * Marketplace), then unified collapsible categories (Workspace, Knowledge, and
+ * Favorites/Projects/Chats from the conversation section), with API Keys + the
+ * account menu pinned to the footer. Every row and header shares one look;
+ * categories remember their collapsed state; the nav scrolls so nothing clips.
  */
 function AnalytikulSidebar() {
   const localize = useLocalize();
@@ -133,6 +64,12 @@ function AnalytikulSidebar() {
   const setPreviewRail = useSetRecoilState(store.previewRail);
   const setCatalog = useSetRecoilState(store.catalogPanel);
   const isSmallScreen = useMediaQuery('(max-width: 768px)');
+  const [tags, setTags] = useState<string[]>([]);
+
+  const hasAccessToBookmarks = useHasAccess({
+    permissionType: PermissionTypes.BOOKMARKS,
+    permission: Permissions.USE,
+  });
 
   const closeOnMobile = useCallback(() => {
     if (isSmallScreen) {
@@ -162,23 +99,7 @@ function AnalytikulSidebar() {
     [setPreviewRail, closeOnMobile],
   );
 
-  const pinned: NavLink[] = [
-    {
-      id: 'new-chat',
-      label: localize('com_atk_new_chat'),
-      icon: PenSquare,
-      onClick: handleNewChat,
-    },
-    {
-      id: 'search',
-      label: localize('com_atk_sb_search'),
-      icon: Search,
-      onClick: () => go('/search'),
-      active: location.pathname === '/search',
-    },
-  ];
-
-  const workspace: NavLink[] = [
+  const workspace = [
     {
       id: 'models',
       label: localize('com_atk_tab_models'),
@@ -191,7 +112,7 @@ function AnalytikulSidebar() {
       label: localize('com_atk_sb_agents'),
       icon: LayoutGrid,
       onClick: () => go('/agents'),
-      active: location.pathname.startsWith('/agents'),
+      active: location.pathname === '/agents',
     },
     {
       id: 'prompts',
@@ -218,7 +139,7 @@ function AnalytikulSidebar() {
     },
   ];
 
-  const knowledge: NavLink[] = [
+  const knowledge = [
     {
       id: 'notes',
       label: localize('com_atk_notes_title'),
@@ -271,15 +192,40 @@ function AnalytikulSidebar() {
         </button>
       </div>
 
+      {/* Pinned actions — the only rows without a category. */}
       <div className="shrink-0 px-2 pt-1">
-        {pinned.map((item) => (
-          <NavRow key={item.id} {...item} />
-        ))}
+        <NavRow icon={PenSquare} label={localize('com_atk_new_chat')} onClick={handleNewChat} />
+        <NavRow
+          icon={Search}
+          label={localize('com_atk_sb_search')}
+          active={location.pathname === '/search'}
+          onClick={() => go('/search')}
+        />
+        {hasAccessToBookmarks && (
+          <Suspense fallback={null}>
+            <div className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-text-secondary transition hover:bg-surface-hover hover:text-text-primary">
+              <BookmarkNav tags={tags} setTags={setTags} />
+              <button
+                type="button"
+                className="min-w-0 flex-1 truncate text-left"
+                onClick={() => document.getElementById('bookmark-nav-menu-button')?.click()}
+              >
+                {localize('com_ui_bookmarks')}
+              </button>
+            </div>
+          </Suspense>
+        )}
+        <NavRow
+          icon={Store}
+          label={localize('com_agents_marketplace')}
+          active={location.pathname === '/agents'}
+          onClick={() => go('/agents')}
+        />
       </div>
 
       {/* Collapsible categories — capped height so they always scroll instead of
           clipping on a short window, leaving the conversation list its own space. */}
-      <div className="max-h-[52%] min-h-0 shrink overflow-y-auto px-2">
+      <div className="max-h-[46%] min-h-0 shrink overflow-y-auto px-2">
         <SidebarGroup id="workspace" label={localize('com_atk_sb_workspace')}>
           {workspace.map((item) => (
             <NavRow key={item.id} {...item} />
@@ -293,22 +239,21 @@ function AnalytikulSidebar() {
         </SidebarGroup>
       </div>
 
-      <div className="mt-1 min-h-0 flex-1 overflow-hidden">
+      {/* Favorites / Projects / Chats — unified category headers rendered inside. */}
+      <div className="mt-1 min-h-0 flex-1 overflow-hidden px-2">
         <SidebarChatProvider>
           <ActivePanelProvider>
-            <ConversationsSection hideSearch />
+            <ConversationsSection hideSearch hideMarketplace tags={tags} />
           </ActivePanelProvider>
         </SidebarChatProvider>
       </div>
 
-      <div className="shrink-0 px-1.5 pb-2 pt-1.5">
-        <div className="px-0.5">
-          <NavRow
-            icon={KeyRound}
-            label={localize('com_atk_sb_keys')}
-            onClick={() => openRail('keys')}
-          />
-        </div>
+      <div className="shrink-0 px-2 pb-2 pt-1.5">
+        <NavRow
+          icon={KeyRound}
+          label={localize('com_atk_sb_keys')}
+          onClick={() => openRail('keys')}
+        />
         <AccountSettings />
       </div>
     </div>

@@ -119,16 +119,18 @@ const DraggableFavoriteItem = ({
 export default function FavoritesList({
   isSmallScreen,
   toggleNav,
+  hideMarketplace = false,
 }: {
   isSmallScreen?: boolean;
   toggleNav?: () => void;
+  hideMarketplace?: boolean;
 }) {
   const navigate = useNavigate();
   const localize = useLocalize();
   const search = useRecoilValue(store.search);
   const getConversation = useGetConversation(0);
   const { favorites, reorderFavorites, isLoading: isFavoritesLoading } = useFavorites();
-  const showAgentMarketplace = useShowMarketplace();
+  const showAgentMarketplace = useShowMarketplace() && !hideMarketplace;
 
   const { newConversation } = useNewConvo();
   const assistantsMap = useAssistantsMapContext();

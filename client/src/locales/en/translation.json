@@ -2050,6 +2050,7 @@
   "com_atk_cap_artifacts": "Artifacts",
   "com_atk_sb_workspace": "Workspace",
   "com_atk_sb_knowledge": "Knowledge",
+  "com_atk_sb_favorites": "Favorites",
   "com_atk_sb_annotations": "Annotations",
   "com_atk_sb_annotations_empty": "No annotations yet.",
   "com_atk_annotate_save": "Save",

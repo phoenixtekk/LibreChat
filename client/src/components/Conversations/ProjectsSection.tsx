@@ -501,7 +501,7 @@ const ProjectsSection = ({ toggleNav, isAuthenticated }: ProjectsSectionProps) =
             setStoredExpanded(!isExpanded);
             setHasToggledSection(true);
           }}
-          className="group flex min-w-0 flex-1 items-center gap-1 rounded-lg px-1 py-2 text-xs font-bold text-text-secondary outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-black dark:focus-visible:ring-white"
+          className="group flex min-w-0 flex-1 items-center justify-between gap-1 rounded-lg px-2 py-1.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-text-tertiary outline-none transition hover:text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-black dark:focus-visible:ring-white"
           type="button"
           aria-expanded={isExpanded}
         >
