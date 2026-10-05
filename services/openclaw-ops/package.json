@@ -1,0 +1,9 @@
+{
+  "name": "@analytikul/openclaw-ops",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Internal docker-socket ops helper scoped to the analytikul-openclaw container (status/start/stop/restart/logs).",
+  "main": "ops.mjs",
+  "scripts": { "start": "node ops.mjs" }
+}

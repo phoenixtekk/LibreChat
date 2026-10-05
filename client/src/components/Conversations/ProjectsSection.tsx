@@ -494,52 +494,64 @@ const ProjectsSection = ({ toggleNav, isAuthenticated }: ProjectsSectionProps) =
   }
 
   return (
-    <div className="flex flex-col px-3 text-sm">
-      <div className="flex h-8 w-full items-center gap-0.5 pr-2">
+    <div className="flex flex-col text-sm">
+      <div className="group/phead mt-1 flex h-8 w-full items-center gap-0.5 pr-1">
         <button
           onClick={() => {
             setStoredExpanded(!isExpanded);
             setHasToggledSection(true);
           }}
-          className="group flex min-w-0 flex-1 items-center gap-1 rounded-lg px-1 py-2 text-xs font-bold text-text-secondary outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-black dark:focus-visible:ring-white"
+          className="flex min-w-0 flex-1 items-center rounded-lg px-3 py-1.5 text-left text-[11px] font-semibold uppercase tracking-[0.1em] text-text-tertiary outline-none transition hover:text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-black dark:focus-visible:ring-white"
           type="button"
           aria-expanded={isExpanded}
         >
           <span className="select-none truncate">{localize('com_ui_projects')}</span>
+        </button>
+        <div className="hidden items-center group-focus-within/phead:flex group-hover/phead:flex">
+          <TooltipAnchor
+            description={localize('com_ui_all_projects')}
+            render={
+              <button
+                type="button"
+                aria-label={localize('com_ui_all_projects')}
+                className={iconButtonClassName}
+                onClick={openProjects}
+              >
+                <Folders className="h-4 w-4" aria-hidden="true" />
+              </button>
+            }
+          />
+          <TooltipAnchor
+            description={localize('com_ui_new_project')}
+            render={
+              <button
+                type="button"
+                aria-label={localize('com_ui_new_project')}
+                className={iconButtonClassName}
+                onClick={() => setIsCreateOpen(true)}
+              >
+                <FolderPlus className="h-4 w-4" aria-hidden="true" />
+              </button>
+            }
+          />
+        </div>
+        <button
+          type="button"
+          aria-label={localize('com_ui_projects')}
+          onClick={() => {
+            setStoredExpanded(!isExpanded);
+            setHasToggledSection(true);
+          }}
+          className="shrink-0 rounded-lg p-1 text-text-tertiary outline-none transition hover:text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-black dark:focus-visible:ring-white"
+        >
           <ChevronDown
             className={cn(
-              'h-3 w-3 shrink-0 transition-transform duration-200',
+              'h-3.5 w-3.5 shrink-0 transition-transform duration-200',
               isExpanded ? '' : '-rotate-90',
             )}
             aria-hidden="true"
           />
         </button>
-        <TooltipAnchor
-          description={localize('com_ui_all_projects')}
-          render={
-            <button
-              type="button"
-              aria-label={localize('com_ui_all_projects')}
-              className={iconButtonClassName}
-              onClick={openProjects}
-            >
-              <Folders className="h-4 w-4" aria-hidden="true" />
-            </button>
-          }
-        />
-        <TooltipAnchor
-          description={localize('com_ui_new_project')}
-          render={
-            <button
-              type="button"
-              aria-label={localize('com_ui_new_project')}
-              className={iconButtonClassName}
-              onClick={() => setIsCreateOpen(true)}
-            >
-              <FolderPlus className="h-4 w-4" aria-hidden="true" />
-            </button>
-          }
-        />
       </div>
 
       {isExpanded && (

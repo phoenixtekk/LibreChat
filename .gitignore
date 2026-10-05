@@ -58,6 +58,10 @@ client/node_modules/
 bower_components/
 *.d.ts
 !vite-env.d.ts
+# Vendored Hermes ships hand-written source .d.ts (e.g. web/src/plugins/sdk.d.ts, the plugin SDK
+# contract). The blanket *.d.ts rule above (for generated declarations) must not drop them, or the
+# gateway's web build fails. node_modules .d.ts stay ignored via the node_modules/ rule.
+!services/hermes-runtime/**/*.d.ts
 
 # AI
 .clineignore
@@ -179,3 +183,5 @@ claude-flow
 hive-mind-prompt-*.txt
 CLAUDE.md
 .gsd
+__pycache__/
+*.pyc

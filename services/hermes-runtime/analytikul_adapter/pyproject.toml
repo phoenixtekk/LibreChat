@@ -1,0 +1,12 @@
+[project]
+name = "analytikul-adapter"
+version = "0.0.1"
+description = "FastAPI bridge between Analytikul's Express backend and the Hermes Agent runtime"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+]
+
+[tool.uv]
+package = false

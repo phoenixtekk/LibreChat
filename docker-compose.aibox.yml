@@ -1,0 +1,167 @@
+services:
+  app:
+    container_name: analytikul-app
+    image: analytikul-app:coder
+    restart: always
+    ports:
+      - "3080:3080"
+    env_file: .env.aibox
+    environment:
+      - HOST=0.0.0.0
+      - PORT=3080
+      - MONGO_URI=mongodb://mongodb:27017/LibreChat
+      - MEILI_HOST=http://meilisearch:7700
+      - RAG_API_URL=http://rag_api:8000
+      - HERMES_GATEWAY_URL=ws://hermes-gateway:9119/api/ws
+      # HERMES_GATEWAY_TOKEN comes from .env.aibox (provisioned by the stand-up script).
+    depends_on: [mongodb, meilisearch, vectordb]
+    volumes:
+      - ./librechat.aibox.yaml:/app/librechat.yaml
+      - ./.env.aibox:/app/.env
+      - /srv/lc-images:/app/client/public/images
+      - aibox-uploads:/app/uploads
+      - aibox-logs:/app/api/logs
+  mongodb:
+    container_name: analytikul-mongodb
+    image: mongo:4.4
+    restart: always
+    command: mongod --noauth
+    volumes: [aibox-mongo:/data/db]
+  meilisearch:
+    container_name: analytikul-meilisearch
+    image: getmeili/meilisearch:v1.12.3
+    restart: always
+    env_file: .env.aibox
+    environment: [MEILI_NO_ANALYTICS=true]
+    volumes: [aibox-meili:/meili_data]
+  vectordb:
+    container_name: analytikul-vectordb
+    image: pgvector/pgvector:0.8.0-pg15-trixie
+    restart: always
+    environment:
+      - POSTGRES_DB=analytikul
+      - POSTGRES_USER=myuser
+      - POSTGRES_PASSWORD=d72c96dcf96a53e5283308de40e632a3
+    volumes: [aibox-pg:/var/lib/postgresql/data]
+  rag_api:
+    container_name: analytikul-rag
+    image: ghcr.io/danny-avila/librechat-rag-api-dev-lite:latest
+    restart: always
+    depends_on: [vectordb]
+    environment:
+      - DB_HOST=vectordb
+      - RAG_PORT=8000
+      - POSTGRES_DB=analytikul
+      - POSTGRES_USER=myuser
+      - POSTGRES_PASSWORD=d72c96dcf96a53e5283308de40e632a3
+      - RAG_OLLAMA_BASE_URL=http://192.168.166.182:11434
+      - OLLAMA_BASE_URL=http://192.168.166.182:11434
+      - EMBEDDINGS_PROVIDER=ollama
+      - EMBEDDINGS_MODEL=nomic-embed-text
+  redis:
+    container_name: analytikul-redis
+    image: redis:7-alpine
+    restart: always
+    volumes: [aibox-redis:/data]
+  hermes-adapter:
+    container_name: analytikul-hermes-adapter
+    image: analytikul-hermes:coder
+    restart: always
+    env_file: .env.aibox
+    environment:
+      - REDIS_URI=redis://redis:6379/0
+      - MONGO_URI=mongodb://mongodb:27017/LibreChat
+      - TERMINAL_ENV=local
+      - AGENT_IDLE_TTL_S=600
+      - AGENT_MAX_CONCURRENT=8
+      - AGENT_MAX_PER_USER=2
+    volumes: [aibox-hermes:/data/hermes]
+    depends_on: [redis, mongodb]
+  # Hermes v0.21.5 dashboard/tui_gateway — Bot Mode control plane (profiles.*, groups.*,
+  # cron.manage, image.generate over /api/ws). Reuses the analytikul-hermes:coder image with a
+  # dashboard command; internal only (never published); own HERMES_HOME volume. Additive — the
+  # stand-up brings this up without recreating app/hermes-adapter.
+  hermes-gateway:
+    container_name: analytikul-hermes-gateway
+    image: analytikul-hermes:coder
+    restart: always
+    init: true
+    # --skip-build: serve the RPC/WS backend headless (no web UI build; Analytikul has its own
+    # Bots UI). Avoids the upstream web/ tsc build that fails in-container.
+    command: ["python", "-m", "hermes_cli.main", "dashboard", "--host", "0.0.0.0", "--port", "9119", "--no-open", "--skip-build"]
+    env_file: .env.aibox
+    environment:
+      - HERMES_HOME=/data/hermes-gateway
+      - REDIS_URI=redis://redis:6379/1
+      - OLLAMA_BASE_URL=http://192.168.166.182:11434
+    volumes: [aibox-hermes-gateway:/data/hermes-gateway]
+    depends_on: [redis]
+  analytics-service:
+    container_name: analytikul-analytics
+    image: node:24-alpine
+    restart: always
+    working_dir: /app
+    command: sh -c "npm install --omit=dev --no-audit --no-fund && node src/index.js"
+    env_file: .env.aibox
+    environment:
+      - ANALYTICS_PORT=8011
+      - REDIS_URI=redis://redis:6379/0
+      - ANALYTICS_PG_URI=postgresql://myuser:d72c96dcf96a53e5283308de40e632a3@vectordb:5432/analytikul
+    volumes: ["./services/analytics-service:/app"]
+    depends_on: [redis, vectordb]
+  memory-service:
+    container_name: analytikul-memory
+    image: node:24-bookworm-slim
+    restart: always
+    working_dir: /app
+    command: sh -c "npm install --omit=dev --no-audit --no-fund && node src/index.js"
+    env_file: .env.aibox
+    environment:
+      - MEMORY_PORT=8012
+      - MEMORY_PG_URI=postgresql://myuser:d72c96dcf96a53e5283308de40e632a3@vectordb:5432/analytikul
+      - MEMORY_PG_RT_URI=postgresql://memory_rt:3d875437af1930d9c949c52896e850a4@vectordb:5432/analytikul
+      - MODEL_CACHE_DIR=/models
+      - MONGO_URI=mongodb://mongodb:27017/LibreChat
+      - VLLM_BASE_URL=http://192.168.166.182:11434/v1
+      - VLLM_MODEL=qwen2.5-coder:32b
+      - VLLM_API_KEY=ollama
+    volumes:
+      - ./services/memory-service:/app
+      - aibox-embedder:/models
+    depends_on: [vectordb, mongodb]
+  billing-service:
+    container_name: analytikul-billing
+    image: node:24-alpine
+    restart: always
+    working_dir: /app
+    command: sh -c "npm install --omit=dev --no-audit --no-fund && node src/index.js"
+    env_file: .env.aibox
+    environment:
+      - BILLING_PORT=8013
+      - BILLING_PG_URI=postgresql://myuser:d72c96dcf96a53e5283308de40e632a3@vectordb:5432/analytikul
+      - MONGO_URI=mongodb://mongodb:27017/LibreChat
+    volumes: ["./services/billing-service:/app"]
+    depends_on: [vectordb, mongodb]
+  gateway-service:
+    container_name: analytikul-gateway
+    image: python:3.11-slim
+    restart: always
+    working_dir: /app
+    command: sh -c "pip install --no-cache-dir -q fastapi 'uvicorn[standard]' apscheduler requests psycopg2-binary && uvicorn main:app --host 0.0.0.0 --port 8014"
+    env_file: .env.aibox
+    environment:
+      - GATEWAY_PG_URI=postgresql://myuser:d72c96dcf96a53e5283308de40e632a3@vectordb:5432/analytikul
+      - HERMES_ADAPTER_URL=http://hermes-adapter:8001
+    volumes: ["./services/gateway-service:/app"]
+    depends_on: [vectordb, hermes-adapter]
+volumes:
+  aibox-mongo:
+  aibox-embedder:
+  aibox-redis:
+  aibox-hermes:
+  aibox-hermes-gateway:
+  aibox-meili:
+  aibox-pg:
+  aibox-images:
+  aibox-uploads:
+  aibox-logs:

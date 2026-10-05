@@ -20,6 +20,12 @@ import dashboardRoutes from './Dashboard';
 import ShareRoute from './ShareRoute';
 import ChatRoute from './ChatRoute';
 import Search from './Search';
+import Bookmarks from './Bookmarks';
+import McpServers from './McpServers';
+import NotesWorkspace from '~/components/analytikul/notes/NotesWorkspace';
+import DailyLogsList from '~/components/analytikul/daily-logs/DailyLogsList';
+import DailyLogsViewer from '~/components/analytikul/daily-logs/DailyLogsViewer';
+import ModelsWorkspace from '~/components/analytikul/models/ModelsWorkspace';
 import Root from './Root';
 
 const AuthLayout = () => (
@@ -127,12 +133,44 @@ export const router = createBrowserRouter(
               element: <Navigate to="/c/new" replace={true} />,
             },
             {
+              path: 'chat',
+              element: <Navigate to="/c/new" replace={true} />,
+            },
+            {
               path: 'c/:conversationId?',
               element: <ChatRoute />,
             },
             {
               path: 'search',
               element: <Search />,
+            },
+            {
+              path: 'bookmarks',
+              element: <Bookmarks />,
+            },
+            {
+              path: 'mcp',
+              element: <McpServers />,
+            },
+            {
+              path: 'notes',
+              element: <NotesWorkspace />,
+            },
+            {
+              path: 'notes/:noteId',
+              element: <NotesWorkspace />,
+            },
+            {
+              path: 'daily-logs',
+              element: <DailyLogsList />,
+            },
+            {
+              path: 'daily-logs/:date',
+              element: <DailyLogsViewer />,
+            },
+            {
+              path: 'workspace/models',
+              element: <ModelsWorkspace />,
             },
             {
               path: 'prompts',

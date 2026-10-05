@@ -5,6 +5,8 @@ import type { TMessage } from 'librechat-data-provider';
 import type { TMessageProps, TMessageIcon, TMessageChatContext } from '~/common';
 import { cn, getHeaderPrefixForScreenReader, getMessageAriaLabel } from '~/utils';
 import MessageContent from '~/components/Chat/Messages/Content/MessageContent';
+import ResponseChips from '~/components/analytikul/ResponseChips';
+import WhatIDidExpander from '~/components/analytikul/WhatIDidExpander';
 import { useLocalize, useMessageActions, useContentMetadata } from '~/hooks';
 import PlaceholderRow from '~/components/Chat/Messages/ui/PlaceholderRow';
 import SiblingSwitch from '~/components/Chat/Messages/SiblingSwitch';
@@ -258,6 +260,15 @@ const MessageRender = memo(function MessageRender({
                 isLast={isLast}
               />
             </SubRow>
+          )}
+          {!msg.isCreatedByUser && !isSubmitting && Array.isArray(msg.content) && (
+            <WhatIDidExpander parts={msg.content as Parameters<typeof WhatIDidExpander>[0]['parts']} />
+          )}
+          {isLast && !msg.isCreatedByUser && !isSubmitting && (
+            <ResponseChips
+              conversationId={conversation?.conversationId ?? null}
+              parentMessageId={msg.messageId ?? null}
+            />
           )}
         </div>
       </div>

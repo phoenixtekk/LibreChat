@@ -1,12 +1,15 @@
 const { logger } = require('@librechat/data-schemas');
 const { getAppConfig } = require('~/server/services/Config');
+const { applyUserEndpoints } = require('~/server/services/Config/userEndpoints');
 
 const configMiddleware = async (req, res, next) => {
   try {
     const userRole = req.user?.role;
     const userId = req.user?.id;
     const tenantId = req.user?.tenantId;
-    req.config = await getAppConfig({ role: userRole, userId, tenantId });
+    const appConfig = await getAppConfig({ role: userRole, userId, tenantId });
+    // Splice in this user's BYOK custom endpoints (2a) on a per-request clone.
+    req.config = await applyUserEndpoints(appConfig, req);
 
     next();
   } catch (error) {
