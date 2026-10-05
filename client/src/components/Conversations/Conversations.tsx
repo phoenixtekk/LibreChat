@@ -376,12 +376,10 @@ const Conversations: FC<ConversationsProps> = ({
 
   return (
     <div className="relative flex h-full min-h-0 flex-col pb-2 text-sm text-text-primary">
-      <div className="px-3">
-        <ChatsHeader
-          isExpanded={isChatsExpanded}
-          onToggle={() => setIsChatsExpanded(!isChatsExpanded)}
-        />
-      </div>
+      <ChatsHeader
+        isExpanded={isChatsExpanded}
+        onToggle={() => setIsChatsExpanded(!isChatsExpanded)}
+      />
       {isSearchLoading ? (
         <div className="flex flex-1 items-center justify-center">
           <Spinner className="text-text-primary" />

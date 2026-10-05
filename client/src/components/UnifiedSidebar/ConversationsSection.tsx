@@ -106,7 +106,7 @@ const ConversationsSection = memo((props: ConversationsSectionProps) => {
 
   return (
     <div
-      className="flex h-full min-h-0 flex-col overflow-hidden pb-3 pt-2"
+      className="flex h-full min-h-0 flex-col overflow-hidden pb-3"
       role="region"
       aria-label={localize('com_ui_chat_history')}
     >
