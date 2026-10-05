@@ -203,16 +203,7 @@ function AnalytikulSidebar() {
         />
         {hasAccessToBookmarks && (
           <Suspense fallback={null}>
-            <div className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-text-secondary transition hover:bg-surface-hover hover:text-text-primary">
-              <BookmarkNav tags={tags} setTags={setTags} />
-              <button
-                type="button"
-                className="min-w-0 flex-1 truncate text-left"
-                onClick={() => document.getElementById('bookmark-nav-menu-button')?.click()}
-              >
-                {localize('com_ui_bookmarks')}
-              </button>
-            </div>
+            <BookmarkNav tags={tags} setTags={setTags} />
           </Suspense>
         )}
         <NavRow

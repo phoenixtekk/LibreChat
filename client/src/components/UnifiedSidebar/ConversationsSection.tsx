@@ -116,15 +116,13 @@ const ConversationsSection = memo((props: ConversationsSectionProps) => {
         </div>
       )}
       {!search.query && favorites.length > 0 && (
-        <div className="px-2">
-          <SidebarGroup id="favorites" label={localize('com_atk_sb_favorites')}>
-            <FavoritesList
-              isSmallScreen={isSmallScreen}
-              toggleNav={toggleNav}
-              hideMarketplace={hideMarketplace}
-            />
-          </SidebarGroup>
-        </div>
+        <SidebarGroup id="favorites" label={localize('com_atk_sb_favorites')}>
+          <FavoritesList
+            isSmallScreen={isSmallScreen}
+            toggleNav={toggleNav}
+            hideMarketplace={hideMarketplace}
+          />
+        </SidebarGroup>
       )}
       {!search.query && <ProjectsSection toggleNav={toggleNav} isAuthenticated={isAuthenticated} />}
       <div className="flex min-h-0 flex-grow flex-col overflow-hidden">

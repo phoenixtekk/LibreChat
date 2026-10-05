@@ -1,8 +1,9 @@
 import { useState, useId, useMemo, useCallback } from 'react';
 import * as Ariakit from '@ariakit/react';
 import { CrossCircledIcon } from '@radix-ui/react-icons';
-import { DropdownPopup, TooltipAnchor } from '@librechat/client';
+import { DropdownPopup } from '@librechat/client';
 import { BookmarkFilledIcon, BookmarkIcon } from '@radix-ui/react-icons';
+import { Bookmark } from 'lucide-react';
 import type * as t from '~/common';
 import type { FC } from 'react';
 import { useGetConversationTags } from '~/data-provider';
@@ -99,30 +100,26 @@ const BookmarkNav: FC<BookmarkNavProps> = ({ tags, setTags }: BookmarkNavProps) 
       keyPrefix="bookmark-nav-"
       className="z-[125]"
       trigger={
-        <TooltipAnchor
-          description={label}
-          render={
-            <Ariakit.MenuButton
-              id="bookmark-nav-menu-button"
-              aria-label={buttonAriaLabel}
-              aria-pressed={tags.length > 0}
-              className={cn(
-                'flex items-center justify-center',
-                'size-9 border-none text-text-primary hover:bg-accent hover:text-accent-foreground',
-                'rounded-lg border-none p-2 hover:bg-surface-active-alt',
-                'outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-black dark:focus-visible:ring-white',
-                isMenuOpen ? 'bg-surface-hover' : '',
-              )}
-              data-testid="bookmark-menu"
-            >
-              {tags.length > 0 ? (
-                <BookmarkFilledIcon aria-hidden="true" className="icon-lg text-text-primary" />
-              ) : (
-                <BookmarkIcon aria-hidden="true" className="icon-lg text-text-primary" />
-              )}
-            </Ariakit.MenuButton>
-          }
-        />
+        <Ariakit.MenuButton
+          id="bookmark-nav-menu-button"
+          aria-label={buttonAriaLabel}
+          aria-pressed={tags.length > 0}
+          className={cn(
+            'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-text-secondary transition hover:bg-surface-hover hover:text-text-primary',
+            'outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-black dark:focus-visible:ring-white',
+            isMenuOpen || tags.length > 0 ? 'bg-surface-active text-text-primary' : '',
+          )}
+          data-testid="bookmark-menu"
+        >
+          <Bookmark
+            size={16}
+            strokeWidth={2}
+            aria-hidden="true"
+            fill={tags.length > 0 ? 'currentColor' : 'none'}
+            className="shrink-0"
+          />
+          <span className="truncate">{label}</span>
+        </Ariakit.MenuButton>
       }
       items={dropdownItems}
     />
