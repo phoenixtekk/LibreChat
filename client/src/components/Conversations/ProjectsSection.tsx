@@ -501,20 +501,13 @@ const ProjectsSection = ({ toggleNav, isAuthenticated }: ProjectsSectionProps) =
             setStoredExpanded(!isExpanded);
             setHasToggledSection(true);
           }}
-          className="flex min-w-0 flex-1 items-center justify-between gap-1 rounded-lg px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-text-tertiary outline-none transition hover:text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-black dark:focus-visible:ring-white"
+          className="flex min-w-0 flex-1 items-center rounded-lg px-3 py-1.5 text-left text-[11px] font-semibold uppercase tracking-[0.1em] text-text-tertiary outline-none transition hover:text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-black dark:focus-visible:ring-white"
           type="button"
           aria-expanded={isExpanded}
         >
           <span className="select-none truncate">{localize('com_ui_projects')}</span>
-          <ChevronDown
-            className={cn(
-              'h-3.5 w-3.5 shrink-0 transition-transform duration-200',
-              isExpanded ? '' : '-rotate-90',
-            )}
-            aria-hidden="true"
-          />
         </button>
-        <div className="flex items-center opacity-0 transition-opacity group-focus-within/phead:opacity-100 group-hover/phead:opacity-100">
+        <div className="hidden items-center group-focus-within/phead:flex group-hover/phead:flex">
           <TooltipAnchor
             description={localize('com_ui_all_projects')}
             render={
@@ -542,6 +535,23 @@ const ProjectsSection = ({ toggleNav, isAuthenticated }: ProjectsSectionProps) =
             }
           />
         </div>
+        <button
+          type="button"
+          aria-label={localize('com_ui_projects')}
+          onClick={() => {
+            setStoredExpanded(!isExpanded);
+            setHasToggledSection(true);
+          }}
+          className="shrink-0 rounded-lg p-1 text-text-tertiary outline-none transition hover:text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-black dark:focus-visible:ring-white"
+        >
+          <ChevronDown
+            className={cn(
+              'h-3.5 w-3.5 shrink-0 transition-transform duration-200',
+              isExpanded ? '' : '-rotate-90',
+            )}
+            aria-hidden="true"
+          />
+        </button>
       </div>
 
       {isExpanded && (
