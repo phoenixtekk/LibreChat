@@ -44,18 +44,24 @@ export function SidebarGroupHeader({
     <div className="mt-1 flex items-center gap-0.5 pr-1">
       <button
         type="button"
-        className="flex min-w-0 flex-1 items-center justify-between rounded-lg px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-text-tertiary transition hover:text-text-secondary"
+        className="flex min-w-0 flex-1 items-center rounded-lg px-3 py-1.5 text-left text-[11px] font-semibold uppercase tracking-[0.1em] text-text-tertiary transition hover:text-text-secondary"
         aria-expanded={open}
         onClick={onToggle}
       >
         <span className="truncate">{label}</span>
+      </button>
+      {trailing}
+      <button
+        type="button"
+        aria-label={label}
+        onClick={onToggle}
+        className="shrink-0 rounded-lg p-1 text-text-tertiary transition hover:text-text-secondary"
+      >
         <ChevronDown
-          size={13}
-          className={cn('shrink-0 transition-transform', open ? '' : '-rotate-90')}
+          className={cn('h-3.5 w-3.5 shrink-0 transition-transform', open ? '' : '-rotate-90')}
           aria-hidden="true"
         />
       </button>
-      {trailing}
     </div>
   );
 }
