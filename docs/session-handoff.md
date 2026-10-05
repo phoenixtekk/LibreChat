@@ -86,6 +86,14 @@ Deploy = copy files into `/opt/analytikul` → `docker build -t analytikul-herme
   correct. Verified live: `open_db` → OPEN_OK, 0 "unable to open" errors in recent logs. (Benign residual:
   a one-time SQLite WAL-reset *warning* — it falls back to journal_mode=DELETE; upstream recommends
   SQLite ≥3.51.3, not a blocker.) The Dockerfile change applies on the next hermes image rebuild.
+- **✅ Desktop app distribution FIXED (2026-10-04).** Rebuilt `services/coder-desktop` under the new
+  name (`npm run dist` → `dist/win-unpacked/Analytikul AI.exe`), zipped → `Analytikul-AI-Desktop-Windows.zip`
+  (118 MB), uploaded to the persistent prod volume `/srv/lc-images/` (→ served at
+  `https://analytikul.ai/images/Analytikul-AI-Desktop-Windows.zip`, 200/206 `application/zip`,
+  secureImageLinks off so it's public). Landing "Download for Windows" button repointed `/assets/`→`/images/`
+  (the old `/assets/` link was dead; 118 MB must not bake into the client bundle). App rebuilt+recreated;
+  live landing verified. ⚠ The zip is a **manual volume upload, NOT in git/image** — to update: rebuild in
+  `coder-desktop`, re-zip, re-upload to `/srv/lc-images/`. `dist/` is gitignored.
 - **Remaining (non-blocking):** (a) in-browser admin smoke: open the Bots tab (health→reachable, roster,
   create a bot) + one agent turn to confirm metering E2E. (b) optimize: bake `hermes_cli/web_dist` in the
   Dockerfile (avoid first-run web build).
