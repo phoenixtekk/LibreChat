@@ -88,28 +88,30 @@ export default function AnnotationsTree() {
     <>
       <button
         type="button"
-        className="flex w-full items-center justify-between rounded-2xl px-2.5 py-2 text-sm transition hover:bg-surface-hover"
+        className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm text-text-secondary transition hover:bg-surface-hover hover:text-text-primary"
         aria-expanded={open}
         onClick={() => setOpen((prev) => !prev)}
       >
-        <span className="flex items-center space-x-3">
+        <span className="flex items-center gap-3">
           <Highlighter size={16} strokeWidth={2} aria-hidden="true" />
-          <span className="translate-y-[0.5px]">{localize('com_atk_sb_annotations')}</span>
+          <span>{localize('com_atk_sb_annotations')}</span>
         </span>
         <ChevronDown
-          size={14}
-          className={cn('transition-transform', open ? 'rotate-180' : '')}
+          size={13}
+          className={cn('transition-transform', open ? '' : '-rotate-90')}
           aria-hidden="true"
         />
       </button>
-      {open && (
-        <div className="ml-3 mt-[1px] flex flex-col border-s border-border-light pl-1">
-          {!loaded ? null : items.length === 0 ? (
+      {open && loaded && (
+        <div className="ml-[18px] mt-px flex flex-col gap-px border-s border-border-light pl-2">
+          {items.length === 0 ? (
             <div className="px-2.5 py-1.5 text-xs text-text-tertiary">
               {localize('com_atk_sb_annotations_empty')}
             </div>
           ) : (
-            items.map((c) => <AnnotationConversationRow key={c.conversationId} conv={c} onOpen={onOpen} />)
+            items.map((c) => (
+              <AnnotationConversationRow key={c.conversationId} conv={c} onOpen={onOpen} />
+            ))
           )}
         </div>
       )}
